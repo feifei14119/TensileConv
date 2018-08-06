@@ -62,7 +62,7 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>C:\Users\feiw\source\repos\RocmRemote\LinuxInclude\Linux;C:\Users\feiw\source\repos\RocmRemote\LinuxInclude\OclInc\include;C:\Users\feiw\source\repos\RocmRemote\LinuxInculde\HipInc;$(IncludePath)</IncludePath>
+    <IncludePath>C:\Users\feiw\source\repos\conv\LinuxInclude\Linux;C:\Users\feiw\source\repos\conv\LinuxInclude\OclInc\include;C:\Users\feiw\source\repos\conv\LinuxInculde\HipInc;$(IncludePath)</IncludePath>
     <RemoteCCompileToolExe>g++</RemoteCCompileToolExe>
     <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
     <RemoteLdToolExe>g++</RemoteLdToolExe>
