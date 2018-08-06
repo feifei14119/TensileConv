@@ -1,0 +1,154 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="BasicClass.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="ProblemControl.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="RuntimeControl.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
+    <ClInclude Include="ConvFwd1x1.h">
+      <Filter>problems\tensile</Filter>
+    </ClInclude>
+    <ClInclude Include="helper_hip.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="helper_cl.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="VectorAdd.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="helper.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\BoltAMPUtil.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\BoltCLUtil.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\CLUtil.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\OpenCVUtil.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\SDKBitMap.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\SDKFile.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\SDKThread.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="utils\AMDCL2\SDKUtil\SDKUtil.hpp">
+      <Filter>Includes\utils\amdcl2</Filter>
+    </ClInclude>
+    <ClInclude Include="FlatInstruction.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="GlobalInstruction.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="DsInstruction.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="TestProblem.h">
+      <Filter>problems\test</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="RuntimeControl.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Includes">
+      <UniqueIdentifier>{29523e91-5957-45f4-b6c0-2b28ec3df1a1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="problems">
+      <UniqueIdentifier>{b317f902-cc3f-4e96-aed3-cba511c680f8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="problems\sample">
+      <UniqueIdentifier>{301d4113-91d4-41c9-b8e9-48f4d7cb5762}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="problems\sample\kernels">
+      <UniqueIdentifier>{0e3f67dd-253f-4bf6-baff-c1fad8f57c56}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="problems\tensile">
+      <UniqueIdentifier>{67f684ed-ac72-4437-9ade-aa62128dc6b7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="problems\tensile\kernels">
+      <UniqueIdentifier>{03ef0283-3e71-4cfc-a5a1-3f72f7a318a8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="util">
+      <UniqueIdentifier>{9821c96d-a183-48ed-bb1d-aad9e1f80d74}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="util\asmTool">
+      <UniqueIdentifier>{d36ee4ff-ece6-40a8-bb59-6919ddd8c246}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="problems\test">
+      <UniqueIdentifier>{0c151de4-3aab-47aa-90dc-d0defb888fc2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="problems\test\kernels">
+      <UniqueIdentifier>{f19488d0-d378-43d2-835d-987518c6da72}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\utils">
+      <UniqueIdentifier>{2ae1397a-fd8d-410d-966f-187768df57af}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Includes\utils\amdcl2">
+      <UniqueIdentifier>{dd00e094-454f-48db-b608-0b85689807b6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Kernels\gpr_alloc.inc">
+      <Filter>util\asmTool</Filter>
+    </None>
+    <None Include="Kernels\inst_wrappers.inc">
+      <Filter>util\asmTool</Filter>
+    </None>
+    <None Include="Kernels\common.inc">
+      <Filter>util\asmTool</Filter>
+    </None>
+    <None Include="Kernels\conv_sizes.inc">
+      <Filter>util\asmTool</Filter>
+    </None>
+    <None Include="Kernels\VectorAdd.cl">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\VectorAdd.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\FlatInstruction.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\GlobalInstruction.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\DsInstruction.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\Test.cl">
+      <Filter>problems\test\kernels</Filter>
+    </None>
+    <None Include="Kernels\MIOpenConv1x1J1.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\MIOpenConv1x1J1_256thread.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\MIOpenConv1x1J1_offset.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+  </ItemGroup>
+</Project>
