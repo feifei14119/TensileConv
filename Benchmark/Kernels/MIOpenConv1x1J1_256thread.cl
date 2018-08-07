@@ -90,7 +90,7 @@
 #define MLO_OUT_BATCH_STRIDE (H_out * W_out * K)
 #define MLO_OUT_CHANNEL_STRIDE (H_out * W_out)
 
-#define FIXED_WORKGROUP_SIZE 256
+#define FIXED_WORKGROUP_SIZE 64
 
 #define MLO_N_OUT_GROUPS (MLO_N_OUTPUTS / MLO_N_LCL_OUT_MAPS)
 
@@ -178,8 +178,8 @@ MIOpenConv1x1(const __global _FLOAT* __restrict in_ptr,
     uint local_id0 = get_local_id(0);
     uint grp_id0   = get_group_id(0);
 
-    uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
-    uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS);
+	uint out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
+    uint grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
 
 #if MLO_CHEAT_SHADER_COMPILER == 1
     uint grp_id2 = get_group_id(2);
@@ -195,7 +195,7 @@ MIOpenConv1x1(const __global _FLOAT* __restrict in_ptr,
     uint wei_off     =                                   out_id * MLO_WEI_CHANNEL_STRIDE      ;
 	uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
 
-#if 0
+#if 1
     _FLOAT accum[MLO_N_LCL_OUT_MAPS];
     _FLOAT weights[MLO_N_LCL_IN_MAPS_ONCE];
     _FLOAT dat[MLO_N_LCL_IN_MAPS_ONCE];
@@ -387,19 +387,21 @@ MIOpenConv1x1(const __global _FLOAT* __restrict in_ptr,
     for(uint o = 0; o < MLO_N_LCL_OUT_MAPS; ++o)
     {
 #if(MLO_N_LCL_IN_MAPS == MLO_N_INPUTS)
-        *q = accum[o];
+		*q = accum[o];
         q += MLO_OUT_CHANNEL_STRIDE;
 #else
         AtomicAdd(q, accum[o]);
         q += MLO_OUT_CHANNEL_STRIDE;
 #endif
     }
-#endif
-	__global _FLOAT* q = out_ptr + gbl_out_off;
 
-	for (uint o = 0; o < MLO_N_LCL_OUT_MAPS; ++o)
+#else
+	__global _FLOAT* q = out_ptr + grp_id0 * 256 + local_id0;
+
+	//for (uint o = 0; o < MLO_N_LCL_OUT_MAPS; ++o)
 	{
-		*q = gbl_in_off*1.0f;
-		q += MLO_OUT_CHANNEL_STRIDE;
+		*q = local_id0;
+		//q += MLO_OUT_CHANNEL_STRIDE;
 	}
+#endif
 }

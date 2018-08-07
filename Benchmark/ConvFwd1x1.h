@@ -82,7 +82,7 @@ private:
 	int DoFetch, DoCalcu;
 	cl_float relu;
 	int *batch_id_buff;
-	int *out_id_buff;
+	int *wei_id_buff;
 	int *pos_id_buff;
 
 public:
@@ -111,9 +111,9 @@ public:
 		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;	solutionCfg->KernelArgus->push_back(d_wei);
 		d_out.size = sizeof(cl_mem);	d_out.isVal = false;	solutionCfg->KernelArgus->push_back(d_out);
 
-		d_in_off.size = sizeof(cl_mem);		d_in_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_in_off);
-		d_wei_off.size = sizeof(cl_mem);	d_wei_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_wei_off);
-		d_out_off.size = sizeof(cl_mem);	d_out_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_out_off);
+		//d_in_off.size = sizeof(cl_mem);		d_in_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_in_off);
+		//d_wei_off.size = sizeof(cl_mem);	d_wei_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_wei_off);
+		//d_out_off.size = sizeof(cl_mem);	d_out_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_out_off);
 		
 
 /*
@@ -322,7 +322,6 @@ public:
 			}
 			n_out_pix_tiles = N_LCL_OUT_MAPS;
 
-			N_LCL_OUT_MAPS /= 2; //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// ---------------
 			int n_in_data_tiles = 2048;
 			int N_LCL_IN_MAPS = n_in_data_tiles;
@@ -382,12 +381,12 @@ public:
 		// ======================================================================
 		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE;// *4;//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE*4;//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			solutionCfg->l_wk1 = 1;
 			solutionCfg->l_wk2 = 1;
-			//solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
-			align = ((extProblem->W*extProblem->H + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
-			solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS * extProblem->N;
+			solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
+			//align = ((extProblem->W*extProblem->H + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+			//solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS * extProblem->N;
 			solutionCfg->g_wk1 = 1;
 			solutionCfg->g_wk2 = 1;
 		}
@@ -426,7 +425,7 @@ public:
 		{
 			solutionCfg->KernelName = "MIOpenConv1x1";
 			//solutionCfg->KernelFile = "MIOpenConv1x1J1.cl";
-			solutionCfg->KernelFile = "MIOpenConv1x1J1_offset.cl";//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			solutionCfg->KernelFile = "MIOpenConv1x1J1_256thread.cl";//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
 		}
 		else if (solutionCfg->ConfigName == "SQC")
@@ -450,7 +449,7 @@ public:
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 
-		generateWorkLoad();
+		generateWorkLoad2();
 		printWorkLoad();
 		return E_ReturnState::SUCCESS;
 	}
@@ -462,7 +461,7 @@ public:
 
 		int group_num = solutionCfg->g_wk0 / solutionCfg->l_wk0;
 		batch_id_buff = (int*)HstMalloc(group_num * sizeof(int));
-		out_id_buff = (int*)HstMalloc(group_num * sizeof(int));
+		wei_id_buff = (int*)HstMalloc(group_num * sizeof(int));
 		pos_id_buff = (int*)HstMalloc(group_num * sizeof(int));
 
 		uint local_id0;
@@ -509,17 +508,36 @@ public:
 		int cu_fake_id;
 		int cu_id, se_id;
 		int group_left;
+
+		int hang_id, lie_id;
+		int wei_per_block = 4;		// 每块有多少列计算相同的input, 不同的weight
+		int block_num_per_cu = groups_per_cu / wei_per_block;	// 每个CU上有多少个块
+		int block_num_per_cu_ceil = (groups_per_cu + wei_per_block- 1) / wei_per_block;	// 每个CU上有多少个块
+		int block_id;			// 当前CU上第几个块
+		int wei_cu_num_pair = k_groups / block_num_per_cu;	// 所有的输出k会分到几个CU对儿上
+		int cu_pair_block_id;		// CU对儿的ID
+		int cu_pair_id;
+		int serial_id;	// group 按照第一个CU开始的连续序号
+		int conv_group_num = wei_per_block * in_gruops;
+
 		for (int grp = 0; grp < group_num; grp++)
 		{
 			se_id = grp % SE_NUM;
 			cu_id = grp % CU_NUM / SE_NUM;
+
+			hang_id = CU_PER_SE * se_id + cu_id;
+			lie_id = grp / CU_NUM;
+			block_id = lie_id / wei_per_block;
+
 			cu_fake_id = CU_PER_SE * se_id + cu_id;
 
 			round_id = grp / CU_NUM;
 			round_left = grp % CU_NUM;
 			group_left = groups_per_cu % k_groups;
+			cu_pair_block_id = hang_id / 2 / wei_cu_num_pair;
+			cu_pair_id = hang_id / 2;
 
-			if ((groups_per_cu - round_id) <= group_left) 
+			/*if ((groups_per_cu - round_id) <= group_left) 
 			{
 				//wei_id = cu_fake_id / 2 % k_groups;
 				//in_id = cu_fake_id / k_groups / 2 * 2 + cu_fake_id % 2 + group_id_last_round;
@@ -533,22 +551,81 @@ public:
 			{
 				wei_id = round_id % k_groups;
 				in_id = round_id / k_groups + pix_groups_per_cu * cu_fake_id;
-			}
+				in_id = (block_num_per_cu * (cu_pair_id % wei_cu_num_pair) + block_id);
+			}*/
+
+			serial_id = groups_per_cu * hang_id + lie_id;
+			block_id = serial_id / wei_per_block;
+			wei_id = block_id % pix_groups;
+			in_id = (block_num_per_cu_ceil *wei_per_block* hang_id +lie_id)/ wei_per_block;
 
 			batch_id = in_id / pix_groups;
 			pos_id = in_id % pix_groups;
 			out_id = wei_id;
 			
-			batch_id_buff[grp] = batch_id;
-			out_id_buff[grp] = out_id;
-			pos_id_buff[grp] = pos_id;
+			batch_id_buff[grp] = in_id;
+			wei_id_buff[grp] = in_id;
+			pos_id_buff[grp] = lie_id;
 		}
 
 
 		Copy2Dev((cl_mem)(d_in_off.ptr), batch_id_buff, group_num * sizeof(uint));
-		Copy2Dev((cl_mem)(d_wei_off.ptr), out_id_buff, group_num * sizeof(uint));
+		Copy2Dev((cl_mem)(d_wei_off.ptr), wei_id_buff, group_num * sizeof(uint));
 		Copy2Dev((cl_mem)(d_out_off.ptr), pos_id_buff, group_num * sizeof(uint));
 	}
+
+	void generateWorkLoad2()
+	{
+		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+
+		int group_num = solutionCfg->g_wk0 / solutionCfg->l_wk0;
+		batch_id_buff = (int*)HstMalloc(group_num * sizeof(int));
+		wei_id_buff = (int*)HstMalloc(group_num * sizeof(int));
+		pos_id_buff = (int*)HstMalloc(group_num * sizeof(int));
+
+		int local_id0;
+		int grp_id0;
+		 
+		int out_grp_block;
+		int grp_id0_faked;
+
+		int pos;
+		int batch_id;
+		int out_id;
+
+		int gbl_in_off;
+		int wei_off;
+		int gbl_out_off; 
+
+		int MLO_N_OUT_GROUPS = extSolution->k_out_group;
+		uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+		uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
+		uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
+		uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
+		uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
+		uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+
+		for (int grp = 0; grp < group_num; grp++)
+		{
+			local_id0 = 64;
+			grp_id0 = grp;
+
+			out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
+			grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
+			
+			pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+			batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+			out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+
+			gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
+			wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
+			gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
+
+			batch_id_buff[grp] = pos; 
+			wei_id_buff[grp] = out_id;
+		}
+	} 
 
 	void printWorkLoad()
 	{
@@ -611,8 +688,8 @@ public:
 
 				while (simuGrpIdx < group_num)
 				{
-					printf("(%02d/%02d/%02d), ", 
-						batch_id_buff[simuGrpIdx], pos_id_buff[simuGrpIdx], out_id_buff[simuGrpIdx]);
+					printf("(%02d/%02d),", 
+						batch_id_buff[simuGrpIdx], wei_id_buff[simuGrpIdx], pos_id_buff[simuGrpIdx]);
 					simuGrpIdx += 64;
 				}
 				printf("\n");
@@ -1906,16 +1983,16 @@ public:
 
 		for (int i = 0; i < exCfg->size_in; i++)
 		{
-			//exCfg->h_in[i] = 1;
+			exCfg->h_in[i] = 1;
 			//exCfg->h_in[i] = (float)(i % 7) + 1.0f;
-			exCfg->h_in[i] = (float)(rand() % 100 - 50);
+			//exCfg->h_in[i] = (float)(rand() % 100 - 50);
 			//exCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exCfg->size_wei; i++)
 		{
-			//exCfg->h_wei[i] = 1;
+			exCfg->h_wei[i] = 1;
 			//exCfg->h_wei[i] = (float)(i % 13) + 1.0f;
-			exCfg->h_wei[i] = (float)(rand() % 100 - 50);
+			//exCfg->h_wei[i] = (float)(rand() % 100 - 50);
 			//exCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exCfg->size_out; i++)
@@ -2011,7 +2088,7 @@ public:
 		printf("verify success.\n");
 		return E_ReturnState::SUCCESS;
 	}
-
+	 
 	/************************************************************************/
 	/* 释放                                                                  */
 	/************************************************************************/
@@ -2055,4 +2132,3 @@ public:
 		}
 	}
 };
- 
