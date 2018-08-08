@@ -112,9 +112,10 @@ public:
 
 			INFO("initialize device.");						InitDev();
 			INFO("search kernel parameters.");
-			if (solutionCfg->KernelSearchSpace.Search() == E_ReturnState::FAIL)
+			if (solutionCfg->KernelSearchSpace.SearchTemp() == E_ReturnState::FAIL)
 			{
 				INFO("search kernel parameters finished.");
+				ReportProblemPerformence();
 				return E_ReturnState::SUCCESS;
 			}
 			INFO("generate source, compiler, worksize.");	GenerateSolution();
@@ -234,6 +235,13 @@ public:
 		printf("best performence: %.1f (Gflops) = %.1f%%.\n", solutionCfg->BestScore.Flops * 1e-9, solutionCfg->BestScore.Performence * 100);
 		printf("average elapsed time: %.3f (us).\n", solutionCfg->AverageScore.ElapsedTime * 1e6);
 		printf("average performence: %.1f (Gflops) = %.1f%%.\n", solutionCfg->AverageScore.Flops * 1e-9, solutionCfg->AverageScore.Performence * 100);
+
+
+		if ((ProblemBestTime < 0) || (ProblemBestTime > solutionCfg->AverageScore.ElapsedTime))
+		{
+			ProblemBestTime = solutionCfg->AverageScore.ElapsedTime;
+			ProblemBestPerformence = solutionCfg->AverageScore.Performence;
+		}
 	}
 	
 	virtual E_ReturnState InitDev() = 0;
@@ -241,11 +249,19 @@ public:
 	virtual E_ReturnState GenerateSolution() = 0;
 	virtual E_ReturnState GetBackResult() = 0;
 	virtual void ReleaseDev() = 0;
+	virtual void ReportProblemPerformence()
+	{
+		printf("please report best perfomence.\n");
+	}
 
 	RuntimeCtrl * runtime;
 	T_ProblemConfig * problemCfg;
 	T_SolutionConfig * solutionCfg;
 	std::list<T_SolutionConfig*> *SolutionConfigList;
+
+	public:
+		double ProblemBestTime;
+		double ProblemBestPerformence;
 };
 
 /************************************************************************/
@@ -302,7 +318,7 @@ public:
 				INFO("search problem parameters finished.");
 				break;
 			}
-
+			Solution->ProblemBestTime = -1;
 			INFO("initialize host.");			InitHost();
 			INFO("run host calculate.");		Host();
 			INFO("solve this problem.");		Solution->RunSolution(problemCfg);

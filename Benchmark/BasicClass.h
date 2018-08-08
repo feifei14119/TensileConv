@@ -350,21 +350,49 @@ public:
 	{
 		T_SearchParam * currParam;
 		currParam = &((*searchParams)[searchParamIdx]);
-
-		currParam->CurrIdx = searchValIdx;
-		currParam->CurrValue = currParam->ValueArray[searchValIdx];
-
-		searchValIdx++;
-		if (searchValIdx > currParam->ValueArray.size())
+		
+		if (searchValIdx >= currParam->ValueArray.size())
 		{
 			searchValIdx = 0;
 			searchParamIdx++;
+			currParam = &((*searchParams)[searchParamIdx]);
 
 			if (searchParamIdx >= searchParams->size())
 			{
 				return E_ReturnState::FAIL;
 			}
 		}
+
+		currParam->CurrIdx = searchValIdx;
+		currParam->CurrValue = currParam->ValueArray[searchValIdx];
+		searchValIdx++;
+
+		return E_ReturnState::SUCCESS;
+	}
+
+	int parValIdx0 = 0, parValIdx1 = 0;
+	E_ReturnState SearchTemp()
+	{
+		T_SearchParam * par0;
+		T_SearchParam * par1;
+		par0 = &((*searchParams)[0]);
+		par1 = &((*searchParams)[1]);
+
+		if (parValIdx1 >= par1->ValueArray.size())
+		{
+			parValIdx0++;
+			parValIdx1 = 0;
+			if (parValIdx0 >= par0->ValueArray.size())
+			{
+				return E_ReturnState::FAIL;
+			}
+		}
+		par0->CurrIdx = parValIdx0;
+		par0->CurrValue = par0->ValueArray[parValIdx0];
+		par1->CurrIdx = parValIdx1;
+		par1->CurrValue = par1->ValueArray[parValIdx1];
+
+		parValIdx1++;
 
 		return E_ReturnState::SUCCESS;
 	}

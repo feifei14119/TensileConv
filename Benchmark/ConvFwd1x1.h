@@ -231,21 +231,42 @@ public:
 		// 生成搜索空间
 		searchParam = new T_SearchParam();
 		searchParam->Name = "k_out_maps";
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(4);
-		//searchParam->ValueArray.push_back(8);
-		searchParam->ValueArray.push_back(16);
-		//searchParam->ValueArray.push_back(32);
-
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
-		
-		searchParam->Name = "k_out_maps";
 		searchParam->ValueArray.push_back(2);
+		searchParam->ValueArray.push_back(4);
+		searchParam->ValueArray.push_back(8);
+		searchParam->ValueArray.push_back(16);
+		searchParam->ValueArray.push_back(32);
+		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+		//--------------------------------
+		searchParam = new T_SearchParam();
+		searchParam->Name = "group_size";
+		//searchParam->ValueArray.push_back(64 * 1);
+		//searchParam->ValueArray.push_back(64 * 2);
+		//searchParam->ValueArray.push_back(64 * 3);
+		//searchParam->ValueArray.push_back(64 * 4);
+		//searchParam->ValueArray.push_back(64 * 5);
+		//searchParam->ValueArray.push_back(64 * 6);
+		//searchParam->ValueArray.push_back(64 * 7);
+		//searchParam->ValueArray.push_back(64 * 8);
+		//searchParam->ValueArray.push_back(64 * 9);
+		//searchParam->ValueArray.push_back(64 * 10);
+		//searchParam->ValueArray.push_back(64 * 11);
+		//searchParam->ValueArray.push_back(64 * 12);
+		//searchParam->ValueArray.push_back(64 * 13);
+		//searchParam->ValueArray.push_back(64 * 14);
+		//searchParam->ValueArray.push_back(64 * 15);
+		//searchParam->ValueArray.push_back(64 * 16);
+		searchParam->ValueArray.push_back(64);
+		searchParam->ValueArray.push_back(128);
+		searchParam->ValueArray.push_back(256);
+		searchParam->ValueArray.push_back(512);
+		//searchParam->ValueArray.push_back(1024);
+		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 		// ----------------------------------------------------------------------
 		// 添加solution
 		SolutionConfigList->push_back(solutionConfig);
 
-		return E_ReturnState::SUCCESS;
+		return E_ReturnState::SUCCESS; 
 	}
 
 	/************************************************************************/
@@ -276,16 +297,25 @@ public:
 				{
 					extSolution->k_out_maps = param->CurrValue;
 				}
+				if (param->Name == "group_size")
+				{
+					extSolution->group_size = param->CurrValue;
+				}
 			}
 
 			if (extSolution->k_out_maps == 0)
 			{
-				extSolution->k_out_maps = 16;
+				extSolution->k_out_maps = 8;
+			}
+			if (extSolution->group_size == 0)
+			{
+				extSolution->group_size = 64;
 			}
 
 			printf("----------------------------------------------------------------------\n");
 			printf("Kernel Param:\n");
 			printf("	k_out_maps=[%d]\n", extSolution->k_out_maps);
+			printf("	group_size=[%d]\n", extSolution->group_size);
 			printf("----------------------------------------------------------------------\n");
 
 			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
@@ -296,7 +326,6 @@ public:
 			extSolution->out_pix_tile = 1;
 			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
 			extSolution->in_pix_maps = 64;
-			extSolution->group_size = FIXED_WORKGROUP_SIZE*2;
 			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
 			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
 		}
@@ -449,10 +478,27 @@ public:
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 
-		generateWorkLoad2();
-		printWorkLoad();
+		//generateWorkLoad2();
+		//printWorkLoad();
 		return E_ReturnState::SUCCESS;
 	}
+
+	void ReportProblemPerformence()
+	{
+		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+
+		printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", extProblem->H, extProblem->W, extProblem->C, extProblem->K, extProblem->N);
+
+		printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
+		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
+	}
+
+
+	/*E_ReturnState LaunchSolution()
+	{
+		return E_ReturnState::SUCCESS;
+	}*/
 
 	void generateWorkLoad()
 	{
@@ -1128,7 +1174,7 @@ public:
 		asmKernelStr.append("        SymbolName: " + solutionCfg->KernelName + ",\n");
 		asmKernelStr.append("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],\n");
 		asmKernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + std::to_string(solutionCfg->l_wk0) + ", 1, 1 ] }\n");
-		asmKernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 512 }\n");
+		asmKernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 1024 }\n");
 		asmKernelStr.append("        Args:\n");
 		asmKernelStr.append("        - { Name: d_in  , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
 		asmKernelStr.append("        - { Name: d_wei , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
@@ -1674,7 +1720,7 @@ public:
 		//searchParam->ValueArray.push_back(1);
 		//searchParam->ValueArray.push_back(2);
 		//searchParam->ValueArray.push_back(4);
-		//searchParam->ValueArray.push_back(8);
+		searchParam->ValueArray.push_back(8);
 		searchParam->ValueArray.push_back(16);
 		//searchParam->ValueArray.push_back(32);
 
@@ -1683,11 +1729,11 @@ public:
 			// ----------------------------------------------------------------------
 			// problem config 1：
 			extProblemConfig = new T_ExtConvFwd1x1ProblemConfig();
-			//extProblemConfig->W = 14;		extProblemConfig->H = 14;
-			//extProblemConfig->C = 1024;		extProblemConfig->K = 256;
+			//extProblemConfig->W = 7;		extProblemConfig->H = 7;
+			//extProblemConfig->C = 832;		extProblemConfig->K = 256;
 
 			extProblemConfig->W = 28;		extProblemConfig->H = 28;
-			extProblemConfig->C = 192;		extProblemConfig->K = 64;
+			extProblemConfig->C = 512;		extProblemConfig->K = 1024;
 
 			problemConfig = new T_ProblemConfig();
 			problemConfig->ConfigName = "Conv1x1 WHCK=[14*1024*256]";
@@ -1748,7 +1794,7 @@ public:
 
 			ProblemConfigList->push_back(problemConfig);
 		} // 7*7 
-
+		
 		// 14*14
 		{
 			// ----------------------------------------------------------------------
@@ -1800,7 +1846,7 @@ public:
 
 			ProblemConfigList->push_back(problemConfig);
 		} // 14*14
-		
+
 		// 28*28
 		{
 			// ----------------------------------------------------------------------
@@ -1868,7 +1914,7 @@ public:
 
 			ProblemConfigList->push_back(problemConfig); 
 		}		
-	
+
 		// 56*56
 		{
 			// ----------------------------------------------------------------------
@@ -1897,7 +1943,7 @@ public:
 
 			ProblemConfigList->push_back(problemConfig);
 		}
-/*
+
 		// 112*112
 		{
 			// ----------------------------------------------------------------------
@@ -2019,7 +2065,7 @@ public:
 	/************************************************************************/
 	E_ReturnState Host()
 	{
-		//return E_ReturnState::SUCCESS;
+		return E_ReturnState::SUCCESS;
 		T_ExtConvFwd1x1ProblemConfig * exCfg = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 
 		int u = 1; // stride height
