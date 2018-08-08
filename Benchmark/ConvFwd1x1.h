@@ -173,7 +173,7 @@ public:
 
 		// ----------------------------------------------------------------------
 		// Ìí¼Ósolution
-		SolutionConfigList->push_back(solutionConfig);
+		//SolutionConfigList->push_back(solutionConfig);
 
 		// ======================================================================
 		// solution config 2: MIOpenAsm
@@ -243,7 +243,7 @@ public:
 		searchParam->ValueArray.push_back(2);
 		// ----------------------------------------------------------------------
 		// Ìí¼Ósolution
-		//SolutionConfigList->push_back(solutionConfig);
+		SolutionConfigList->push_back(solutionConfig);
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -296,9 +296,9 @@ public:
 			extSolution->out_pix_tile = 1;
 			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
 			extSolution->in_pix_maps = 64;
-			extSolution->group_size = FIXED_WORKGROUP_SIZE;
+			extSolution->group_size = FIXED_WORKGROUP_SIZE*2;
 			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
-			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + extSolution->group_size - 1) / extSolution->group_size) * extSolution->group_size;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
 		}
 
 		// ======================================================================
@@ -974,8 +974,14 @@ public:
 		defineConst("MLO_N_IN_GROUPS_DIV_MASK", "0x%X", getModMask(extSolution->c_in_group));
 		defineConst("MLO_N_LCL_IN_MAPS_ONCE", "%d", extSolution->c_in_maps_once);
 		asmKernelStr.append("\n");
-		defineConst("FIXED_WORKGROUP_SIZE", "%d", extSolution->group_size);
-		defineConst("FIXED_WORKGROUP_SIZE_LOG2", "%d", getLog2(extSolution->group_size));
+		defineConst("IN_PIXEL_PER_GROUP", "%d", 64);
+		defineConst("IN_PIXEL_PER_GROUP_LOG2", "%d", getLog2(64));
+		defineConst("IN_PIXEL_PER_GROUP_MOD_MASK", "%d", getModMask(64));
+		defineConst("WORKGROUP_SIZE", "%d", extSolution->group_size);
+		defineConst("WORKGROUP_SIZE_LOG2", "%d", getLog2(extSolution->group_size));
+		defineConst("OUT_BLOCKS_PER_GROUP", "%d", extSolution->group_size / 64);
+		defineConst("OUT_BLOCKS_PER_GROUP_LOG2", "%d", getLog2(extSolution->group_size / 64));
+
 		defineConst("CLOOP0", "%d", extSolution->loop / 2);
 		asmKernelStr.append("\n");
 	}
@@ -1442,24 +1448,26 @@ public:
 		asmKernelStr.append("v_acc12 = v_data + 12\n");
 		asmKernelStr.append("v_acc13 = v_data + 13\n");
 
-		asmKernelStr.append("    v_mov_b32 			v[v_acc1], 0x0 + MLO_N_OUT_GROUPS_DIV_MASK\n");
-		asmKernelStr.append("    v_and_b32 			v[v_acc1], v[v_acc1], s[gid_x0]\n");
-		asmKernelStr.append("    v_lshrrev_b32 		v[v_acc2], 0x0 + MLO_N_OUT_GROUPS_LOG2, s[gid_x0]\n");
-		asmKernelStr.append("    v_lshrrev_b32 		v[v_acc3], 0x0 + MLO_N_IN_GROUPS_LOG2, v[v_acc2]\n");
-		asmKernelStr.append("    v_and_b32 			v[v_acc4], 0x0 + MLO_N_IN_GROUPS_DIV_MASK, v[v_acc2]\n");
+		asmKernelStr.append("    s_lshl_b32			s[s_tmp1], s[gid_x0], 0x0 + OUT_BLOCKS_PER_GROUP_LOG2\n");
+		asmKernelStr.append("    v_lshrrev_b32		v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]\n");
+		asmKernelStr.append("    v_add_co_u32		v[v_acc13], vcc, v[v_acc13], s[s_tmp1]\n");
+		asmKernelStr.append("    v_and_b32 			v[v_acc12], 0x0 + MLO_N_OUT_GROUPS_DIV_MASK, v[v_acc13]\n");	// acc12 = out_grp_block
+		asmKernelStr.append("    v_lshrrev_b32 		v[v_acc13], 0x0 + MLO_N_OUT_GROUPS_LOG2, v[v_acc13]\n");		// acc13 = grp_id0_faked
 
-		asmKernelStr.append("    v_lshl_add_u32		v[v_acc5], v[v_acc3], 0x0 + FIXED_WORKGROUP_SIZE_LOG2, v[tid]\n");
+		asmKernelStr.append("    v_lshlrev_b32		v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[v_acc13]\n");
+		asmKernelStr.append("    v_and_b32			v[v_acc11], 0x0 + IN_PIXEL_PER_GROUP_MOD_MASK, v[tid]\n");
+		asmKernelStr.append("    v_add_co_u32		v[v_acc13], vcc, v[v_acc13], v[v_acc11]\n");
 		asmKernelStr.append("    v_mov_b32			v[v_acc6], 0x0 + MLO_IN_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    mv_div_u32			v[v_acc5], v[v_acc6], v[v_acc7], v[v_acc8]\n");
-		asmKernelStr.append("    v_lshlrev_b32		v[v_acc6], 0x0 + MLO_N_LCL_OUT_MAPS_LOG2, v[v_acc1]\n");
+		asmKernelStr.append("    mv_div_u32			v[v_acc13], v[v_acc6], v[v_acc7], v[v_acc8]\n");			// acc7 = batch_id; acc8 = pos
+		asmKernelStr.append("    v_lshlrev_b32		v[v_acc6], 0x0 + MLO_N_LCL_OUT_MAPS_LOG2, v[v_acc12]\n");	// acc6 = out_id
 
 		asmKernelStr.append("    v_mov_b32 			v[v_acc9], 0x0 + MLO_IN_BATCH_STRIDE\n");
 		asmKernelStr.append("    v_mul_u32_u24		v[v_acc10], v[v_acc7], v[v_acc9]\n");
-		asmKernelStr.append("    v_mov_b32 			v[v_acc11], 0x0 + MLO_N_LCL_IN_MAPS * MLO_IN_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24		v[v_acc12], v[v_acc4], s[v_acc11]\n");
-		asmKernelStr.append("    v_add3_u32			v[v_acc13], v[v_acc10], v[v_acc12], v[v_acc8]\n");
-
-		asmKernelStr.append("    v_lshlrev_b32 		v[v_io_offset0], 2, v[v_acc13]\n");
+		//asmKernelStr.append("    v_mov_b32 			v[v_acc11], 0x0 + MLO_N_LCL_IN_MAPS * MLO_IN_CHANNEL_STRIDE\n");
+		//asmKernelStr.append("    v_mul_u32_u24		v[v_acc12], v[v_acc4], s[v_acc11]\n");
+		//asmKernelStr.append("    v_add3_u32			v[v_acc13], v[v_acc10], v[v_acc12], v[v_acc8]\n");
+		asmKernelStr.append("    v_add_co_u32		v[v_acc13], vcc, v[v_acc10], v[v_acc8]\n");	// v_acc13 = gbl_in_off
+		asmKernelStr.append("    v_lshlrev_b32 		v[v_io_offset0], 2, v[v_acc13]\n");			// v_io_offset0 = gbl_in_off(DWORD)
 		asmKernelStr.append("    v_mov_b32			v[v_tmp1], 0x0 + MLO_IN_CHANNEL_STRIDE * 2 * 4\n");
 		asmKernelStr.append("    v_add_co_u32		v[v_io_offset1], vcc, v[v_io_offset0], v[v_tmp1]\n");
 		asmKernelStr.append("    v_add_co_u32		v[v_io_offset2], vcc, v[v_io_offset1], v[v_tmp1]\n");
@@ -1474,11 +1482,11 @@ public:
 
 		asmKernelStr.append("    v_mov_b32 			v[v_acc9], 0x0 + MLO_WEI_CHANNEL_STRIDE\n");
 		asmKernelStr.append("    v_mul_u32_u24		v[v_acc9], v[v_acc6], v[v_acc9]\n");
-		asmKernelStr.append("    v_mov_b32 			v[v_acc10], 0x0 + MLO_N_LCL_IN_MAPS\n");
-		asmKernelStr.append("    v_mul_u32_u24		v[v_acc10], v[v_acc4], v[v_acc10]\n");
-		asmKernelStr.append("    v_add_u32			v[v_acc9], v[v_acc9], v[v_acc10]\n");
-		asmKernelStr.append("    v_readfirstlane_b32	s[s_tmp0], v[v_acc9]\n");
-		asmKernelStr.append("    s_lshl_b32			s[s_tmp1], s[s_tmp0], 2\n");
+		//asmKernelStr.append("    v_mov_b32 			v[v_acc10], 0x0 + MLO_N_LCL_IN_MAPS\n");
+		//asmKernelStr.append("    v_mul_u32_u24		v[v_acc10], v[v_acc4], v[v_acc10]\n");
+		//asmKernelStr.append("    v_add_u32			v[v_acc9], v[v_acc9], v[v_acc10]\n");
+		asmKernelStr.append("    v_readfirstlane_b32	s[s_tmp0], v[v_acc9]\n");	// s_tmp0 = v_acc9 = wei_off
+		asmKernelStr.append("    s_lshl_b32			s[s_tmp1], s[s_tmp0], 2\n");	// s_tmp1 = wei_off(DWORD)
 		asmKernelStr.append("    s_waitcnt 			lgkmcnt(0)\n");
 		asmKernelStr.append("    s_add_u32			s[s_ptr_wei], s[s_ptr_wei], s[s_tmp1]\n");
 		asmKernelStr.append("    s_addc_u32			s[s_ptr_wei + 1], 0x0, s[s_ptr_wei + 1]\n");
@@ -1503,7 +1511,7 @@ public:
 		asmKernelStr.append("    s_lshr_b32       s[s_tmp1], s[gid_x0], 0x0 + MLO_N_OUT_GROUPS_LOG2\n");
 		asmKernelStr.append("    s_and_b32        s[s_tmp2], s[s_tmp1], 0x0 + MLO_N_IN_GROUPS_DIV_MASK\n");
 		asmKernelStr.append("    s_lshr_b32       s[s_tmp1], s[s_tmp1], 0x0 + MLO_N_IN_GROUPS_LOG2\n");
-		asmKernelStr.append("    v_lshl_add_u32   v[v_tmp3], s[s_tmp1], 0x0 + FIXED_WORKGROUP_SIZE_LOG2, v[tid]\n");
+		asmKernelStr.append("    v_lshl_add_u32   v[v_tmp3], s[s_tmp1], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]\n");
 		asmKernelStr.append("    v_mov_b32        v[v_tmp4], 0x0 + MLO_IN_CHANNEL_STRIDE\n");
 		asmKernelStr.append("    mv_div_u32       v[v_tmp3], v[v_tmp4], v[v_tmp5], v[v_tmp6]\n");
 		asmKernelStr.append("    v_mov_b32        v[v_tmp3], 0x0 + MLO_IN_BATCH_STRIDE\n");
@@ -1543,7 +1551,7 @@ public:
 		asmKernelStr.append("    s_lshr_b32       s[s_tmp2], s[gid_x0], 0x0 + MLO_N_OUT_GROUPS_LOG2\n");
 		asmKernelStr.append("    s_mov_b32        s[s_tmp3], 0x0 + MLO_N_IN_GROUPS\n");
 		asmKernelStr.append("    mv_div_u32       s[s_tmp2], s[s_tmp3], v[v_tmp1], v[v_tmp2]\n");
-		asmKernelStr.append("    v_lshl_add_u32   v[v_tmp3], v[v_tmp1], 0x0 + FIXED_WORKGROUP_SIZE_LOG2, v[tid]\n");
+		asmKernelStr.append("    v_lshl_add_u32   v[v_tmp3], v[v_tmp1], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]\n");
 		asmKernelStr.append("    v_mov_b32        v[v_tmp4], 0x0 + MLO_IN_CHANNEL_STRIDE\n");
 		asmKernelStr.append("    mv_div_u32       v[v_tmp3], v[v_tmp4], v[v_tmp5], v[v_tmp6]\n");
 		asmKernelStr.append("    v_mov_b32        v[v_tmp3], 0x0 + MLO_N_LCL_OUT_MAPS\n");
