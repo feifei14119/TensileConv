@@ -353,9 +353,10 @@ public:
 #include "TestProblem.h"
 
 #include "VectorAdd.h"
-#include "FlatInstruction.h"
-#include "GlobalInstruction.h"
-#include "DsInstruction.h"
+#include "IsaFlat.h"
+#include "IsaGlobal.h"
+#include "IsaDs.h"
+#include "IsaMubuf.h"
 
 #include "ConvFwd1x1.h"
 

@@ -49,17 +49,20 @@
     <ClInclude Include="utils\AMDCL2\SDKUtil\SDKUtil.hpp">
       <Filter>Includes\utils\amdcl2</Filter>
     </ClInclude>
-    <ClInclude Include="FlatInstruction.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="GlobalInstruction.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="DsInstruction.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
     <ClInclude Include="TestProblem.h">
       <Filter>problems\test</Filter>
+    </ClInclude>
+    <ClInclude Include="IsaMubuf.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="IsaDs.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="IsaFlat.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="IsaGlobal.h">
+      <Filter>problems\sample</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -126,15 +129,6 @@
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
-    <None Include="Kernels\FlatInstruction.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\GlobalInstruction.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\DsInstruction.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
     <None Include="Kernels\Test.cl">
       <Filter>problems\test\kernels</Filter>
     </None>
@@ -149,6 +143,18 @@
     </None>
     <None Include="Kernels\MIOpenConv1x1J1_offset.cl">
       <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaDs.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaFlat.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaGlobal.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaMubuf.s">
+      <Filter>problems\sample\kernels</Filter>
     </None>
   </ItemGroup>
 </Project>

@@ -23,13 +23,18 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	//ProblemCtrlBase *vAdd = new VectorAddProblem();
 	//vAdd->RunProblem();
-	
-	//ProblemCtrlBase *flatInstr = new FlatInstructionProblem();
-	//flatInstr->RunProblem();
-	//ProblemCtrlBase *glbInsr = new GlobalInstructionProblem();
-	//glbInsr->RunProblem();
-	//ProblemCtrlBase *lds = new DsInstructionProblem();
+
+	// ----------------------------------------------------------------------
+	// Instrucion
+	// ----------------------------------------------------------------------
+	//ProblemCtrlBase *flat = new FlatProblem();
+	//flat->RunProblem();
+	//ProblemCtrlBase *global = new GlobalProblem();
+	//global->RunProblem();
+	//ProblemCtrlBase *lds = new DsProblem();
 	//lds->RunProblem();
+	ProblemCtrlBase *mubuf = new MubufProblem();
+	mubuf->RunProblem();
 
 	// ----------------------------------------------------------------------
 	// TensileConv

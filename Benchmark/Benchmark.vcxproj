@@ -71,12 +71,13 @@
   <ItemGroup>
     <ClInclude Include="BasicClass.h" />
     <ClInclude Include="ConvFwd1x1.h" />
-    <ClInclude Include="FlatInstruction.h" />
-    <ClInclude Include="GlobalInstruction.h" />
+    <ClInclude Include="IsaFlat.h" />
+    <ClInclude Include="IsaGlobal.h" />
     <ClInclude Include="helper.h" />
     <ClInclude Include="helper_cl.h" />
     <ClInclude Include="helper_hip.h" />
-    <ClInclude Include="DsInstruction.h" />
+    <ClInclude Include="IsaDs.h" />
+    <ClInclude Include="IsaMubuf.h" />
     <ClInclude Include="ProblemControl.h" />
     <ClInclude Include="RuntimeControl.h" />
     <ClInclude Include="TestProblem.h" />
@@ -99,11 +100,12 @@
     <None Include="Kernels\ConvFwd1x1_Jasm.s" />
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch.s" />
     <None Include="Kernels\conv_sizes.inc" />
-    <None Include="Kernels\FlatInstruction.s" />
-    <None Include="Kernels\GlobalInstruction.s" />
+    <None Include="Kernels\IsaFlat.s" />
+    <None Include="Kernels\IsaGlobal.s" />
     <None Include="Kernels\gpr_alloc.inc" />
     <None Include="Kernels\inst_wrappers.inc" />
-    <None Include="Kernels\DsInstruction.s" />
+    <None Include="Kernels\IsaDs.s" />
+    <None Include="Kernels\IsaMubuf.s" />
     <None Include="Kernels\MIOpenConv1x1J1.cl" />
     <None Include="Kernels\MIOpenConv1x1J1_256thread.cl" />
     <None Include="Kernels\MIOpenConv1x1J1_offset.cl" />

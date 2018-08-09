@@ -7,22 +7,22 @@
 /************************************************************************/
 /* 扩展参数                                                              */
 /************************************************************************/
-typedef struct ExtGlobalInstructionSolutionConfigTpye
+typedef struct ExtFlatSolutionConfigTpye
 {
 #define FIX_WORKGROUP_SIZE (64)
-}T_ExtGlobalInstructionSolutionConfig;
+}T_ExtFlatSolutionConfig;
 
-typedef struct ExtGlobalInstructionProblemConfigType
+typedef struct ExtFlatProblemConfigType
 {
 #define VECTOR_SIZE (512)
 	size_t vectorSize;
 	float *h_a, *h_b, *h_c, *c_ref;
-}T_ExtGlobalInstructionProblemConfig;
+}T_ExtFlatProblemConfig;
 
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
-class GlobalInstructionSolution : public SolutionCtrlBase
+class FlatSolution : public SolutionCtrlBase
 {
 private:
 	T_KernelArgu d_a, d_b, d_c;
@@ -32,7 +32,7 @@ public:
 	/************************************************************************/
 	E_ReturnState InitDev()
 	{
-		T_ExtGlobalInstructionProblemConfig * exCfg = (T_ExtGlobalInstructionProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
 
 		DevMalloc((void**)&(d_a.ptr), exCfg->vectorSize * sizeof(float));
 		DevMalloc((void**)&(d_b.ptr), exCfg->vectorSize * sizeof(float));
@@ -54,7 +54,7 @@ public:
 	/************************************************************************/
 	E_ReturnState GetBackResult()
 	{
-		T_ExtGlobalInstructionProblemConfig * exCfg = (T_ExtGlobalInstructionProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
 		Copy2Hst(exCfg->h_c, (cl_mem)(d_c.ptr), exCfg->vectorSize * sizeof(float));
 	}
 
@@ -74,18 +74,20 @@ public:
 	E_ReturnState GenerateSolutionConfigs()
 	{
 		T_SolutionConfig * solutionConfig;
-		T_ExtGlobalInstructionSolutionConfig * extSolutionConfig;
-		
+		T_ExtFlatSolutionConfig * extSolutionConfig;
+
 		// ======================================================================
-		// solution config: ASM
+		// solution config 1: ASM
 		// ======================================================================
-		extSolutionConfig = new T_ExtGlobalInstructionSolutionConfig();
+		extSolutionConfig = new T_ExtFlatSolutionConfig();
 
 		solutionConfig = new T_SolutionConfig();
 		solutionConfig->ConfigName = "AsmSolution";
 		solutionConfig->RepeatTime = 5;
 		solutionConfig->extConfig = extSolutionConfig;
 
+		// ----------------------------------------------------------------------
+		// 添加solution
 		SolutionConfigList->push_back(solutionConfig);
 
 		return E_ReturnState::SUCCESS;
@@ -96,15 +98,15 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		T_ExtGlobalInstructionProblemConfig * extProblem = (T_ExtGlobalInstructionProblemConfig *)problemCfg->extConfig;
-		T_ExtGlobalInstructionSolutionConfig * extSolution = (T_ExtGlobalInstructionSolutionConfig *)solutionCfg->extConfig;
+		T_ExtFlatProblemConfig * extProblem = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatSolutionConfig * extSolution = (T_ExtFlatSolutionConfig *)solutionCfg->extConfig;
 		
 		// ======================================================================
 		// 生成代码
 		// ======================================================================
 		if (solutionCfg->ConfigName == "AsmSolution")
 		{
-			solutionCfg->KernelName = "GlobalInstruction";
+			solutionCfg->KernelName = "IsaFlat";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 
@@ -125,13 +127,13 @@ public:
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-class GlobalInstructionProblem : public ProblemCtrlBase
+class FlatProblem : public ProblemCtrlBase
 {
 public:
-	GlobalInstructionProblem()
+	FlatProblem()
 	{
-		ProblemName = "GlobalInstruction";
-		Solution = new GlobalInstructionSolution();
+		ProblemName = "FlatInstruction";
+		Solution = new FlatSolution();
 		ProblemConfigList = new std::list<T_ProblemConfig*>;
 	}
 
@@ -142,11 +144,11 @@ public:
 	E_ReturnState GenerateProblemConfigs()
 	{
 		T_ProblemConfig * problemConfig;
-		T_ExtGlobalInstructionProblemConfig * extProblemConfig;
+		T_ExtFlatProblemConfig * extProblemConfig;
 
 		// ----------------------------------------------------------------------
 		// problem config 1
-		extProblemConfig = new T_ExtGlobalInstructionProblemConfig();
+		extProblemConfig = new T_ExtFlatProblemConfig();
 		extProblemConfig->vectorSize = VECTOR_SIZE;
 
 		problemConfig = new T_ProblemConfig();
@@ -161,8 +163,8 @@ public:
 	/************************************************************************/
 	E_ReturnState InitHost()
 	{
-		std::cout << "Global instruction init" << problemCfg->ConfigName << std::endl;
-		T_ExtGlobalInstructionProblemConfig * exCfg = (T_ExtGlobalInstructionProblemConfig *)problemCfg->extConfig;
+		std::cout << "Flat Instruction init" << problemCfg->ConfigName << std::endl;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
 
 		problemCfg->Calculation = exCfg->vectorSize; 
 		problemCfg->TheoryElapsedTime = problemCfg->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
@@ -189,12 +191,12 @@ public:
 	/************************************************************************/
 	E_ReturnState Host()
 	{
-		printf("Global instruction host.\n");
-		T_ExtGlobalInstructionProblemConfig * exCfg = (T_ExtGlobalInstructionProblemConfig *)problemCfg->extConfig;
+		printf("flat instruction host.\n");
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
 
 		for (int i = 0; i < exCfg->vectorSize; i++)
 		{
-			exCfg->c_ref[i] = exCfg->h_a[i] + exCfg->h_b[i];
+			exCfg->c_ref[i] = exCfg->h_a[i];
 		}
 		return E_ReturnState::SUCCESS;
 	}
@@ -204,8 +206,8 @@ public:
 	/************************************************************************/
 	E_ReturnState Verify()
 	{
-		printf("Global instruction verify.\n");
-		T_ExtGlobalInstructionProblemConfig * exCfg = (T_ExtGlobalInstructionProblemConfig *)problemCfg->extConfig;
+		printf("flat instruction verify.\n");
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
 		
 		float diff = 0;
 		for (int i = 0; i < exCfg->vectorSize; i++)
@@ -230,8 +232,8 @@ public:
 	/************************************************************************/
 	void ReleaseHost()
 	{
-		printf("Global instruction destroy.\n");
-		T_ExtGlobalInstructionProblemConfig * exCfg = (T_ExtGlobalInstructionProblemConfig *)problemCfg->extConfig;
+		printf("flat instruction destroy.\n");
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
 
 		HstFree(exCfg->h_a);
 		HstFree(exCfg->h_b);

@@ -7,43 +7,41 @@
 /************************************************************************/
 /* 扩展参数                                                              */
 /************************************************************************/
-typedef struct ExtDsInstructionSolutionConfigTpye
+typedef struct ExtGlobalSolutionConfigTpye
 {
 #define FIX_WORKGROUP_SIZE (64)
-}T_ExtDsInstructionSolutionConfig;
+}T_ExtGlobalSolutionConfig;
 
-typedef struct ExtDsInstructionProblemConfigType
+typedef struct ExtGlobalProblemConfigType
 {
 #define VECTOR_SIZE (512)
 	size_t vectorSize;
 	float *h_a, *h_b, *h_c, *c_ref;
-}T_ExtDsInstructionProblemConfig;
+}T_ExtGlobalProblemConfig;
 
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
-class DsInstructionSolution : public SolutionCtrlBase
+class GlobalSolution : public SolutionCtrlBase
 {
 private:
-	T_KernelArgu d_a, d_b, d_c, d_lds;
+	T_KernelArgu d_a, d_b, d_c;
 public:
 	/************************************************************************/
 	/* 申请显存                                                            */
 	/************************************************************************/
 	E_ReturnState InitDev()
 	{
-		T_ExtDsInstructionProblemConfig * exCfg = (T_ExtDsInstructionProblemConfig *)problemCfg->extConfig;
+		T_ExtGlobalProblemConfig * exCfg = (T_ExtGlobalProblemConfig *)problemCfg->extConfig;
 
 		DevMalloc((void**)&(d_a.ptr), exCfg->vectorSize * sizeof(float));
 		DevMalloc((void**)&(d_b.ptr), exCfg->vectorSize * sizeof(float));
 		DevMalloc((void**)&(d_c.ptr), exCfg->vectorSize * sizeof(float));
-		d_lds.ptr = NULL;
 
 		solutionCfg->KernelArgus = new std::list<T_KernelArgu>;
 		d_a.size = sizeof(cl_mem);	d_a.isVal = false;	solutionCfg->KernelArgus->push_back(d_a);
 		d_b.size = sizeof(cl_mem);	d_b.isVal = false;	solutionCfg->KernelArgus->push_back(d_b);
 		d_c.size = sizeof(cl_mem);	d_c.isVal = false;	solutionCfg->KernelArgus->push_back(d_c);
-		d_lds.size = sizeof(cl_uint);	d_lds.isVal = true;	solutionCfg->KernelArgus->push_back(d_lds);
 
 		Copy2Dev((cl_mem)(d_a.ptr), exCfg->h_a, exCfg->vectorSize * sizeof(float));
 		Copy2Dev((cl_mem)(d_b.ptr), exCfg->h_b, exCfg->vectorSize * sizeof(float));
@@ -56,7 +54,7 @@ public:
 	/************************************************************************/
 	E_ReturnState GetBackResult()
 	{
-		T_ExtDsInstructionProblemConfig * exCfg = (T_ExtDsInstructionProblemConfig *)problemCfg->extConfig;
+		T_ExtGlobalProblemConfig * exCfg = (T_ExtGlobalProblemConfig *)problemCfg->extConfig;
 		Copy2Hst(exCfg->h_c, (cl_mem)(d_c.ptr), exCfg->vectorSize * sizeof(float));
 	}
 
@@ -76,21 +74,18 @@ public:
 	E_ReturnState GenerateSolutionConfigs()
 	{
 		T_SolutionConfig * solutionConfig;
-		T_ExtDsInstructionSolutionConfig * extSolutionConfig;
-
-		SolutionConfigList = new std::list<T_SolutionConfig*>;
-
+		T_ExtGlobalSolutionConfig * extSolutionConfig;
+		
 		// ======================================================================
-		// solution config 2: ASM
+		// solution config: ASM
 		// ======================================================================
-		extSolutionConfig = new T_ExtDsInstructionSolutionConfig();
+		extSolutionConfig = new T_ExtGlobalSolutionConfig();
 
 		solutionConfig = new T_SolutionConfig();
 		solutionConfig->ConfigName = "AsmSolution";
 		solutionConfig->RepeatTime = 5;
 		solutionConfig->extConfig = extSolutionConfig;
 
-		// ----------------------------------------------------------------------
 		SolutionConfigList->push_back(solutionConfig);
 
 		return E_ReturnState::SUCCESS;
@@ -101,15 +96,15 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		T_ExtDsInstructionProblemConfig * extProblem = (T_ExtDsInstructionProblemConfig *)problemCfg->extConfig;
-		T_ExtDsInstructionSolutionConfig * extSolution = (T_ExtDsInstructionSolutionConfig *)solutionCfg->extConfig;
+		T_ExtGlobalProblemConfig * extProblem = (T_ExtGlobalProblemConfig *)problemCfg->extConfig;
+		T_ExtGlobalSolutionConfig * extSolution = (T_ExtGlobalSolutionConfig *)solutionCfg->extConfig;
 		
 		// ======================================================================
 		// 生成代码
 		// ======================================================================
 		if (solutionCfg->ConfigName == "AsmSolution")
 		{
-			solutionCfg->KernelName = "DsInstruction";
+			solutionCfg->KernelName = "IsaGlobal";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 
@@ -130,13 +125,13 @@ public:
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-class DsInstructionProblem : public ProblemCtrlBase
+class GlobalProblem : public ProblemCtrlBase
 {
 public:
-	DsInstructionProblem()
+	GlobalProblem()
 	{
-		ProblemName = "DsInstruction";
-		Solution = new DsInstructionSolution();
+		ProblemName = "Global Instruction";
+		Solution = new GlobalSolution();
 		ProblemConfigList = new std::list<T_ProblemConfig*>;
 	}
 
@@ -147,11 +142,11 @@ public:
 	E_ReturnState GenerateProblemConfigs()
 	{
 		T_ProblemConfig * problemConfig;
-		T_ExtDsInstructionProblemConfig * extProblemConfig;
+		T_ExtGlobalProblemConfig * extProblemConfig;
 
 		// ----------------------------------------------------------------------
 		// problem config 1
-		extProblemConfig = new T_ExtDsInstructionProblemConfig();
+		extProblemConfig = new T_ExtGlobalProblemConfig();
 		extProblemConfig->vectorSize = VECTOR_SIZE;
 
 		problemConfig = new T_ProblemConfig();
@@ -166,10 +161,10 @@ public:
 	/************************************************************************/
 	E_ReturnState InitHost()
 	{
-		std::cout << "Lds instruction init" << problemCfg->ConfigName << std::endl;
-		T_ExtDsInstructionProblemConfig * exCfg = (T_ExtDsInstructionProblemConfig *)problemCfg->extConfig;
+		std::cout << "Global instruction init" << problemCfg->ConfigName << std::endl;
+		T_ExtGlobalProblemConfig * exCfg = (T_ExtGlobalProblemConfig *)problemCfg->extConfig;
 
-		problemCfg->Calculation = exCfg->vectorSize;
+		problemCfg->Calculation = exCfg->vectorSize; 
 		problemCfg->TheoryElapsedTime = problemCfg->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
 		printf("Calculation = %.3f G\n", problemCfg->Calculation * 1e-9);
 		printf("TheoryElapsedTime = %.3f us \n", problemCfg->TheoryElapsedTime * 1e6);
@@ -194,8 +189,8 @@ public:
 	/************************************************************************/
 	E_ReturnState Host()
 	{
-		printf("Lds instruction host.\n");
-		T_ExtDsInstructionProblemConfig * exCfg = (T_ExtDsInstructionProblemConfig *)problemCfg->extConfig;
+		printf("Global instruction host.\n");
+		T_ExtGlobalProblemConfig * exCfg = (T_ExtGlobalProblemConfig *)problemCfg->extConfig;
 
 		for (int i = 0; i < exCfg->vectorSize; i++)
 		{
@@ -209,8 +204,8 @@ public:
 	/************************************************************************/
 	E_ReturnState Verify()
 	{
-		printf("Lds instruction verify.\n");
-		T_ExtDsInstructionProblemConfig * exCfg = (T_ExtDsInstructionProblemConfig *)problemCfg->extConfig;
+		printf("Global instruction verify.\n");
+		T_ExtGlobalProblemConfig * exCfg = (T_ExtGlobalProblemConfig *)problemCfg->extConfig;
 		
 		float diff = 0;
 		for (int i = 0; i < exCfg->vectorSize; i++)
@@ -235,8 +230,8 @@ public:
 	/************************************************************************/
 	void ReleaseHost()
 	{
-		printf("Lds instruction destroy.\n");
-		T_ExtDsInstructionProblemConfig * exCfg = (T_ExtDsInstructionProblemConfig *)problemCfg->extConfig;
+		printf("Global instruction destroy.\n");
+		T_ExtGlobalProblemConfig * exCfg = (T_ExtGlobalProblemConfig *)problemCfg->extConfig;
 
 		HstFree(exCfg->h_a);
 		HstFree(exCfg->h_b);

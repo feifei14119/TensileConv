@@ -1,22 +1,22 @@
 /************************************************************************************/
-// flat_load_dword		vgpr_dst, vgpr_addr                      flat_offset12 glc slc
+// global_load_dword	vgpr_dst, vgpr_addr, sgpr_saddr                flat_offset13
 //
-// flat_offset12:
-//		Specifies an immediate unsigned 12-bit offset, in bytes.
-//		offset:{0..4095}
-// glc:
-//		If true, operation is globally coherent. Default 0.
-// slc:
-//		If true, operation is system coherent. Default 0.
+// flat_offset13:
+//			Specifies an immediate signed 13-bit offset, in bytes.
+//			offset:{-4096..+4095}
+//
+// Global instructions offer two types of addressing:
+//			Memory_addr = VGPR-address + instruction-offset.
+//			Memory_addr = SGPR-address + VGPR-offset + instruction-offset.
 /************************************************************************************/
 .hsa_code_object_version 2,1
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
 
 .text
-.globl FlatInstruction
+.globl IsaGlobal
 .p2align 8
-.type FlatInstruction,@function
-.amdgpu_hsa_kernel FlatInstruction
+.type IsaGlobal,@function
+.amdgpu_hsa_kernel IsaGlobal
 
 /************************************************************************************/
 /* 预定义																			*/
@@ -62,7 +62,7 @@ v_temp3 = 12
 /************************************************************************************/
 /* 主程序																			*/
 /************************************************************************************/
-FlatInstruction:
+IsaGlobal:
 	// ===============================================================================
 	// ===============================================================================
 	.amd_kernel_code_t
@@ -95,8 +95,8 @@ FlatInstruction:
 	s_waitcnt lgkmcnt(0)
 	
 	// -------------------------------------------------------------------------------
-	// 计算输入下标: 
-	// a_addr = a_ptr + (gid_x * local_size) + tid_x
+	// 计算输入a下标: 
+	// a_addr = a_ptr + (gid_x * local_size) + 16
 	// -------------------------------------------------------------------------------
 	v_lshlrev_b32 		v[v_temp1], 0x0 + LOCAL_SIZE_LOG2, s[s_gidx]
 	v_add_lshl_u32 		v[v_temp1], v[v_temp1], 0x10, 2
@@ -104,8 +104,7 @@ FlatInstruction:
 	v_mov_b32			v[v_temp2], s[s_a_ptr+1]
 	v_add_co_u32 		v[v_a_addr], vcc, s[s_a_ptr], v[v_temp1]
 	v_addc_co_u32 		v[v_a_addr+1], vcc, 0, v[v_temp2], vcc
-
-	
+		
 	// -------------------------------------------------------------------------------
 	// 计算输出下标: 
 	// c_addr = c_ptr + (gid_x * local_size) + tid_x
@@ -118,11 +117,20 @@ FlatInstruction:
 	v_addc_co_u32 		v[v_c_addr+1], vcc, 0, v[v_temp2], vcc
   
 	// -------------------------------------------------------------------------------
-	// 计算
+	// 计算1
 	// -------------------------------------------------------------------------------
-	flat_load_dword 	v[v_temp1], v[v_a_addr:v_a_addr+1]					offset:10*4
-	s_waitcnt			0
-	flat_store_dword	v[v_c_addr:v_c_addr+1], v[v_temp1]
+	//global_load_dword	v[v_temp1], v[v_a_addr:v_a_addr+1], off						offset:-5*4
+	//s_waitcnt			vmcnt(0)
+	//global_store_dword	v[v_c_addr:v_c_addr+1], v[v_temp1], off
+	
+	// -------------------------------------------------------------------------------
+	// 计算2
+	// -------------------------------------------------------------------------------
+	v_mov_b32			v[v_temp2+1], 0x0
+	v_lshlrev_b32		v[v_temp2], 0x02, v[v_tid0]
+	global_load_dword	v[v_temp1], v[v_temp2:v_temp2+1], s[s_b_ptr:s_b_ptr+1]		offset:-10*4
+	s_waitcnt			vmcnt(0)
+	global_store_dword	v[v_c_addr:v_c_addr+1], v[v_temp1], off
 
 	s_endpgm                              
 	
@@ -132,7 +140,7 @@ FlatInstruction:
 .amd_amdgpu_hsa_metadata
 { Version: [ 1, 0 ],
   Kernels: 
-    - { Name: FlatInstruction, SymbolName: 'FlatInstruction', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
+    - { Name: IsaGlobal, SymbolName: 'IsaGlobal', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 64, 1, 1 ] }
         CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 512 }
         Args:
