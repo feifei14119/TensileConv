@@ -64,6 +64,12 @@
     <ClInclude Include="IsaGlobal.h">
       <Filter>problems\sample</Filter>
     </ClInclude>
+    <ClInclude Include="IsaSleep.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="ProducerConsumer.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -154,6 +160,12 @@
       <Filter>problems\sample\kernels</Filter>
     </None>
     <None Include="Kernels\IsaMubuf.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaSleep.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\ProducerConsumer.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
   </ItemGroup>

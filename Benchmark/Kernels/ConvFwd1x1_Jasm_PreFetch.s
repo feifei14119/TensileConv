@@ -554,7 +554,7 @@ CALCU_FEATURE_LOOP2:
 	// if(gid_x0 > 64) 							goto: CALCULATION
 	// else if(((gid_x0 / 4) & (~0x01)) == 0)	goto: INST_FETCH
 	// else										goto: PRE_FEATCH
-	// ===============================================================================		
+	// ===============================================================================
 	s_cmp_lt_u32			s[gid_x0], 0x0 + 64
 	s_cbranch_scc0			CALCULATION														// if(!(gid < 64)) goto CALCULATION
 		

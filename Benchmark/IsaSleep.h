@@ -7,22 +7,22 @@
 /************************************************************************/
 /* 扩展参数                                                              */
 /************************************************************************/
-typedef struct ExtMubufSolutionConfigTpye
+typedef struct ExtSleepSolutionConfigTpye
 {
-#define FIX_WORKGROUP_SIZE (64)
-}T_ExtMubufSolutionConfig;
+#define FIX_WORKGROUP_SIZE (1)
+}T_ExtSleepSolutionConfig;
 
-typedef struct ExtMubufProblemConfigType
+typedef struct ExtSleepProblemConfigType
 {
-#define VECTOR_SIZE (512)
+#define VECTOR_SIZE (1*64*2)
 	size_t vectorSize;
 	float *h_a, *h_b, *h_c, *c_ref;
-}T_ExtMubufProblemConfig;
+}T_ExtSleepProblemConfig;
 
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
-class MubufSolution : public SolutionCtrlBase
+class SleepSolution : public SolutionCtrlBase
 {
 private:
 	T_KernelArgu d_a, d_b, d_c;
@@ -32,7 +32,7 @@ public:
 	/************************************************************************/
 	E_ReturnState InitDev()
 	{
-		T_ExtMubufProblemConfig * exCfg = (T_ExtMubufProblemConfig *)problemCfg->extConfig;
+		T_ExtSleepProblemConfig * exCfg = (T_ExtSleepProblemConfig *)problemCfg->extConfig;
 
 		DevMalloc((void**)&(d_a.ptr), exCfg->vectorSize * sizeof(float));
 		DevMalloc((void**)&(d_b.ptr), exCfg->vectorSize * sizeof(float));
@@ -54,7 +54,7 @@ public:
 	/************************************************************************/
 	E_ReturnState GetBackResult()
 	{
-		T_ExtMubufProblemConfig * exCfg = (T_ExtMubufProblemConfig *)problemCfg->extConfig;
+		T_ExtSleepProblemConfig * exCfg = (T_ExtSleepProblemConfig *)problemCfg->extConfig;
 		Copy2Hst(exCfg->h_c, (cl_mem)(d_c.ptr), exCfg->vectorSize * sizeof(float));
 	}
 
@@ -74,12 +74,12 @@ public:
 	E_ReturnState GenerateSolutionConfigs()
 	{
 		T_SolutionConfig * solutionConfig;
-		T_ExtMubufSolutionConfig * extSolutionConfig;
+		T_ExtSleepSolutionConfig * extSolutionConfig;
 
 		// ======================================================================
 		// solution config 1: ASM
 		// ======================================================================
-		extSolutionConfig = new T_ExtMubufSolutionConfig();
+		extSolutionConfig = new T_ExtSleepSolutionConfig();
 
 		solutionConfig = new T_SolutionConfig();
 		solutionConfig->ConfigName = "AsmSolution";
@@ -98,16 +98,16 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		T_ExtMubufProblemConfig * extProblem = (T_ExtMubufProblemConfig *)problemCfg->extConfig;
-		T_ExtMubufSolutionConfig * extSolution = (T_ExtMubufSolutionConfig *)solutionCfg->extConfig;
+		T_ExtSleepProblemConfig * extProblem = (T_ExtSleepProblemConfig *)problemCfg->extConfig;
+		T_ExtSleepSolutionConfig * extSolution = (T_ExtSleepSolutionConfig *)solutionCfg->extConfig;
 		
 		// ======================================================================
 		// 生成代码
 		// ======================================================================
 		if (solutionCfg->ConfigName == "AsmSolution")
 		{
-			solutionCfg->KernelName = "IsaMubuf";
-			solutionCfg->KernelFile = "IsaMubuf.s";
+			solutionCfg->KernelName = "IsaSleep";
+			solutionCfg->KernelFile = "IsaSleep.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 
@@ -128,13 +128,13 @@ public:
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-class MubufProblem : public ProblemCtrlBase
+class SleepProblem : public ProblemCtrlBase
 {
 public:
-	MubufProblem()
+	SleepProblem()
 	{
-		ProblemName = "MUBUF Instruction";
-		Solution = new MubufSolution();
+		ProblemName = "Sleep Instruction";
+		Solution = new SleepSolution();
 		ProblemConfigList = new std::list<T_ProblemConfig*>;
 	}
 
@@ -145,11 +145,11 @@ public:
 	E_ReturnState GenerateProblemConfigs()
 	{
 		T_ProblemConfig * problemConfig;
-		T_ExtMubufProblemConfig * extProblemConfig;
+		T_ExtSleepProblemConfig * extProblemConfig;
 
 		// ----------------------------------------------------------------------
 		// problem config 1
-		extProblemConfig = new T_ExtMubufProblemConfig();
+		extProblemConfig = new T_ExtSleepProblemConfig();
 		extProblemConfig->vectorSize = VECTOR_SIZE;
 
 		problemConfig = new T_ProblemConfig();
@@ -164,8 +164,8 @@ public:
 	/************************************************************************/
 	E_ReturnState InitHost()
 	{
-		std::cout << "Mubuf Instruction init" << problemCfg->ConfigName << std::endl;
-		T_ExtMubufProblemConfig * exCfg = (T_ExtMubufProblemConfig *)problemCfg->extConfig;
+		std::cout << "Sleep Instruction init" << problemCfg->ConfigName << std::endl;
+		T_ExtSleepProblemConfig * exCfg = (T_ExtSleepProblemConfig *)problemCfg->extConfig;
 
 		problemCfg->Calculation = exCfg->vectorSize; 
 		problemCfg->TheoryElapsedTime = problemCfg->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
@@ -192,8 +192,8 @@ public:
 	/************************************************************************/
 	E_ReturnState Host()
 	{
-		printf("flat instruction host.\n");
-		T_ExtMubufProblemConfig * exCfg = (T_ExtMubufProblemConfig *)problemCfg->extConfig;
+		printf("Sleep instruction host.\n");
+		T_ExtSleepProblemConfig * exCfg = (T_ExtSleepProblemConfig *)problemCfg->extConfig;
 
 		for (int i = 0; i < exCfg->vectorSize; i++)
 		{
@@ -207,8 +207,8 @@ public:
 	/************************************************************************/
 	E_ReturnState Verify()
 	{
-		printf("flat instruction verify.\n");
-		T_ExtMubufProblemConfig * exCfg = (T_ExtMubufProblemConfig *)problemCfg->extConfig;
+		printf("Sleep instruction verify.\n");
+		T_ExtSleepProblemConfig * exCfg = (T_ExtSleepProblemConfig *)problemCfg->extConfig;
 		
 		float diff = 0;
 		for (int i = 0; i < exCfg->vectorSize; i++)
@@ -233,8 +233,8 @@ public:
 	/************************************************************************/
 	void ReleaseHost()
 	{
-		printf("flat instruction destroy.\n");
-		T_ExtMubufProblemConfig * exCfg = (T_ExtMubufProblemConfig *)problemCfg->extConfig;
+		printf("Sleep instruction destroy.\n");
+		T_ExtSleepProblemConfig * exCfg = (T_ExtSleepProblemConfig *)problemCfg->extConfig;
 
 		HstFree(exCfg->h_a);
 		HstFree(exCfg->h_b);

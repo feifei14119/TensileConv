@@ -78,7 +78,9 @@
     <ClInclude Include="helper_hip.h" />
     <ClInclude Include="IsaDs.h" />
     <ClInclude Include="IsaMubuf.h" />
+    <ClInclude Include="IsaSleep.h" />
     <ClInclude Include="ProblemControl.h" />
+    <ClInclude Include="ProducerConsumer.h" />
     <ClInclude Include="RuntimeControl.h" />
     <ClInclude Include="TestProblem.h" />
     <ClInclude Include="utils\AMDCL2\SDKUtil\BoltAMPUtil.hpp" />
@@ -106,9 +108,11 @@
     <None Include="Kernels\inst_wrappers.inc" />
     <None Include="Kernels\IsaDs.s" />
     <None Include="Kernels\IsaMubuf.s" />
+    <None Include="Kernels\IsaSleep.s" />
     <None Include="Kernels\MIOpenConv1x1J1.cl" />
     <None Include="Kernels\MIOpenConv1x1J1_256thread.cl" />
     <None Include="Kernels\MIOpenConv1x1J1_offset.cl" />
+    <None Include="Kernels\ProducerConsumer.s" />
     <None Include="Kernels\Test.cl" />
     <None Include="Kernels\VectorAdd.cl" />
     <None Include="Kernels\VectorAdd.s" />

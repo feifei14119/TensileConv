@@ -23,6 +23,8 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	//ProblemCtrlBase *vAdd = new VectorAddProblem();
 	//vAdd->RunProblem();
+	ProblemCtrlBase *pc = new ProducerConsumerProblem();
+	pc->RunProblem();
 
 	// ----------------------------------------------------------------------
 	// Instrucion
@@ -33,14 +35,16 @@ int main(int argc, char *argv[])
 	//global->RunProblem();
 	//ProblemCtrlBase *lds = new DsProblem();
 	//lds->RunProblem();
-	ProblemCtrlBase *mubuf = new MubufProblem();
-	mubuf->RunProblem();
+	//ProblemCtrlBase *mubuf = new MubufProblem();
+	//mubuf->RunProblem();
+	//ProblemCtrlBase *slp = new SleepProblem();
+	//slp->RunProblem();
 
 	// ----------------------------------------------------------------------
 	// TensileConv
 	// ----------------------------------------------------------------------
-	ProblemCtrlBase *conv1x1 = new ConvFwd1x1Problem();
-	conv1x1->RunProblem();
+	//ProblemCtrlBase *conv1x1 = new ConvFwd1x1Problem();
+	//conv1x1->RunProblem();
 	
 	// ======================================================================
 	// ======================================================================
@@ -50,3 +54,4 @@ int main(int argc, char *argv[])
 	//getchar();
 	return 0;
 }
+ 

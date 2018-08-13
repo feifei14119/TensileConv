@@ -1,24 +1,13 @@
 /************************************************************************************/
-// buffer指令包含MUBUF和MTBUF指令. 用于读写线性buffer内存, 每thread每指令可以操作1~4DWORD
-// buffer_load_dword            dst,  src0, src1, src2				idxen offen buf_offset12 glc slc lds
-//								vgpr, vgpr, sreg, sreg/-1~-16/64
-//
-// flat_offset13:
-//			Specifies an immediate signed 13-bit offset, in bytes.
-//			offset:{-4096..+4095}
-//
-// Global instructions offer two types of addressing:
-//			Memory_addr = VGPR-address + instruction-offset.
-//			Memory_addr = SGPR-address + VGPR-offset + instruction-offset.
 /************************************************************************************/
 .hsa_code_object_version 2,1
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
 
 .text
-.globl IsaMubuf
+.globl ProducerConsumer
 .p2align 8
-.type IsaMubuf,@function
-.amdgpu_hsa_kernel IsaMubuf
+.type ProducerConsumer,@function
+.amdgpu_hsa_kernel ProducerConsumer
 
 /************************************************************************************/
 /* 预定义																			*/
@@ -27,7 +16,7 @@
 // 常数定义
 // ==================================================================================
 .set LOCAL_SIZE_LOG2,	6
-.set VECTOR_SIZE, 512
+.set VECTOR_SIZE, 64*64
 
 // ==================================================================================
 // 输入参数排布
@@ -62,17 +51,20 @@ v_tid0 = 0
 v_a_addr = 2
 v_b_addr = 4
 v_c_addr = 6
-v_temp1 = 8
-v_temp2 = 10
-v_temp3 = 12
-v_index = 13
-v_offset = 14
+v_lds_addr = 8
+v_temp1 = 10
+v_temp2 = 12
+v_temp3 = 14
+v_index = 15
+v_offset = 16
 
+.set USE_LDS, 0
+.set USE_GLB, 1
 
 /************************************************************************************/
 /* 主程序																			*/
 /************************************************************************************/
-IsaMubuf:
+ProducerConsumer:
 	// ===============================================================================
 	// ===============================================================================
 	.amd_kernel_code_t
@@ -93,17 +85,25 @@ IsaMubuf:
 		kernarg_segment_byte_size = 56
 		wavefront_sgpr_count = 64
 		workitem_vgpr_count = 64
-		workgroup_group_segment_byte_size = 0		
+		workgroup_group_segment_byte_size = 64*4	
 	.end_amd_kernel_code_t
 	
 	// ===============================================================================
 	// ===============================================================================
 // Disassembly:        
-	s_load_dwordx2 s[s_a_ptr:s_a_ptr+1], s[s_arg:s_arg+1], 0x0+a_ptr_off   
-	s_load_dwordx2 s[s_b_ptr:s_b_ptr+1], s[s_arg:s_arg+1], 0x0+b_ptr_off
-	s_load_dwordx2 s[s_c_ptr:s_c_ptr+1], s[s_arg:s_arg+1], 0x0+c_ptr_off
-	s_waitcnt lgkmcnt(0)
+	s_load_dwordx2		s[s_a_ptr:s_a_ptr+1], s[s_arg:s_arg+1], 0x0+a_ptr_off   
+	s_load_dwordx2 		s[s_b_ptr:s_b_ptr+1], s[s_arg:s_arg+1], 0x0+b_ptr_off
+	s_load_dwordx2 		s[s_c_ptr:s_c_ptr+1], s[s_arg:s_arg+1], 0x0+c_ptr_off
+	v_mov_b32			v[v_lds_addr], v[v_tid0]
+	s_waitcnt 			lgkmcnt(0)
 	
+	s_cmp_ge_u32		s[s_gidx], 0x0 + 64
+	s_cbranch_scc1		CONSUMER													// if(gid >= 64) goto CONSUMER
+	
+PRODUCER:
+	// ===============================================================================
+	// 生产者
+	// ===============================================================================
 	// -------------------------------------------------------------------------------
 	// 计算输入a下标: 
 	// a_addr = a_ptr + (gid_x * local_size) + tid_x
@@ -116,6 +116,50 @@ IsaMubuf:
 	v_addc_co_u32 		v[v_a_addr+1], vcc, 0, v[v_temp2], vcc
 		
 	// -------------------------------------------------------------------------------
+	// 等待信号
+	// -------------------------------------------------------------------------------
+PROD_WAIT:
+	s_sleep				0x10
+.if USE_GLB
+	s_load_dword 		s[s_temp0], s[s_b_ptr:s_b_ptr+1], 0x0 
+	s_waitcnt 			lgkmcnt(0)
+.endif
+.if USE_LDS
+	ds_read_b32			v[v_temp3], v[v_lds_addr]						offset:0x0
+	s_waitcnt 			lgkmcnt(0)
+	v_readfirstlane_b32	s[s_temp0], v[v_temp3]
+.endif
+	s_cmp_eq_u32		s[s_temp0], 0x1234
+	s_cbranch_scc0		PROD_WAIT
+	
+	// -------------------------------------------------------------------------------
+	// 生产数据
+	// -------------------------------------------------------------------------------
+	global_load_dword	v[v_temp1], v[v_a_addr:v_a_addr+1], off
+	s_waitcnt			vmcnt(0)
+		
+	// -------------------------------------------------------------------------------
+	// 发射信号
+	// -------------------------------------------------------------------------------
+.if USE_GLB
+	s_mov_b32			s[s_temp0], 0x4321
+	s_store_dword		s[s_temp0], s[s_b_ptr:s_b_ptr+1], 0x0
+.endif
+.if USE_LDS
+	v_mov_b32			v[v_temp3], 0x4321
+	ds_write_b32		v[v_lds_addr], v[v_temp3]						offset:0x0
+.endif
+	
+	// -------------------------------------------------------------------------------
+	// 完成退出
+	// -------------------------------------------------------------------------------
+	s_branch			END_PROG
+	
+CONSUMER:
+	// ===============================================================================
+	// 消费者
+	// ===============================================================================
+	// -------------------------------------------------------------------------------
 	// 计算输出下标: 
 	// c_addr = c_ptr + (gid_x * local_size) + tid_x
 	// -------------------------------------------------------------------------------
@@ -125,27 +169,49 @@ IsaMubuf:
 	v_mov_b32			v[v_temp2], s[s_c_ptr+1]
 	v_add_co_u32 		v[v_c_addr], vcc, s[s_c_ptr], v[v_temp1]
 	v_addc_co_u32 		v[v_c_addr+1], vcc, 0, v[v_temp2], vcc
-  
+	
+	s_sleep				0x50
 	// -------------------------------------------------------------------------------
-	// 计算1
+	// 发射信号
 	// -------------------------------------------------------------------------------
-	//global_load_dword	v[v_temp1], v[v_a_addr:v_a_addr+1], off
+.if USE_GLB
+	s_mov_b32			s[s_temp0], 0x1234
+	s_store_dword		s[s_temp0], s[s_b_ptr:s_b_ptr+1], 0x0
+.endif
+.if USE_LDS
+	v_mov_b32			v[v_temp3], 0x1234
+	ds_write_b32		v[v_lds_addr], v[v_temp3]						offset:0x0
+.endif
 	
-	buffer_size = VECTOR_SIZE * 4	//(BYTE)
-	s_mov_b64			s[s_desc0:s_desc1], s[s_a_ptr:s_a_ptr+1]
-	s_or_b32			s[s_desc1], s[s_desc1], 0x00040000
-	s_mov_b32			s[s_desc2], 0x0 + buffer_size
-    s_mov_b32 			s[s_desc3], 0x00027000
+	// -------------------------------------------------------------------------------
+	// 等待信号
+	// -------------------------------------------------------------------------------
+CSM_WAIT:
+	s_sleep				0x10
+.if USE_GLB
+	s_load_dword 		s[s_temp0], s[s_b_ptr:s_b_ptr+1], 0x0
+	s_waitcnt 			lgkmcnt(0)
+.endif
+.if USE_LDS
+	ds_read_b32			v[v_temp3], v[v_lds_addr]						offset:0x0
+	s_waitcnt 			lgkmcnt(0)
+	v_readfirstlane_b32	s[s_temp0], v[v_temp3]
+.endif
+	s_cmp_eq_u32		s[s_temp0], 0x4321
+	s_cbranch_scc0		CSM_WAIT
 	
-	v_mov_b32			v[v_index],	 0x1
-	v_mov_b32			v[v_offset], 0x0
-	
-	s_mov_b32			s[s_base_offset], 0x0 
-	
-	buffer_load_dword	v[v_temp1], v[v_index], s[s_desc0:s_desc3] s[s_base_offset] offen offset:0x0
-	s_waitcnt			vmcnt(0)
+	// -------------------------------------------------------------------------------
+	// 消费数据
+	// -------------------------------------------------------------------------------
+	v_mov_b32			v[v_temp1],1.23
 	global_store_dword	v[v_c_addr:v_c_addr+1], v[v_temp1], off
+	
+	// -------------------------------------------------------------------------------
+	// 完成退出
+	// -------------------------------------------------------------------------------
+	s_branch			END_PROG	
 
+END_PROG:	
 	s_endpgm                              
 	
 /************************************************************************************/
@@ -154,8 +220,8 @@ IsaMubuf:
 .amd_amdgpu_hsa_metadata
 { Version: [ 1, 0 ],
   Kernels: 
-    - { Name: IsaMubuf, SymbolName: 'IsaMubuf', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
-        Attrs: { ReqdWorkGroupSize: [ 64, 1, 1 ] }
+    - { Name: ProducerConsumer, SymbolName: 'ProducerConsumer', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
+        Attrs: { ReqdWorkGroupSize: [ 1, 1, 1 ] }
         CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 512 }
         Args:
         - { Name: a, Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }
