@@ -23,8 +23,8 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	//ProblemCtrlBase *vAdd = new VectorAddProblem();
 	//vAdd->RunProblem();
-	ProblemCtrlBase *pc = new ProducerConsumerProblem();
-	pc->RunProblem();
+	//ProblemCtrlBase *pc = new ProducerConsumerProblem();
+	//pc->RunProblem();
 
 	// ----------------------------------------------------------------------
 	// Instrucion
@@ -43,8 +43,8 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	// TensileConv
 	// ----------------------------------------------------------------------
-	//ProblemCtrlBase *conv1x1 = new ConvFwd1x1Problem();
-	//conv1x1->RunProblem();
+	ProblemCtrlBase *conv1x1 = new ConvFwd1x1Problem();
+	conv1x1->RunProblem();
 	
 	// ======================================================================
 	// ======================================================================

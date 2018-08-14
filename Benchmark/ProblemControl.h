@@ -132,7 +132,7 @@ public:
 
 	E_ReturnState RunSolutionOnce()
 	{
-		runtime = new RuntimeCtrl();
+		runtime = new RuntimeCtrlOcl(false);
 		INFO("initialize device.");						InitDev();
 		INFO("generate source, compiler, worksize.");	GenerateSolution();
 		INFO("compiler kernel and program.");			SetupSolution();
@@ -255,13 +255,14 @@ public:
 	}
 
 	RuntimeCtrl * runtime;
+
 	T_ProblemConfig * problemCfg;
 	T_SolutionConfig * solutionCfg;
 	std::list<T_SolutionConfig*> *SolutionConfigList;
 
-	public:
-		double ProblemBestTime;
-		double ProblemBestPerformence;
+public:
+	double ProblemBestTime;
+	double ProblemBestPerformence;
 };
 
 /************************************************************************/

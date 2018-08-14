@@ -31,16 +31,14 @@ typedef struct ExtConvFwd1x1SolutionConfigTpye
 
 	// 调整参数
 	// k_out_maps:			16:[8,16,32]
-	//int local_size:			64:[64,128,256]
-
+	// int local_size:			64:[64,128,256]
 	// c_in_maps_once:		 8:[8,16]
 	// wei_pingpang_ins:	 1:[1,2,4,8]
 	// en_in_pingpang:		 1:[0,1]
 	// wait_cnt_in_fetch:	 4:[1,2,4,8,16]
 
+	std::list<T_KernelArgu> * preArgus;
 
-	RuntimeCtrl * pfetch;
-	std::list<T_KernelArgu> * fetch_argus;
 #define FIXED_WORKGROUP_SIZE (64)
 }T_ExtConvFwd1x1SolutionConfig;
 
@@ -76,7 +74,7 @@ typedef struct ExtConvFwd1x1ProblemConfigType
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:
-	T_KernelArgu d_in, d_wei, d_out, d_lds, d_isFetch, d_relu;
+	T_KernelArgu d_in, d_wei, d_out, d_lds, d_isFetch, d_relu, d_signal;
 	T_KernelArgu d_in_off, d_wei_off, d_out_off;
 	std::string asmKernelStr;
 	int DoFetch, DoCalcu;
@@ -84,6 +82,8 @@ private:
 	int *batch_id_buff;
 	int *wei_id_buff;
 	int *pos_id_buff;
+
+	RuntimeCtrl * preKernel;
 
 public:
 	/************************************************************************/
@@ -94,42 +94,37 @@ public:
 		T_ExtConvFwd1x1ProblemConfig * exCfg = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		relu = 2.0;
+		preKernel = new RuntimeCtrlOcl();
+
 		DevMalloc((void**)&(d_in.ptr), exCfg->size_in * sizeof(float));
 		DevMalloc((void**)&(d_wei.ptr), exCfg->size_wei * sizeof(float));
 		DevMalloc((void**)&(d_out.ptr), exCfg->size_out * sizeof(float));
+		DevMalloc((void**)&(d_signal.ptr), 10 * sizeof(uint));
 
-		DevMalloc((void**)&(d_in_off.ptr), 5000 * sizeof(uint));
-		DevMalloc((void**)&(d_wei_off.ptr), 5000 * sizeof(uint));
-		DevMalloc((void**)&(d_out_off.ptr), 5000 * sizeof(uint));
-		//DevMalloc((void**)&(d_relu.ptr), sizeof(float));
-		//d_relu.ptr = &relu;
-
+		d_in.size = sizeof(cl_mem);		d_in.isVal = false;
+		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;
+		d_out.size = sizeof(cl_mem);	d_out.isVal = false;
+		d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
 
 		solutionCfg->KernelArgus = new std::list<T_KernelArgu>;
-		d_in.size = sizeof(cl_mem);		d_in.isVal = false;		solutionCfg->KernelArgus->push_back(d_in);
-		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;	solutionCfg->KernelArgus->push_back(d_wei);
-		d_out.size = sizeof(cl_mem);	d_out.isVal = false;	solutionCfg->KernelArgus->push_back(d_out);
+		solutionCfg->KernelArgus->push_back(d_in);
+		solutionCfg->KernelArgus->push_back(d_wei);
+		solutionCfg->KernelArgus->push_back(d_out);
 
-		//d_in_off.size = sizeof(cl_mem);		d_in_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_in_off);
-		//d_wei_off.size = sizeof(cl_mem);	d_wei_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_wei_off);
-		//d_out_off.size = sizeof(cl_mem);	d_out_off.isVal = false;	solutionCfg->KernelArgus->push_back(d_out_off);
-		
+		extSol->preArgus = new std::list<T_KernelArgu>;
+		extSol->preArgus->push_back(d_in);
+		extSol->preArgus->push_back(d_wei);
+		extSol->preArgus->push_back(d_out);
+		extSol->preArgus->push_back(d_signal);
 
-/*
-		extSol->fetch_argus = new std::list<T_KernelArgu>;
-		DoFetch = 1;
-		d_isFetch.ptr = &DoFetch;
-		d_in.size = sizeof(cl_mem);		d_in.isVal = false;		extSol->fetch_argus->push_back(d_in);
-		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;	extSol->fetch_argus->push_back(d_wei);
-		d_out.size = sizeof(cl_mem);	d_out.isVal = false;	extSol->fetch_argus->push_back(d_out);
-		d_isFetch.size = sizeof(int);	d_isFetch.isVal = true;	extSol->fetch_argus->push_back(d_isFetch);
-*/
+		d_in.size = sizeof(cl_mem);		d_in.isVal = false;		
+		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;	
+		d_out.size = sizeof(cl_mem);	d_out.isVal = false;	
+		d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;			
+
 		Copy2Dev((cl_mem)(d_in.ptr), exCfg->h_in, exCfg->size_in * sizeof(float));
 		Copy2Dev((cl_mem)(d_wei.ptr), exCfg->h_wei, exCfg->size_wei * sizeof(float));
-		//Copy2Dev((cl_float)(d_relu.ptr), &relu, sizeof(float));
-		//clEnqueueWriteBuffer((*(runtime->streams))[0], (cl_mem)(d_relu.ptr), CL_TRUE, 0, sizeof(cl_float), &relu, 0, NULL, NULL);
-			
+
 		return E_ReturnState::SUCCESS;
 	}
 	
@@ -150,6 +145,8 @@ public:
 		DevFree((cl_mem)(d_in.ptr));
 		DevFree((cl_mem)(d_wei.ptr));
 		DevFree((cl_mem)(d_out.ptr));
+		DevFree((cl_mem)(d_signal.ptr));
+		delete preKernel;
 	}
 
 	/************************************************************************/
@@ -160,111 +157,137 @@ public:
 		T_SolutionConfig * solutionConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolutionConfig;
 		T_SearchParam * searchParam;
-		
+
 		// ======================================================================
 		// solution config 1: MIOpenOcl
 		// ======================================================================
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+		{
+			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-		solutionConfig = new T_SolutionConfig();
-		solutionConfig->ConfigName = "MIOpenOcl";
-		solutionConfig->RepeatTime = 4;
-		solutionConfig->extConfig = extSolutionConfig;
+			solutionConfig = new T_SolutionConfig();
+			solutionConfig->ConfigName = "MIOpenOcl";
+			solutionConfig->RepeatTime = 4;
+			solutionConfig->extConfig = extSolutionConfig;
 
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
+			// ----------------------------------------------------------------------
+			// 添加solution
+			//SolutionConfigList->push_back(solutionConfig);
+		}
 
 		// ======================================================================
 		// solution config 2: MIOpenAsm
 		// ======================================================================
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+		{
+			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-		solutionConfig = new T_SolutionConfig();
-		solutionConfig->ConfigName = "MIOpenAsm";
-		solutionConfig->RepeatTime = 4;
-		solutionConfig->extConfig = extSolutionConfig;
+			solutionConfig = new T_SolutionConfig();
+			solutionConfig->ConfigName = "MIOpenAsm";
+			solutionConfig->RepeatTime = 4;
+			solutionConfig->extConfig = extSolutionConfig;
 
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
-
-		// ======================================================================
-		// solution config 3: SQC
-		// ======================================================================
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig();
-		solutionConfig->ConfigName = "SQC";
-		solutionConfig->RepeatTime = 100;
-		solutionConfig->extConfig = extSolutionConfig;
-
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
+			// ----------------------------------------------------------------------
+			// 添加solution
+			//SolutionConfigList->push_back(solutionConfig);
+		}
 
 		// ======================================================================
-		// solution config 4: PreFetch
+		// solution config 3: SQC: 标准汇编实现,含prefetch
 		// ======================================================================
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+		{
+			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-		solutionConfig = new T_SolutionConfig();
-		solutionConfig->ConfigName = "PreFetch";
-		solutionConfig->RepeatTime = 4;
-		solutionConfig->extConfig = extSolutionConfig;
+			solutionConfig = new T_SolutionConfig();
+			solutionConfig->ConfigName = "SQC";
+			solutionConfig->RepeatTime = 100;
+			solutionConfig->extConfig = extSolutionConfig;
 
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
+			// ----------------------------------------------------------------------
+			// 添加solution
+			//SolutionConfigList->push_back(solutionConfig);
+		}
 
 		// ======================================================================
-		// solution config 4: 
+		// solution config 4: PreFetch: 64thread
 		// ======================================================================
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+		{
+			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-		solutionConfig = new T_SolutionConfig();
-		solutionConfig->ConfigName = "TensileConv";
-		solutionConfig->RepeatTime = 100;
-		solutionConfig->extConfig = extSolutionConfig;
+			solutionConfig = new T_SolutionConfig();
+			solutionConfig->ConfigName = "PreFetch1";
+			solutionConfig->RepeatTime = 4;
+			solutionConfig->extConfig = extSolutionConfig;
 
-		// ----------------------------------------------------------------------
-		// 生成搜索空间
-		searchParam = new T_SearchParam();
-		searchParam->Name = "k_out_maps";
-		searchParam->ValueArray.push_back(2);
-		searchParam->ValueArray.push_back(4);
-		searchParam->ValueArray.push_back(8);
-		searchParam->ValueArray.push_back(16);
-		searchParam->ValueArray.push_back(32);
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
-		//--------------------------------
-		searchParam = new T_SearchParam();
-		searchParam->Name = "group_size";
-		//searchParam->ValueArray.push_back(64 * 1);
-		//searchParam->ValueArray.push_back(64 * 2);
-		//searchParam->ValueArray.push_back(64 * 3);
-		//searchParam->ValueArray.push_back(64 * 4);
-		//searchParam->ValueArray.push_back(64 * 5);
-		//searchParam->ValueArray.push_back(64 * 6);
-		//searchParam->ValueArray.push_back(64 * 7);
-		//searchParam->ValueArray.push_back(64 * 8);
-		//searchParam->ValueArray.push_back(64 * 9);
-		//searchParam->ValueArray.push_back(64 * 10);
-		//searchParam->ValueArray.push_back(64 * 11);
-		//searchParam->ValueArray.push_back(64 * 12);
-		//searchParam->ValueArray.push_back(64 * 13);
-		//searchParam->ValueArray.push_back(64 * 14);
-		//searchParam->ValueArray.push_back(64 * 15);
-		//searchParam->ValueArray.push_back(64 * 16);
-		searchParam->ValueArray.push_back(64);
-		searchParam->ValueArray.push_back(128);
-		searchParam->ValueArray.push_back(256);
-		searchParam->ValueArray.push_back(512);
-		//searchParam->ValueArray.push_back(1024);
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
-		// ----------------------------------------------------------------------
-		// 添加solution
-		SolutionConfigList->push_back(solutionConfig);
+			// ----------------------------------------------------------------------
+			// 添加solution
+			//SolutionConfigList->push_back(solutionConfig);
+		}
+
+		// ======================================================================
+		// solution config 5: Mult-kernel perfetch
+		// ======================================================================
+		{
+			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+
+			solutionConfig = new T_SolutionConfig();
+			solutionConfig->ConfigName = "PreFetch2";
+			solutionConfig->RepeatTime = 1;
+			solutionConfig->extConfig = extSolutionConfig;
+
+			// ----------------------------------------------------------------------
+			// 添加solution
+			SolutionConfigList->push_back(solutionConfig);
+		}
+
+		// ======================================================================
+		// solution config 6: AutoTuning
+		// ======================================================================
+		{
+			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+
+			solutionConfig = new T_SolutionConfig();
+			solutionConfig->ConfigName = "TensileConv";
+			solutionConfig->RepeatTime = 100;
+			solutionConfig->extConfig = extSolutionConfig;
+
+			// ----------------------------------------------------------------------
+			// 生成搜索空间
+			searchParam = new T_SearchParam();
+			searchParam->Name = "k_out_maps";
+			searchParam->ValueArray.push_back(2);
+			searchParam->ValueArray.push_back(4);
+			searchParam->ValueArray.push_back(8);
+			searchParam->ValueArray.push_back(16);
+			searchParam->ValueArray.push_back(32);
+			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+			//--------------------------------
+			searchParam = new T_SearchParam();
+			searchParam->Name = "group_size";
+			//searchParam->ValueArray.push_back(64 * 1);
+			//searchParam->ValueArray.push_back(64 * 2);
+			//searchParam->ValueArray.push_back(64 * 3);
+			//searchParam->ValueArray.push_back(64 * 4);
+			//searchParam->ValueArray.push_back(64 * 5);
+			//searchParam->ValueArray.push_back(64 * 6);
+			//searchParam->ValueArray.push_back(64 * 7);
+			//searchParam->ValueArray.push_back(64 * 8);
+			//searchParam->ValueArray.push_back(64 * 9);
+			//searchParam->ValueArray.push_back(64 * 10);
+			//searchParam->ValueArray.push_back(64 * 11);
+			//searchParam->ValueArray.push_back(64 * 12);
+			//searchParam->ValueArray.push_back(64 * 13);
+			//searchParam->ValueArray.push_back(64 * 14);
+			//searchParam->ValueArray.push_back(64 * 15);
+			//searchParam->ValueArray.push_back(64 * 16);
+			searchParam->ValueArray.push_back(64);
+			searchParam->ValueArray.push_back(128);
+			searchParam->ValueArray.push_back(256);
+			searchParam->ValueArray.push_back(512);
+			//searchParam->ValueArray.push_back(1024);
+			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+			// ----------------------------------------------------------------------
+			// 添加solution
+			//SolutionConfigList->push_back(solutionConfig);
+		}
 
 		return E_ReturnState::SUCCESS; 
 	}
@@ -277,212 +300,248 @@ public:
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
+		size_t align;
+		int N_IN_GROUPS;
+		int	N_OUT_GROUPS;
+
 		// ======================================================================
 		// 提取搜索参数
 		// ======================================================================
-		size_t align;
-		if ((solutionCfg->ConfigName == "SQC")||(solutionCfg->ConfigName == "TensileConv"))
 		{
-			solutionCfg->KernelSearchSpace.StartGetParam();
-			while (true)
+			if ((solutionCfg->ConfigName == "SQC") || (solutionCfg->ConfigName == "TensileConv"))
 			{
-				T_SearchParam * param;
-				param = solutionCfg->KernelSearchSpace.GetOneParam();
-				if (param == NULL)
+				solutionCfg->KernelSearchSpace.StartGetParam();
+				while (true)
 				{
-					break;
+					T_SearchParam * param;
+					param = solutionCfg->KernelSearchSpace.GetOneParam();
+					if (param == NULL)
+					{
+						break;
+					}
+
+					if (param->Name == "k_out_maps")
+					{
+						extSolution->k_out_maps = param->CurrValue;
+					}
+					if (param->Name == "group_size")
+					{
+						extSolution->group_size = param->CurrValue;
+					}
 				}
 
-				if (param->Name == "k_out_maps")
+				if (extSolution->k_out_maps == 0)
 				{
-					extSolution->k_out_maps = param->CurrValue;
+					extSolution->k_out_maps = 8;
 				}
-				if (param->Name == "group_size")
+				if (extSolution->group_size == 0)
 				{
-					extSolution->group_size = param->CurrValue;
+					extSolution->group_size = 64;
 				}
-			}
 
-			if (extSolution->k_out_maps == 0)
+				printf("----------------------------------------------------------------------\n");
+				printf("Kernel Param:\n");
+				printf("	k_out_maps=[%d]\n", extSolution->k_out_maps);
+				printf("	group_size=[%d]\n", extSolution->group_size);
+				printf("----------------------------------------------------------------------\n");
+
+				extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+				extSolution->c_in_maps = extProblem->C;
+				extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+				extSolution->c_in_maps_once = 8;
+				extSolution->out_pix_tile = 1;
+				extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+				extSolution->in_pix_maps = 64;
+				extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+				align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+			}
+			else if (solutionCfg->ConfigName == "PreFetch2")
 			{
-				extSolution->k_out_maps = 8;
+				extSolution->k_out_maps = 16;
+				extSolution->group_size = 256;
+				extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+				extSolution->c_in_maps = extProblem->C;
+				extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+				extSolution->c_in_maps_once = 8;
+				extSolution->out_pix_tile = 1;
+				extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+				extSolution->in_pix_maps = 64;
+				extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+				align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
 			}
-			if (extSolution->group_size == 0)
-			{
-				extSolution->group_size = 64;
-			}
-
-			printf("----------------------------------------------------------------------\n");
-			printf("Kernel Param:\n");
-			printf("	k_out_maps=[%d]\n", extSolution->k_out_maps);
-			printf("	group_size=[%d]\n", extSolution->group_size);
-			printf("----------------------------------------------------------------------\n");
-
-			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
-			extSolution->c_in_maps = extProblem->C;
-			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
-
-			extSolution->c_in_maps_once = 8;
-			extSolution->out_pix_tile = 1;
-			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
-			extSolution->in_pix_maps = 64;
-			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
-			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
 		}
 
 		// ======================================================================
 		// 生成编译选项
 		// ======================================================================
-		solutionCfg->extCompilerOpt = "";
-		int N_IN_GROUPS;
-		int	N_OUT_GROUPS;
-		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			// chunk config
-			int out_pix_tile0 = 1;
-			int CHEAT_SHADER_COMPILER = out_pix_tile0;
-			// ---------------
-			int n_out_pix_tiles = 16;
-			int N_LCL_OUT_MAPS = n_out_pix_tiles;
-			N_LCL_OUT_MAPS = std::min(N_LCL_OUT_MAPS, extProblem->feature_out);
-			while ((extProblem->feature_out % N_LCL_OUT_MAPS) != 0 && N_LCL_OUT_MAPS > 16)
+			solutionCfg->extCompilerOpt = "";
+			if (solutionCfg->ConfigName == "MIOpenOcl")
 			{
-				N_LCL_OUT_MAPS /= 2;
+				// chunk config
+				int out_pix_tile0 = 1;
+				int CHEAT_SHADER_COMPILER = out_pix_tile0;
+				// ---------------
+				int n_out_pix_tiles = 16;
+				int N_LCL_OUT_MAPS = n_out_pix_tiles;
+				N_LCL_OUT_MAPS = std::min(N_LCL_OUT_MAPS, extProblem->feature_out);
+				while ((extProblem->feature_out % N_LCL_OUT_MAPS) != 0 && N_LCL_OUT_MAPS > 16)
+				{
+					N_LCL_OUT_MAPS /= 2;
+				}
+				n_out_pix_tiles = N_LCL_OUT_MAPS;
+
+				// ---------------
+				int n_in_data_tiles = 2048;
+				int N_LCL_IN_MAPS = n_in_data_tiles;
+				N_LCL_IN_MAPS = std::min(N_LCL_IN_MAPS, extProblem->channel_in);
+				if (N_LCL_IN_MAPS < extProblem->channel_in && N_LCL_IN_MAPS > 0 && (N_LCL_IN_MAPS % 8) == 0)
+				{
+					// Pass will do nothing
+				}
+				else
+				{
+					N_LCL_IN_MAPS = extProblem->channel_in;
+				}
+				n_in_data_tiles = N_LCL_IN_MAPS;
+
+				N_IN_GROUPS = (extProblem->channel_in + N_LCL_IN_MAPS - 1) / N_LCL_IN_MAPS;
+				int N_LCL_IN_MAPS_ONCE = 8;
+
+				int CLOOP0 = N_LCL_IN_MAPS / N_LCL_IN_MAPS_ONCE;
+				int CLOOP2 = (extProblem->channel_in - N_LCL_IN_MAPS * (N_IN_GROUPS - 1)) / N_LCL_IN_MAPS_ONCE;
+
+				align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+				N_OUT_GROUPS = (extProblem->feature_out / N_LCL_OUT_MAPS);
+
+				solutionCfg->extCompilerOpt =
+					std::string(" -DMLO_FILTER_STRIDE0=1") +
+					std::string(" -DMLO_FILTER_STRIDE1=1") +
+					std::string(" -DMLO_N_LCL_IN_MAPS_ONCE=") + std::to_string(N_LCL_IN_MAPS_ONCE) +
+					std::string(" -DBATCHSIZE=") + std::to_string(extProblem->batch_size) +
+					std::string(" -DH=") + std::to_string(extProblem->heigh_in) +
+					std::string(" -DW=") + std::to_string(extProblem->width_in) +
+					std::string(" -DC=") + std::to_string(extProblem->channel_in) +
+					std::string(" -DK=") + std::to_string(extProblem->feature_out) +
+					std::string(" -DMLO_N_LCL_IN_MAPS=") + std::to_string(N_LCL_IN_MAPS) +
+					std::string(" -DMLO_N_INPUTS=") + std::to_string(extProblem->channel_in) +
+					std::string(" -DMLO_N_OUTPUTS=") + std::to_string(extProblem->feature_out) +
+					std::string(" -DH_out=") + std::to_string(extProblem->heigh_out) +
+					std::string(" -DW_out=") + std::to_string(extProblem->width_out) +
+					std::string(" -DMLO_N_IN_GROUPS=") + std::to_string(N_IN_GROUPS) +
+					std::string(" -DMLO_CLOOP0=") + std::to_string(CLOOP0) +
+					std::string(" -DMLO_CLOOP2=") + std::to_string(CLOOP2) +
+					std::string(" -DMLO_N_LCL_OUT_MAPS=") + std::to_string(N_LCL_OUT_MAPS) +
+					std::string(" -DMLO_CHEAT_SHADER_COMPILER=") + std::to_string(CHEAT_SHADER_COMPILER) + // to disable macro defines for CodeXL Shader Analyzer
+					std::string(" -DMLopen_RUNNING=1 ") +
+					std::string(" -DMIOPEN_USE_FP32=1 ");
+
+				extSolution->k_out_maps = N_LCL_OUT_MAPS;
+				extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
 			}
-			n_out_pix_tiles = N_LCL_OUT_MAPS;
-
-			// ---------------
-			int n_in_data_tiles = 2048;
-			int N_LCL_IN_MAPS = n_in_data_tiles;
-			N_LCL_IN_MAPS = std::min(N_LCL_IN_MAPS, extProblem->channel_in);
-			if (N_LCL_IN_MAPS < extProblem->channel_in && N_LCL_IN_MAPS > 0 && (N_LCL_IN_MAPS % 8) == 0)
+			else if (solutionCfg->ConfigName == "SQC")
 			{
-				// Pass will do nothing
-			} 
-			else
-			{
-				N_LCL_IN_MAPS = extProblem->channel_in;
+				solutionCfg->extCompilerOpt =
+					std::string(" -Wa, -defsym, $name=$val ");
 			}
-			n_in_data_tiles = N_LCL_IN_MAPS;
-
-			N_IN_GROUPS = (extProblem->channel_in + N_LCL_IN_MAPS - 1) / N_LCL_IN_MAPS;
-			int N_LCL_IN_MAPS_ONCE = 8;
-
-			int CLOOP0 = N_LCL_IN_MAPS / N_LCL_IN_MAPS_ONCE;
-			int CLOOP2 = (extProblem->channel_in - N_LCL_IN_MAPS * (N_IN_GROUPS - 1)) / N_LCL_IN_MAPS_ONCE;
-
-			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
-			N_OUT_GROUPS = (extProblem->feature_out / N_LCL_OUT_MAPS);
-			
-			solutionCfg->extCompilerOpt =
-				std::string(" -DMLO_FILTER_STRIDE0=1") +
-				std::string(" -DMLO_FILTER_STRIDE1=1") +
-				std::string(" -DMLO_N_LCL_IN_MAPS_ONCE=") + std::to_string(N_LCL_IN_MAPS_ONCE) +
-				std::string(" -DBATCHSIZE=") + std::to_string(extProblem->batch_size) +
-				std::string(" -DH=") + std::to_string(extProblem->heigh_in) +
-				std::string(" -DW=") + std::to_string(extProblem->width_in) +
-				std::string(" -DC=") + std::to_string(extProblem->channel_in) +
-				std::string(" -DK=") + std::to_string(extProblem->feature_out) +
-				std::string(" -DMLO_N_LCL_IN_MAPS=") + std::to_string(N_LCL_IN_MAPS) +
-				std::string(" -DMLO_N_INPUTS=") + std::to_string(extProblem->channel_in) +
-				std::string(" -DMLO_N_OUTPUTS=") + std::to_string(extProblem->feature_out) +
-				std::string(" -DH_out=") + std::to_string(extProblem->heigh_out) +
-				std::string(" -DW_out=") + std::to_string(extProblem->width_out) +
-				std::string(" -DMLO_N_IN_GROUPS=") + std::to_string(N_IN_GROUPS) +
-				std::string(" -DMLO_CLOOP0=") + std::to_string(CLOOP0) +
-				std::string(" -DMLO_CLOOP2=") + std::to_string(CLOOP2) +
-				std::string(" -DMLO_N_LCL_OUT_MAPS=") + std::to_string(N_LCL_OUT_MAPS) +
-				std::string(" -DMLO_CHEAT_SHADER_COMPILER=") + std::to_string(CHEAT_SHADER_COMPILER) + // to disable macro defines for CodeXL Shader Analyzer
-				std::string(" -DMLopen_RUNNING=1 ") +
-				std::string(" -DMIOPEN_USE_FP32=1 ");
-			 
-			extSolution->k_out_maps = N_LCL_OUT_MAPS;
-			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
 		}
-		else if (solutionCfg->ConfigName == "SQC")
-		{
-			solutionCfg->extCompilerOpt =
-				std::string(" -DTEST_VAL=1.23");
-		}
-		
+
 		// ======================================================================
 		// 生成worksize
 		// ======================================================================
-		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE*4;//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			solutionCfg->l_wk1 = 1;
-			solutionCfg->l_wk2 = 1;
-			solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
-			//align = ((extProblem->W*extProblem->H + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
-			//solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS * extProblem->N;
-			solutionCfg->g_wk1 = 1;
-			solutionCfg->g_wk2 = 1;
-		}
-		else if (solutionCfg->ConfigName == "SQC")
-		{	
-			solutionCfg->l_wk0 = extSolution->group_size;
-			solutionCfg->l_wk1 = 1;
-			solutionCfg->l_wk2 = 1;
-			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
-			solutionCfg->g_wk1 = 1;
-			solutionCfg->g_wk2 = 1;
-		}
-		else if (solutionCfg->ConfigName == "PreFetch")
-		{
-			solutionCfg->l_wk0 = 1;
-			solutionCfg->l_wk1 = 1;
-			solutionCfg->l_wk2 = 1;
-			solutionCfg->g_wk0 = 128;
-			solutionCfg->g_wk1 = 1;
-			solutionCfg->g_wk2 = 1;
-		}
-		else if (solutionCfg->ConfigName == "TensileConv")
-		{ 
-			solutionCfg->l_wk0 = extSolution->group_size;
-			solutionCfg->l_wk1 = 1;
-			solutionCfg->l_wk2 = 1;
-			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
-			solutionCfg->g_wk1 = 1;
-			solutionCfg->g_wk2 = 1; 
+			if (solutionCfg->ConfigName == "MIOpenOcl")
+			{
+				solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE * 4;//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				solutionCfg->l_wk1 = 1;
+				solutionCfg->l_wk2 = 1;
+				solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
+				//align = ((extProblem->W*extProblem->H + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+				//solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS * extProblem->N;
+				solutionCfg->g_wk1 = 1;
+				solutionCfg->g_wk2 = 1;
+			}
+			else if (solutionCfg->ConfigName == "SQC")
+			{
+				solutionCfg->l_wk0 = extSolution->group_size;
+				solutionCfg->l_wk1 = 1;
+				solutionCfg->l_wk2 = 1;
+				solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
+				solutionCfg->g_wk1 = 1;
+				solutionCfg->g_wk2 = 1;
+			}
+			else if ((solutionCfg->ConfigName == "PreFetch1")||(solutionCfg->ConfigName == "PreFetch2"))
+			{
+				solutionCfg->l_wk0 = extSolution->group_size;
+				solutionCfg->l_wk1 = 1;
+				solutionCfg->l_wk2 = 1;
+				solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
+				solutionCfg->g_wk1 = 1;
+				solutionCfg->g_wk2 = 1;
+
+				//solutionCfg->l_wk0 = 1;
+				//solutionCfg->g_wk0 = 64;
+			}
+			else if (solutionCfg->ConfigName == "TensileConv")
+			{
+				solutionCfg->l_wk0 = extSolution->group_size;
+				solutionCfg->l_wk1 = 1;
+				solutionCfg->l_wk2 = 1;
+				solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
+				solutionCfg->g_wk1 = 1;
+				solutionCfg->g_wk2 = 1;
+			}
 		}
 
 		// ======================================================================
 		// 获取/生成代码
 		// ======================================================================
-		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			solutionCfg->KernelName = "MIOpenConv1x1";
-			//solutionCfg->KernelFile = "MIOpenConv1x1J1.cl";
-			solutionCfg->KernelFile = "MIOpenConv1x1J1_256thread.cl";//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
-		}
-		else if (solutionCfg->ConfigName == "SQC")
-		{
-			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm.s";
-			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-		}
-		else if (solutionCfg->ConfigName == "PreFetch")
-		{
-			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch.s";
-			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-		}
-		else if (solutionCfg->ConfigName == "TensileConv")
-		{
-			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_TensileConv.s";
-			writeAsmKernel();
-			saveKernelStr2File();
-			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+			if (solutionCfg->ConfigName == "MIOpenOcl")
+			{
+				solutionCfg->KernelName = "MIOpenConv1x1";
+				//solutionCfg->KernelFile = "MIOpenConv1x1J1.cl";
+				solutionCfg->KernelFile = "MIOpenConv1x1J1_256thread.cl";//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
+			}
+			else if (solutionCfg->ConfigName == "SQC")
+			{
+				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+				solutionCfg->KernelFile = "ConvFwd1x1_Jasm.s";
+				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+			}
+			else if (solutionCfg->ConfigName == "PreFetch")
+			{
+				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+				solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
+				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+			}
+			else if (solutionCfg->ConfigName == "PreFetch2")
+			{
+				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+				solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch2.s";
+				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+			}
+			else if (solutionCfg->ConfigName == "TensileConv")
+			{
+				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+				solutionCfg->KernelFile = "ConvFwd1x1_Jasm_TensileConv.s";
+				writeAsmKernel();
+				saveKernelStr2File();
+				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+			}
 		}
 
 		//generateWorkLoad2();
 		//printWorkLoad();
+		
 		return E_ReturnState::SUCCESS;
 	}
 
+	/************************************************************************/
+	/************************************************************************/
 	void ReportProblemPerformence()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
@@ -494,12 +553,8 @@ public:
 		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
 	}
 
-
-	/*E_ReturnState LaunchSolution()
-	{
-		return E_ReturnState::SUCCESS;
-	}*/
-
+	/************************************************************************/
+	/************************************************************************/
 	void generateWorkLoad()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
@@ -750,38 +805,37 @@ public:
 	/************************************************************************/
 	/* 分别配置两个kernel								                        */
 	/************************************************************************/
-	//E_ReturnState SetupSolution()
-	//{
-	//	printf("setup solution.\n");
-	//
-	//	setupPrefetch();
-	//	setupCalcu();
-	//
-	//	return E_ReturnState::SUCCESS;
-	//}
+	E_ReturnState SetupSolution0()
+	{
+		printf("setup solution.\n");
+	
+		setupPrefetch();
+		setupCalcu();
+
+		// warm up
+		LaunchSolution();
+	
+		return E_ReturnState::SUCCESS;
+	}
 
 	E_ReturnState setupPrefetch()
 	{
 		printf("setup pre-fetch solution.\n");
-		T_ExtConvFwd1x1SolutionConfig * ext = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		//RuntimeCtrl::CreatePreStream();
-		ext->pfetch = new RuntimeCtrl();
-
-		ext->pfetch->KernelName = "ConvFwd1x1_Jasm_fetch";
-		ext->pfetch->KernelFile = "ConvFwd1x1_Jasm_fetch.s";
-		ext->pfetch->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-
-
+		preKernel->KernelName = "ConvFwd1x1_Jasm_Prefetch";
+		preKernel->KernelFile = "ConvFwd1x1_Jasm_Prefetch0.s";
+		preKernel->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+		
 		dim3 l_wk = dim3(1, 1, 1);
 		dim3 g_wk = dim3(64, 1, 1);
 		dim3 b_wk = dim3(64, 1, 1);
+		preKernel->SetBlockSize(l_wk);
+		preKernel->SetGridSize(b_wk);
 
-		ext->pfetch->SetBlockSize(l_wk);
-		ext->pfetch->SetGridSize(b_wk);
-
-		ext->pfetch->GetFilesName(ext->pfetch->KernelFile);
-		ext->pfetch->CreatSolution();
+		// build source file
+		preKernel->GetFilesName(preKernel->KernelFile);
+		preKernel->KernelString = solutionCfg->KernelString;
+		preKernel->CreatSolution();
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -808,63 +862,56 @@ public:
 		runtime->GetFilesName(solutionCfg->KernelFile);
 		runtime->KernelString = solutionCfg->KernelString;
 		runtime->CreatSolution();
+
+		solutionCfg->ElapsedTimes.clear();
 	}
-
-
+	
 	/************************************************************************/
 	/* 分别加载两个kernel								                        */
 	/************************************************************************/
-	//E_ReturnState LaunchSolution()
-	//{
-	//	printf("set argue.\n");
-	//	T_ExtConvFwd1x1SolutionConfig * ext = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-	//	UnixTimer tmr;
-	//
-	//	solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
-	//	for (int i = 0; i < solutionCfg->RepeatTime; i++)
-	//	{	
-	//		setArgusPrefetch();
-	//		setArgusCalcu();
-	//
-	//		//ext->pfetch->StartTimer();
-	//		//tmr.Restart();
-	//
-	//		printf("launch solution.\n");
-	//		ext->pfetch->LanchKernel2(false);
-	//		runtime->LanchKernel(false);
-	//
-	//		//ext->pfetch->EndTimer();
-	//		//tmr.Stop();
-	//		//printf("*********%.3e\n", tmr.ElapsedMilliSec);
-	//		//solutionCfg->ElapsedTimes.push_back(ext->pfetch->ElapsedTime);
-	//		solutionCfg->ElapsedTimes.push_back(0);
-	//	}
-	//	return E_ReturnState::SUCCESS;
-	//}
+	E_ReturnState LaunchSolution0()
+	{
+		printf("set argue.\n");
+		T_ExtConvFwd1x1SolutionConfig * ext = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+		UnixTimer tmr;
+	
+		solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
+		for (int i = 0; i < solutionCfg->RepeatTime; i++)
+		{	
+			setArgusPrefetch();
+			setArgusCalcu();
+	
+	
+			printf("launch solution.\n");
+			runtime->LanchKernel();	
+			preKernel->LanchKernel();
+		}
+		return E_ReturnState::SUCCESS;
+	}
 
 	E_ReturnState setArgusPrefetch()
 	{
 		printf("set pre-fetch argue.\n");
 		std::list<T_KernelArgu>::iterator args;
-		T_ExtConvFwd1x1SolutionConfig * ext = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolu = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
 		int i = 0;
-		for (args = ext->fetch_argus->begin(); args != ext->fetch_argus->end(); args++)
+		for (args = extSolu->preArgus->begin(); args != extSolu->preArgus->end(); args++)
 		{
 			if ((*args).isVal == true)
 			{
 				if ((*args).ptr == NULL)
 				{
-					DevCheckFunc(clSetKernelArg(ext->pfetch->kernel, i, sizeof(cl_mem), (void*)NULL));
+					DevCheckFunc(clSetKernelArg(preKernel->kernel, i, sizeof(cl_mem), (void*)NULL));
 				}
 				else
 				{
-					DevCheckFunc(clSetKernelArg(ext->pfetch->kernel, i, (*args).size, (*args).ptr));
+					DevCheckFunc(clSetKernelArg(preKernel->kernel, i, (*args).size, (*args).ptr));
 				}
 			}
 			else
 			{
-				DevCheckFunc(clSetKernelArg(ext->pfetch->kernel, i, (*args).size, &(*args).ptr));
+				DevCheckFunc(clSetKernelArg(preKernel->kernel, i, (*args).size, &(*args).ptr));
 			}
 			i++;
 		}
@@ -896,6 +943,14 @@ public:
 				DevCheckFunc(clSetKernelArg(runtime->kernel, i, (*args).size, &(*args).ptr));
 			}
 			i++;
+		}
+
+		solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
+		for (int i = 0; i < solutionCfg->RepeatTime; i++)
+		{
+			runtime->LanchKernel();
+			solutionCfg->ElapsedTimes.push_back(runtime->ElapsedTime);
+			usleep(1);
 		}
 
 		return E_ReturnState::SUCCESS;
@@ -960,7 +1015,7 @@ public:
 	}
 	 
 
-
+	
 
 	void writeAsmKernel()
 	{
@@ -1720,7 +1775,7 @@ public:
 		//searchParam->ValueArray.push_back(1);
 		//searchParam->ValueArray.push_back(2);
 		//searchParam->ValueArray.push_back(4);
-		searchParam->ValueArray.push_back(8);
+		//searchParam->ValueArray.push_back(8);
 		searchParam->ValueArray.push_back(16);
 		//searchParam->ValueArray.push_back(32);
 
@@ -1733,10 +1788,10 @@ public:
 			//extProblemConfig->C = 832;		extProblemConfig->K = 256;
 
 			extProblemConfig->W = 28;		extProblemConfig->H = 28;
-			extProblemConfig->C = 512;		extProblemConfig->K = 1024;
+			extProblemConfig->C = 192;		extProblemConfig->K = 64;
 
 			problemConfig = new T_ProblemConfig();
-			problemConfig->ConfigName = "Conv1x1 WHCK=[14*1024*256]";
+			problemConfig->ConfigName = "Conv1x1 WHCK=[28*192*64]";
 			problemConfig->extConfig = extProblemConfig;
 			problemConfig->ProblemSearchSpace.AddOneParam(searchParam);
 
@@ -2065,7 +2120,7 @@ public:
 	/************************************************************************/
 	E_ReturnState Host()
 	{
-		return E_ReturnState::SUCCESS;
+		//return E_ReturnState::SUCCESS;
 		T_ExtConvFwd1x1ProblemConfig * exCfg = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 
 		int u = 1; // stride height

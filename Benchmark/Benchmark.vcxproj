@@ -101,6 +101,8 @@
     <None Include="Kernels\common.inc" />
     <None Include="Kernels\ConvFwd1x1_Jasm.s" />
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch.s" />
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch0.s" />
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch2.s" />
     <None Include="Kernels\conv_sizes.inc" />
     <None Include="Kernels\IsaFlat.s" />
     <None Include="Kernels\IsaGlobal.s" />

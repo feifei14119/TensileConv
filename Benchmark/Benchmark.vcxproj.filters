@@ -168,5 +168,11 @@
     <None Include="Kernels\ProducerConsumer.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch2.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch0.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
   </ItemGroup>
 </Project>
