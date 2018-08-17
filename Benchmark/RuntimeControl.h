@@ -997,20 +997,13 @@ public:
 
 
 
-	E_ReturnState LanchKernel2(bool enTime)
+	E_ReturnState LanchKernel2()
 	{
 		cl_int errNum;
 		size_t cl_gridSize[3] = { gridSize.x,gridSize.y,gridSize.z };
 		size_t cl_blockSize[3] = { blockSize.x,blockSize.y,blockSize.z };
 
-		if (enTime)
-		{
-			//DevCheckFunc(clEnqueueNDRangeKernel(preStream, kernel, 3, NULL, cl_gridSize, cl_blockSize, 0, NULL, NULL));
-		}
-		else
-		{
-			//DevCheckFunc(clEnqueueNDRangeKernel(preStream, kernel, 3, NULL, cl_gridSize, cl_blockSize, 0, NULL, NULL));
-		}
+		DevCheckFunc(clEnqueueNDRangeKernel(stream, kernel, 3, NULL, cl_gridSize, cl_blockSize, 0, NULL, NULL));
 	}
 
 	// -----------------------------------------------------------------------------

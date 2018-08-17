@@ -7,6 +7,12 @@
 
 #include "unistd.h"
 
+
+#define	SE_NUM (4)
+#define	CU_PER_SE (16)
+#define CU_NUM (CU_PER_SE * SE_NUM)
+#define	WAVE_SIZE (64)
+#define CACHE_LINE (16)
 /************************************************************************/
 /* solutionµÃ·Ö                                                         */
 /************************************************************************/
@@ -241,6 +247,43 @@ public:
 		{
 			ProblemBestTime = solutionCfg->AverageScore.ElapsedTime;
 			ProblemBestPerformence = solutionCfg->AverageScore.Performence;
+		}
+	}
+
+	void printIndex(int *index, char* name)
+	{
+		int groupNum = solutionCfg->g_wk0 / solutionCfg->l_wk0;
+		int grpNumPerCU = (groupNum + CU_NUM - 1) / CU_NUM;
+		int waveNumPerCU = grpNumPerCU * (solutionCfg->l_wk0 / WAVE_SIZE);
+		int simuGrpIdx = 0;
+		int grpIdxBase;
+
+		printf("\t|---------------------------------------------------------\n");
+		printf("\t| index name = %s\n", name);
+		printf("\t| group size = %d\n", solutionCfg->l_wk0);
+		printf("\t| group number = %d\n", groupNum);
+		printf("\t| group number per cu = %d\n", grpNumPerCU);
+		printf("\t| wave number per cu = %d\n", waveNumPerCU);
+		printf("\t|---------------------------------------------------------\n");
+		for (int se = 0; se < SE_NUM; se++)
+		{
+			printf("SE=%d:", se);
+			grpIdxBase = se;
+
+			for (int cu = 0; cu < CU_PER_SE; cu++)
+			{
+				printf("\t[%02d]: ", cu);
+				simuGrpIdx = grpIdxBase;
+
+				while (simuGrpIdx < groupNum)
+				{
+					printf("%03d, ", index[simuGrpIdx]);
+					simuGrpIdx += CU_NUM;
+				}
+				printf("\n");
+				grpIdxBase += 4;
+			}
+			printf("\n");
 		}
 	}
 	

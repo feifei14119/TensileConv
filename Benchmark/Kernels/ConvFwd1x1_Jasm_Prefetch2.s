@@ -59,6 +59,15 @@
 .set OUT_BLOCKS_PER_GROUP,			4
 .set OUT_BLOCKS_PER_GROUP_LOG2,		2
 
+.set CU_NUM,						64
+.set CU_NUM_MOD_MASK,				63
+.set SIGNAL_NUM_PER_CU,				16			// channel 数除以 catch_line长度取2的n次幂
+.set SIGNAL_NUM_PER_CU_LOG2,		4
+
+.set SIGNAL_REQ_FETCH,				0x1234
+.set SIGNAL_EXIT,					0xF0F0
+.set SIGNAL_NULL,					0x0
+
 // ==================================================================================
 // SGPR 初始排布
 // ==================================================================================
@@ -122,15 +131,15 @@ gid_z0 = 8
 	.SGPR_ALLOC s_weid6
 	.SGPR_ALLOC s_weid7	
 	
-    .SGPR_ALLOC s_wei_desc,  4    	// input buffer descriptor
+    //.SGPR_ALLOC s_wei_desc,  4    	// input buffer descriptor
 	.SGPR_ALLOC s_ptr_sig, 2
-	.SGPR_ALLOC s_loop_cnt
-	.SGPR_ALLOC s_fetchmask
-    .SGPR_ALLOC s_ptr_wei_save, 2
 	.SGPR_ALLOC s_tmp1, 2
 	.SGPR_ALLOC s_tmp2, 2
 	.SGPR_ALLOC s_tmp3
 	.SGPR_ALLOC s_tmp4
+	.SGPR_ALLOC s_loop_cnt
+	.SGPR_ALLOC s_block_id
+	.SGPR_ALLOC s_signal
 	.SGPR_ALLOC s_feature_loop_cnt
 	.SGPR_ALLOC s_prefetch_loop_cnt
 
@@ -234,8 +243,6 @@ ConvFwd1x1_Jasm:
 /* 		s_wait0																		*/
 /* }																				*/
 /************************************************************************************/
-// ===================================================================================
-// ===================================================================================
 .macro m_weight_pre_fatch
 	imm_offset = 0
 	tmp = s_weic0
@@ -243,29 +250,6 @@ ConvFwd1x1_Jasm:
 		s_load_dword 		s[tmp], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
 		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
 		tmp = tmp + 1
-	.endr
-.endm
-
-// ===================================================================================
-// ===================================================================================
-.macro m_weight_pre_fatch_next
-	imm_offset = MLO_N_LCL_IN_MAPS_ONCE * 2 * 4
-	tmp = s_weic0
-	.rept MLO_N_LCL_OUT_MAPS
-		s_load_dword 		s[tmp], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
-		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
-		tmp = tmp + 1
-	.endr
-.endm
-
-// ===================================================================================
-// ===================================================================================
-.macro m_weight_pre_fatch_test
-	imm_offset = 0
-	.rept MLO_N_LCL_OUT_MAPS
-		s_load_dwordx8 		s[s_weic0:s_weic0+7], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
-		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
-		s_waitcnt lgkmcnt(0)
 	.endr
 .endm
 	
@@ -290,7 +274,7 @@ ConvFwd1x1_Jasm:
 .endm
 
 // ===================================================================================
-// 当W/H <= 28时使用, W*H < 12bit
+// 当 W/H <= 28时使用, W*H < 12bit
 // ===================================================================================
 .macro m_load_input2 		dest_base
 	v_dat = \dest_base
@@ -419,8 +403,9 @@ ConvFwd1x1_Jasm:
 	s_add_u32 			s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2
 	s_addc_u32 			s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0									// s_ptr_wei ++ (DWORD寻址)	
 	
-	s_waitcnt 			lgkmcnt(0)	
-	//m_weight_pre_fatch
+	s_waitcnt 			lgkmcnt(0)
+	
+	//m_weight_pre_fatch	
 	m_conv_once 		\input, s_weib0, v_acc
 .endm
 
@@ -461,6 +446,7 @@ ConvFwd1x1_Jasm:
 	m_conv_once 			\input, s_weib0, v_acc
 	//m_save_one_output		v_acc
 	//global_store_dword    	v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0 + MLO_OUT_CHANNEL_STRIDE * 4
+	
 .endm
 
 /************************************************************************************/
@@ -510,22 +496,39 @@ ConvFwd1x1_Jasm:
 	global_store_dword v[v_addr_dbg:v_addr_dbg+1], v[v_tmp1], off						// v_addr_dbg = v_tmp1 (测试单个输出)	
 .endm
 
+/************************************************************************************/
+/* 向prefetch kernel发射信号														*/
+/************************************************************************************/
+.macro m_send_signal 	signal_type
+	.if (\signal_type == SIGNAL_REQ_FETCH)
+		s_lshl_b32			s[s_tmp1], s[s_loop_cnt], 0x02
+		s_store_dword		s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
+	.elseif (\signal_type == SIGNAL_EXIT)
+		s_mov_b32			s[s_signal], 0x0 + SIGNAL_EXIT
+		s_mov_b32			s[s_tmp1], CLOOP0
+		s_lshl_b32			s[s_tmp1], s[s_tmp1], 0x02
+		s_store_dword		s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
+	.endif
+.endm
+
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 // Disassembly:
 	// ===============================================================================
 	// 获取计算参数
 	// ===============================================================================
-	s_load_dwordx2 			s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off	// desc_in = in_ptr
-	s_load_dwordx2 			s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off	// desc_wei = wei_ptr
-	s_load_dwordx2 			s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off	// desc_out = out_ptr
+	s_load_dwordx2 			s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off
+	s_load_dwordx2 			s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off
+	s_load_dwordx2 			s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off
+	s_load_dwordx2 			s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
 	
 	// -------------------------------------------------------------------------------
 	// uint out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
     // uint grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
 	// -------------------------------------------------------------------------------
 	s_lshl_b32 			s[s_tmp1], s[gid_x0], 0x0 + OUT_BLOCKS_PER_GROUP_LOG2
-	v_lshrrev_b32		v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]
+	v_lshrrev_b32		v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]	
+	v_readfirstlane_b32	s[s_block_id], v[v_acc13]
 	v_add_co_u32		v[v_acc13], vcc, v[v_acc13], s[s_tmp1]
 	v_and_b32 			v[v_acc12], 0x0 + MLO_N_OUT_GROUPS_DIV_MASK, v[v_acc13]			// v_acc12 = out_grp_block
 	v_lshrrev_b32 		v[v_acc13], 0x0 + MLO_N_OUT_GROUPS_LOG2, v[v_acc13]				// v_acc13 = grp_id0_faked
@@ -584,6 +587,17 @@ ConvFwd1x1_Jasm:
 	v_add_co_u32		v[v_addr_out], vcc, s[s_ptr_out], v[v_acc12]
 	v_addc_co_u32		v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc
 	
+	// -------------------------------------------------------------------------------
+	// 计算 signal 地址 
+	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
+	// -------------------------------------------------------------------------------
+	s_and_b32			s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
+	s_lshl_b32			s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2		// dword
+	s_add_u32			s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
+	s_addc_u32			s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
+	
+	s_mov_b32			s[s_signal], SIGNAL_REQ_FETCH
+	
 /*
 	// ------------------------------------------------------------------------------
 	// 计算输出地址(线性测试用) 
@@ -622,18 +636,24 @@ MAIN_CONV:
 		v_mov_b32 		v[v_acc], 0														// v_tmp1 = accum = 0
 		v_acc = v_acc + 1
 	.endr
-	
-	
+		
 	// -------------------------------------------------------------------------------
 	// 循环填充 :
 	// 读取8输入通道的input data
 	// -------------------------------------------------------------------------------
 	//m_weight_pre_fatch
+	s_mov_b32 					s[s_loop_cnt], CLOOP0 - 1								// s_loop_cnt = CLOOP0 - 1
 	m_load_input2 				v_data0
 	weight_offset = 0
-	s_mov_b32 					s[s_loop_cnt], CLOOP0 - 1								// s_loop_cnt = CLOOP0 - 1
 	
 LOOP_CONV:	
+	m_send_signal				SIGNAL_REQ_FETCH
+	s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	.rept 100
+		s_nop				0x0F
+	.endr
+	s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	
 	m_load_input2 				v_datb0	
 	m_cacul_all_feature_ping 	v_data0, weight_offset
 	
@@ -652,6 +672,7 @@ END_LOOP_CONV:
 	// 循环排空 :
 	// -------------------------------------------------------------------------------
 LAST_CYCLE:
+	//m_send_signal				SIGNAL_REQ_FETCH
 	m_load_input2 				v_datb0
 	
 	m_cacul_all_feature_ping 	v_data0, weight_offset
@@ -660,8 +681,9 @@ LAST_CYCLE:
 	// -------------------------------------------------------------------------------
 	// 存储结果
 	// -------------------------------------------------------------------------------
+	m_send_signal				SIGNAL_EXIT
 	m_save_output
-
+	
 END_PROG:
 	s_endpgm
 	
@@ -673,11 +695,12 @@ END_PROG:
   Kernels: 
     - { Name: ConvFwd1x1_Jasm, SymbolName: 'ConvFwd1x1_Jasm', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 256, 1, 1 ] }
-        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 256 }
+        CodeProps: { KernargSegmentSize: 32, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 256 }
         Args:
         - { Name: d_in  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }
         - { Name: d_wei , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }
         - { Name: d_out , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }
+        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: U32, TypeName: 'float*', AddrSpaceQual: Global  }
       }
 }
 .end_amd_amdgpu_hsa_metadata

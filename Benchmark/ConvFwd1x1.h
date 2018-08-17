@@ -38,8 +38,6 @@ typedef struct ExtConvFwd1x1SolutionConfigTpye
 	// wait_cnt_in_fetch:	 4:[1,2,4,8,16]
 
 	std::list<T_KernelArgu> * preArgus;
-
-#define FIXED_WORKGROUP_SIZE (64)
 }T_ExtConvFwd1x1SolutionConfig;
 
 typedef struct ExtConvFwd1x1ProblemConfigType
@@ -52,7 +50,9 @@ typedef struct ExtConvFwd1x1ProblemConfigType
 	int PadW, PadH;
 
 	float* h_in, *h_wei, *h_out, *out_ref;
-	int size_in, size_wei, size_out;
+	int *h_signal;
+	int size_in, size_wei, size_out, size_sig;
+	int prefetch_loop;
 
 	int batch_size;
 	int channel_in, feature_out;
@@ -84,6 +84,17 @@ private:
 	int *pos_id_buff;
 
 	RuntimeCtrl * preKernel;
+	
+	size_t align;
+	int N_IN_GROUPS;
+	int N_LCL_IN_MAPS;
+	int N_LCL_IN_MAPS_ONCE;
+	int N_LCL_OUT_MAPS;
+	int	N_OUT_GROUPS;
+	int CLOOP0;
+	int CLOOP2;
+	int GroupNumber;
+	int FIXED_WORKGROUP_SIZE = 64;
 
 public:
 	/************************************************************************/
@@ -99,7 +110,7 @@ public:
 		DevMalloc((void**)&(d_in.ptr), exCfg->size_in * sizeof(float));
 		DevMalloc((void**)&(d_wei.ptr), exCfg->size_wei * sizeof(float));
 		DevMalloc((void**)&(d_out.ptr), exCfg->size_out * sizeof(float));
-		DevMalloc((void**)&(d_signal.ptr), 10 * sizeof(uint));
+		DevMalloc((void**)&(d_signal.ptr), exCfg->size_sig * sizeof(uint));
 
 		d_in.size = sizeof(cl_mem);		d_in.isVal = false;
 		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;
@@ -110,6 +121,7 @@ public:
 		solutionCfg->KernelArgus->push_back(d_in);
 		solutionCfg->KernelArgus->push_back(d_wei);
 		solutionCfg->KernelArgus->push_back(d_out);
+		//solutionCfg->KernelArgus->push_back(d_signal);
 
 		extSol->preArgus = new std::list<T_KernelArgu>;
 		extSol->preArgus->push_back(d_in);
@@ -135,6 +147,7 @@ public:
 	{
 		T_ExtConvFwd1x1ProblemConfig * exCfg = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		Copy2Hst(exCfg->h_out, (cl_mem)(d_out.ptr), exCfg->size_out * sizeof(float));
+		Copy2Hst(exCfg->h_signal, (cl_mem)(d_signal.ptr), exCfg->size_sig * sizeof(int));
 	}
 
 	/************************************************************************/
@@ -171,7 +184,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -235,7 +248,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -296,248 +309,248 @@ public:
 	/* 根据solution参数生成source, complier和worksize                        */
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
+	{		
+		generateParameters();// 提取搜索参数		
+		generateCompilerOption();// 生成编译选项		
+		generateWorkLoad();// 生成worksize		
+		generateSource();// 获取/生成代码
+
+		simulateIndex();
+
+		return E_ReturnState::SUCCESS;
+	}
+
+	void generateParameters()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		size_t align;
-		int N_IN_GROUPS;
-		int	N_OUT_GROUPS;
-
-		// ======================================================================
-		// 提取搜索参数
-		// ======================================================================
+		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			if ((solutionCfg->ConfigName == "SQC") || (solutionCfg->ConfigName == "TensileConv"))
+			// chunk config
+			// ---------------
+			int n_out_pix_tiles = 16;
+			N_LCL_OUT_MAPS = n_out_pix_tiles;
+			N_LCL_OUT_MAPS = std::min(N_LCL_OUT_MAPS, extProblem->feature_out);
+			while ((extProblem->feature_out % N_LCL_OUT_MAPS) != 0 && N_LCL_OUT_MAPS > 16)
 			{
-				solutionCfg->KernelSearchSpace.StartGetParam();
-				while (true)
-				{
-					T_SearchParam * param;
-					param = solutionCfg->KernelSearchSpace.GetOneParam();
-					if (param == NULL)
-					{
-						break;
-					}
-
-					if (param->Name == "k_out_maps")
-					{
-						extSolution->k_out_maps = param->CurrValue;
-					}
-					if (param->Name == "group_size")
-					{
-						extSolution->group_size = param->CurrValue;
-					}
-				}
-
-				if (extSolution->k_out_maps == 0)
-				{
-					extSolution->k_out_maps = 8;
-				}
-				if (extSolution->group_size == 0)
-				{
-					extSolution->group_size = 64;
-				}
-
-				printf("----------------------------------------------------------------------\n");
-				printf("Kernel Param:\n");
-				printf("	k_out_maps=[%d]\n", extSolution->k_out_maps);
-				printf("	group_size=[%d]\n", extSolution->group_size);
-				printf("----------------------------------------------------------------------\n");
-
-				extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
-				extSolution->c_in_maps = extProblem->C;
-				extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
-
-				extSolution->c_in_maps_once = 8;
-				extSolution->out_pix_tile = 1;
-				extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
-				extSolution->in_pix_maps = 64;
-				extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
-				align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+				N_LCL_OUT_MAPS /= 2;
 			}
-			else if (solutionCfg->ConfigName == "PreFetch2")
+			n_out_pix_tiles = N_LCL_OUT_MAPS;
+
+			// ---------------
+			int n_in_data_tiles = 2048;
+			N_LCL_IN_MAPS = n_in_data_tiles;
+			N_LCL_IN_MAPS = std::min(N_LCL_IN_MAPS, extProblem->channel_in);
+			if (N_LCL_IN_MAPS < extProblem->channel_in && N_LCL_IN_MAPS > 0 && (N_LCL_IN_MAPS % 8) == 0)
 			{
-				extSolution->k_out_maps = 16;
-				extSolution->group_size = 256;
-				extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
-				extSolution->c_in_maps = extProblem->C;
-				extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
-
-				extSolution->c_in_maps_once = 8;
-				extSolution->out_pix_tile = 1;
-				extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
-				extSolution->in_pix_maps = 64;
-				extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
-				align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+				// Pass will do nothing
 			}
+			else
+			{
+				N_LCL_IN_MAPS = extProblem->channel_in;
+			}
+			n_in_data_tiles = N_LCL_IN_MAPS;
+
+			N_IN_GROUPS = (extProblem->channel_in + N_LCL_IN_MAPS - 1) / N_LCL_IN_MAPS;
+			N_LCL_IN_MAPS_ONCE = 8;
+
+			CLOOP0 = N_LCL_IN_MAPS / N_LCL_IN_MAPS_ONCE;
+			CLOOP2 = (extProblem->channel_in - N_LCL_IN_MAPS * (N_IN_GROUPS - 1)) / N_LCL_IN_MAPS_ONCE;
+
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+			N_OUT_GROUPS = (extProblem->feature_out / N_LCL_OUT_MAPS);
+		}
+		else if ((solutionCfg->ConfigName == "SQC") || (solutionCfg->ConfigName == "TensileConv"))
+		{
+			solutionCfg->KernelSearchSpace.StartGetParam();
+			while (true)
+			{
+				T_SearchParam * param;
+				param = solutionCfg->KernelSearchSpace.GetOneParam();
+				if (param == NULL)
+				{
+					break;
+				}
+
+				if (param->Name == "k_out_maps")
+				{
+					extSolution->k_out_maps = param->CurrValue;
+				}
+				if (param->Name == "group_size")
+				{
+					extSolution->group_size = param->CurrValue;
+				}
+			}
+
+			if (extSolution->k_out_maps == 0)
+			{
+				extSolution->k_out_maps = 8;
+			}
+			if (extSolution->group_size == 0)
+			{
+				extSolution->group_size = 64;
+			}
+
+			printf("----------------------------------------------------------------------\n");
+			printf("Kernel Param:\n");
+			printf("	k_out_maps=[%d]\n", extSolution->k_out_maps);
+			printf("	group_size=[%d]\n", extSolution->group_size);
+			printf("----------------------------------------------------------------------\n");
+
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+			extSolution->c_in_maps = extProblem->C;
+			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+			extSolution->c_in_maps_once = 8;
+			extSolution->out_pix_tile = 1;
+			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+			extSolution->in_pix_maps = 64;
+			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+		}
+		else if (solutionCfg->ConfigName == "PreFetch2")
+		{
+			extSolution->k_out_maps = 16;
+			extSolution->group_size = 256;
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+			extSolution->c_in_maps = extProblem->C;
+			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+			extSolution->c_in_maps_once = 8;
+			extSolution->out_pix_tile = 1;
+			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+			extSolution->in_pix_maps = 64;
+			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+		}
+	}
+
+	void generateCompilerOption()
+	{
+		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+
+		solutionCfg->extCompilerOpt = "";
+		if (solutionCfg->ConfigName == "MIOpenOcl")
+		{
+			solutionCfg->extCompilerOpt =
+				std::string(" -DMLO_FILTER_STRIDE0=1") +
+				std::string(" -DMLO_FILTER_STRIDE1=1") +
+				std::string(" -DMLO_N_LCL_IN_MAPS_ONCE=") + std::to_string(N_LCL_IN_MAPS_ONCE) +
+				std::string(" -DBATCHSIZE=") + std::to_string(extProblem->batch_size) +
+				std::string(" -DH=") + std::to_string(extProblem->heigh_in) +
+				std::string(" -DW=") + std::to_string(extProblem->width_in) +
+				std::string(" -DC=") + std::to_string(extProblem->channel_in) +
+				std::string(" -DK=") + std::to_string(extProblem->feature_out) +
+				std::string(" -DMLO_N_LCL_IN_MAPS=") + std::to_string(N_LCL_IN_MAPS) +
+				std::string(" -DMLO_N_INPUTS=") + std::to_string(extProblem->channel_in) +
+				std::string(" -DMLO_N_OUTPUTS=") + std::to_string(extProblem->feature_out) +
+				std::string(" -DH_out=") + std::to_string(extProblem->heigh_out) +
+				std::string(" -DW_out=") + std::to_string(extProblem->width_out) +
+				std::string(" -DMLO_N_IN_GROUPS=") + std::to_string(N_IN_GROUPS) +
+				std::string(" -DMLO_CLOOP0=") + std::to_string(CLOOP0) +
+				std::string(" -DMLO_CLOOP2=") + std::to_string(CLOOP2) +
+				std::string(" -DMLO_N_LCL_OUT_MAPS=") + std::to_string(N_LCL_OUT_MAPS) +
+				std::string(" -DMLO_CHEAT_SHADER_COMPILER=1 ") + // to disable macro defines for CodeXL Shader Analyzer
+				std::string(" -DMLopen_RUNNING=1 ") +
+				std::string(" -DMIOPEN_USE_FP32=1 ");
+
+			extSolution->k_out_maps = N_LCL_OUT_MAPS;
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+		}
+		else if (solutionCfg->ConfigName == "SQC")
+		{
+			solutionCfg->extCompilerOpt =
+				std::string(" -Wa, -defsym, $name=$val ");
+		}
+	}
+
+	void generateWorkLoad()
+	{
+		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+
+		if (solutionCfg->ConfigName == "MIOpenOcl")
+		{
+			solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE;
+			solutionCfg->l_wk1 = 1;
+			solutionCfg->l_wk2 = 1;
+			solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
+			solutionCfg->g_wk1 = 1;
+			solutionCfg->g_wk2 = 1;
+		}
+		else if (solutionCfg->ConfigName == "SQC")
+		{
+			solutionCfg->l_wk0 = extSolution->group_size;
+			solutionCfg->l_wk1 = 1;
+			solutionCfg->l_wk2 = 1;
+			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
+			solutionCfg->g_wk1 = 1;
+			solutionCfg->g_wk2 = 1;
+		}
+		else if ((solutionCfg->ConfigName == "PreFetch1") || (solutionCfg->ConfigName == "PreFetch2"))
+		{
+			solutionCfg->l_wk0 = extSolution->group_size;
+			solutionCfg->l_wk1 = 1;
+			solutionCfg->l_wk2 = 1;
+			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
+			solutionCfg->g_wk1 = 1;
+			solutionCfg->g_wk2 = 1;
+
+			//solutionCfg->l_wk0 = 1;
+			solutionCfg->g_wk0 = 64 * solutionCfg->l_wk0;
+		}
+		else if (solutionCfg->ConfigName == "TensileConv")
+		{
+			solutionCfg->l_wk0 = extSolution->group_size;
+			solutionCfg->l_wk1 = 1;
+			solutionCfg->l_wk2 = 1;
+			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
+			solutionCfg->g_wk1 = 1;
+			solutionCfg->g_wk2 = 1;
 		}
 
-		// ======================================================================
-		// 生成编译选项
-		// ======================================================================
+		solutionCfg->b_wk0 = solutionCfg->g_wk0 / solutionCfg->l_wk0;
+		solutionCfg->b_wk1 = solutionCfg->g_wk0 / solutionCfg->l_wk1;
+		solutionCfg->b_wk2 = solutionCfg->g_wk0 / solutionCfg->l_wk2;
+	}
+
+	void generateSource()
+	{
+		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			solutionCfg->extCompilerOpt = "";
-			if (solutionCfg->ConfigName == "MIOpenOcl")
-			{
-				// chunk config
-				int out_pix_tile0 = 1;
-				int CHEAT_SHADER_COMPILER = out_pix_tile0;
-				// ---------------
-				int n_out_pix_tiles = 16;
-				int N_LCL_OUT_MAPS = n_out_pix_tiles;
-				N_LCL_OUT_MAPS = std::min(N_LCL_OUT_MAPS, extProblem->feature_out);
-				while ((extProblem->feature_out % N_LCL_OUT_MAPS) != 0 && N_LCL_OUT_MAPS > 16)
-				{
-					N_LCL_OUT_MAPS /= 2;
-				}
-				n_out_pix_tiles = N_LCL_OUT_MAPS;
-
-				// ---------------
-				int n_in_data_tiles = 2048;
-				int N_LCL_IN_MAPS = n_in_data_tiles;
-				N_LCL_IN_MAPS = std::min(N_LCL_IN_MAPS, extProblem->channel_in);
-				if (N_LCL_IN_MAPS < extProblem->channel_in && N_LCL_IN_MAPS > 0 && (N_LCL_IN_MAPS % 8) == 0)
-				{
-					// Pass will do nothing
-				}
-				else
-				{
-					N_LCL_IN_MAPS = extProblem->channel_in;
-				}
-				n_in_data_tiles = N_LCL_IN_MAPS;
-
-				N_IN_GROUPS = (extProblem->channel_in + N_LCL_IN_MAPS - 1) / N_LCL_IN_MAPS;
-				int N_LCL_IN_MAPS_ONCE = 8;
-
-				int CLOOP0 = N_LCL_IN_MAPS / N_LCL_IN_MAPS_ONCE;
-				int CLOOP2 = (extProblem->channel_in - N_LCL_IN_MAPS * (N_IN_GROUPS - 1)) / N_LCL_IN_MAPS_ONCE;
-
-				align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
-				N_OUT_GROUPS = (extProblem->feature_out / N_LCL_OUT_MAPS);
-
-				solutionCfg->extCompilerOpt =
-					std::string(" -DMLO_FILTER_STRIDE0=1") +
-					std::string(" -DMLO_FILTER_STRIDE1=1") +
-					std::string(" -DMLO_N_LCL_IN_MAPS_ONCE=") + std::to_string(N_LCL_IN_MAPS_ONCE) +
-					std::string(" -DBATCHSIZE=") + std::to_string(extProblem->batch_size) +
-					std::string(" -DH=") + std::to_string(extProblem->heigh_in) +
-					std::string(" -DW=") + std::to_string(extProblem->width_in) +
-					std::string(" -DC=") + std::to_string(extProblem->channel_in) +
-					std::string(" -DK=") + std::to_string(extProblem->feature_out) +
-					std::string(" -DMLO_N_LCL_IN_MAPS=") + std::to_string(N_LCL_IN_MAPS) +
-					std::string(" -DMLO_N_INPUTS=") + std::to_string(extProblem->channel_in) +
-					std::string(" -DMLO_N_OUTPUTS=") + std::to_string(extProblem->feature_out) +
-					std::string(" -DH_out=") + std::to_string(extProblem->heigh_out) +
-					std::string(" -DW_out=") + std::to_string(extProblem->width_out) +
-					std::string(" -DMLO_N_IN_GROUPS=") + std::to_string(N_IN_GROUPS) +
-					std::string(" -DMLO_CLOOP0=") + std::to_string(CLOOP0) +
-					std::string(" -DMLO_CLOOP2=") + std::to_string(CLOOP2) +
-					std::string(" -DMLO_N_LCL_OUT_MAPS=") + std::to_string(N_LCL_OUT_MAPS) +
-					std::string(" -DMLO_CHEAT_SHADER_COMPILER=") + std::to_string(CHEAT_SHADER_COMPILER) + // to disable macro defines for CodeXL Shader Analyzer
-					std::string(" -DMLopen_RUNNING=1 ") +
-					std::string(" -DMIOPEN_USE_FP32=1 ");
-
-				extSolution->k_out_maps = N_LCL_OUT_MAPS;
-				extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
-			}
-			else if (solutionCfg->ConfigName == "SQC")
-			{
-				solutionCfg->extCompilerOpt =
-					std::string(" -Wa, -defsym, $name=$val ");
-			}
+			solutionCfg->KernelName = "MIOpenConv1x1";
+			solutionCfg->KernelFile = "MIOpenConv1x1J1_64reorg.cl";
+			//solutionCfg->KernelFile = "MIOpenConv1x1J1_256thread.cl";
+			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
 		}
-
-		// ======================================================================
-		// 生成worksize
-		// ======================================================================
+		else if (solutionCfg->ConfigName == "SQC")
 		{
-			if (solutionCfg->ConfigName == "MIOpenOcl")
-			{
-				solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE * 4;//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-				solutionCfg->l_wk1 = 1;
-				solutionCfg->l_wk2 = 1;
-				solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
-				//align = ((extProblem->W*extProblem->H + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
-				//solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS * extProblem->N;
-				solutionCfg->g_wk1 = 1;
-				solutionCfg->g_wk2 = 1;
-			}
-			else if (solutionCfg->ConfigName == "SQC")
-			{
-				solutionCfg->l_wk0 = extSolution->group_size;
-				solutionCfg->l_wk1 = 1;
-				solutionCfg->l_wk2 = 1;
-				solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
-				solutionCfg->g_wk1 = 1;
-				solutionCfg->g_wk2 = 1;
-			}
-			else if ((solutionCfg->ConfigName == "PreFetch1")||(solutionCfg->ConfigName == "PreFetch2"))
-			{
-				solutionCfg->l_wk0 = extSolution->group_size;
-				solutionCfg->l_wk1 = 1;
-				solutionCfg->l_wk2 = 1;
-				solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
-				solutionCfg->g_wk1 = 1;
-				solutionCfg->g_wk2 = 1;
-
-				//solutionCfg->l_wk0 = 1;
-				//solutionCfg->g_wk0 = 64;
-			}
-			else if (solutionCfg->ConfigName == "TensileConv")
-			{
-				solutionCfg->l_wk0 = extSolution->group_size;
-				solutionCfg->l_wk1 = 1;
-				solutionCfg->l_wk2 = 1;
-				solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
-				solutionCfg->g_wk1 = 1;
-				solutionCfg->g_wk2 = 1;
-			}
+			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm.s";
+			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
-
-		// ======================================================================
-		// 获取/生成代码
-		// ======================================================================
+		else if (solutionCfg->ConfigName == "PreFetch")
 		{
-			if (solutionCfg->ConfigName == "MIOpenOcl")
-			{
-				solutionCfg->KernelName = "MIOpenConv1x1";
-				//solutionCfg->KernelFile = "MIOpenConv1x1J1.cl";
-				solutionCfg->KernelFile = "MIOpenConv1x1J1_256thread.cl";//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
-			}
-			else if (solutionCfg->ConfigName == "SQC")
-			{
-				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-				solutionCfg->KernelFile = "ConvFwd1x1_Jasm.s";
-				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-			}
-			else if (solutionCfg->ConfigName == "PreFetch")
-			{
-				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-				solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
-				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-			}
-			else if (solutionCfg->ConfigName == "PreFetch2")
-			{
-				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-				solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch2.s";
-				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-			}
-			else if (solutionCfg->ConfigName == "TensileConv")
-			{
-				solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-				solutionCfg->KernelFile = "ConvFwd1x1_Jasm_TensileConv.s";
-				writeAsmKernel();
-				saveKernelStr2File();
-				solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-			}
+			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
+			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
-
-		//generateWorkLoad2();
-		//printWorkLoad();
-		
-		return E_ReturnState::SUCCESS;
+		else if (solutionCfg->ConfigName == "PreFetch2")
+		{
+			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch2.s";
+			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+		}
+		else if (solutionCfg->ConfigName == "TensileConv")
+		{
+			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_TensileConv.s";
+			writeAsmKernel();
+			saveKernelStr2File();
+			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+		}
 	}
 
 	/************************************************************************/
@@ -552,10 +565,11 @@ public:
 		printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
 		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
 	}
-
+	
 	/************************************************************************/
+	/* 测试下标计算															*/
 	/************************************************************************/
-	void generateWorkLoad()
+	void simulateIndex0()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
@@ -600,7 +614,6 @@ public:
 		int k_groups = extProblem->K / k_maps;	// 1个K分到多少个group上做
 		//k_groups = 4;
 		int round_id, round_left;
-		int CU_NUM = 64, SE_NUM = 4, CU_PER_SE = 16;
 		int wei_id;
 		int in_id;
 		int groups_per_cu = group_num / CU_NUM; // 每个CU分多少个group
@@ -675,145 +688,161 @@ public:
 		Copy2Dev((cl_mem)(d_out_off.ptr), pos_id_buff, group_num * sizeof(uint));
 	}
 
-	void generateWorkLoad2()
+	void simulateIndex()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		int group_num = solutionCfg->g_wk0 / solutionCfg->l_wk0;
-		batch_id_buff = (int*)HstMalloc(group_num * sizeof(int));
-		wei_id_buff = (int*)HstMalloc(group_num * sizeof(int));
-		pos_id_buff = (int*)HstMalloc(group_num * sizeof(int));
-
-		int local_id0;
-		int grp_id0;
-		 
-		int out_grp_block;
-		int grp_id0_faked;
-
-		int pos;
-		int batch_id;
-		int out_id;
-
-		int gbl_in_off;
-		int wei_off;
-		int gbl_out_off; 
-
-		int MLO_N_OUT_GROUPS = extSolution->k_out_group;
-		uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-		uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
-		uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
-		uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
-		uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
-		uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-
-		for (int grp = 0; grp < group_num; grp++)
+		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			local_id0 = 64;
-			grp_id0 = grp;
+			// group size = 256
+			/*{
+				uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
+				uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+				uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
+				uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
+				uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
+				uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
+				uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
 
-			out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
-			grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
-			
-			pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-			batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-			out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+				int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+				int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+				int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+				int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
 
-			gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
-			wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
-			gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
+				for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
+				{
+					uint local_id0 = 0;
+					uint grp_id0 = grp;
 
-			batch_id_buff[grp] = pos; 
-			wei_id_buff[grp] = out_id;
+					uint out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
+					uint grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
+
+					uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+					uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+					uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+
+					uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
+					uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
+					uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
+
+					testGrpId[grp_id0] = grp_id0;
+
+					testPosId[grp_id0] = pos;
+					testBatchId[grp_id0] = batch_id;
+					testOutId[grp_id0] = out_id;
+				}
+
+				printIndex(testGrpId, "group id");
+				printIndex(testBatchId, "batch id");
+				printIndex(testOutId, "out id");
+				printIndex(testPosId, "pos id");
+
+			}*/
+
+			// group size = 64
+			{
+				uint MLO_IN_HEIGHT = extProblem->H;
+				uint MLO_IN_WIDTH = extProblem->W;
+				uint MLO_N_INPUTS = extProblem->C;
+				uint MLO_N_LCL_IN_MAPS = extProblem->C;
+				uint MLO_N_IN_GROUPS = ((MLO_N_INPUTS + MLO_N_LCL_IN_MAPS - 1) / MLO_N_LCL_IN_MAPS);
+				uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
+				uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+				uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
+				uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
+				uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
+				uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
+				uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+
+				uint MLO_ROUND_NUMBER = solutionCfg->b_wk0 / CU_NUM;
+				uint MLO_ROUND_LEFT = MLO_ROUND_NUMBER * CU_NUM;
+				uint MLO_Z_ROUND_NUM = solutionCfg->b_wk0 / (CU_NUM * MLO_N_OUT_GROUPS);
+				uint MLO_INBLOCK_LEFT = MLO_Z_ROUND_NUM * CU_NUM;
+
+				int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+
+				int *testInBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+				int *testWeiBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+
+				int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+				int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+				int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+
+				for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
+				{
+					uint local_id0 = 0;
+					uint grp_id0 = grp;
+
+					//// old orgenazition
+					//uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
+					//uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
+					//
+					//uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+					//uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+					//uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+					//
+					//uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
+					//uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
+					//uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
+					
+					// new orgernazition
+					uint inBlkId, weiBlkId;
+					uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);	// 第几轮Z格子
+					
+					inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;		// 即 grp_id0_faked
+					weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;		// 即 out_grp_block
+					
+					if (grp_id0 >= MLO_ROUND_LEFT)
+					{
+						uint leftGrpId = 0;
+						leftGrpId = grp_id0 - MLO_ROUND_LEFT;
+						inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;
+						weiBlkId = leftGrpId % 4;
+					}
+					
+					uint out_grp_block = weiBlkId;
+					uint grp_id0_faked = inBlkId;
+					
+					uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+					uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+					uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+
+					testGrpId[grp_id0] = grp_id0;
+
+					testInBlkId[grp_id0] = grp_id0_faked;
+					testWeiBlkId[grp_id0] = out_grp_block;
+
+					testPosId[grp_id0] = pos;
+					testBatchId[grp_id0] = batch_id;
+					testOutId[grp_id0] = out_id;
+				}
+
+				printIndex(testGrpId, "group id");
+
+				//printIndex(testInBlkId, "input block id");
+				//printIndex(testWeiBlkId, "weight block id");
+
+				printIndex(testBatchId, "batch id");
+				printIndex(testOutId, "out id");
+				printIndex(testPosId, "pos id");
+			}
 		}
 	} 
 
-	void printWorkLoad()
-	{
-		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
-		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-
-		int simuGrpBase = 0;
-		int simuGrpIdx = 0;
-		int simuSeId, simuCuId;
-
-
-		int pix_maps = FIXED_WORKGROUP_SIZE;
-		int pix_groups = (extProblem->W*extProblem->H + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE;// 每层图像被分到几个group上
-		int in_gruops = pix_groups * extProblem->N;// 所有input分到多少个gruop上做
-		int k_maps = extSolution->k_out_maps;		// 每个group计算多少个K				
-		int k_groups = extProblem->K / k_maps;	// 1个K分到多少个group上做
-		int group_num = solutionCfg->g_wk0 / solutionCfg->l_wk0;
-/*
-		printf("##########################\n");
-		printf("# group number = %d\n", group_num);
-		printf("##########################\n");
-		for (int se = 0; se < 4; se++)
-		{
-			printf("SE=%d:", se);
-			simuGrpBase = se;
-			for (int cu = 0; cu < 16; cu++)
-			{
-				printf("\t[%02d]:", cu);
-				simuGrpIdx = simuGrpBase;
-				while (simuGrpIdx < group_num)
-				{
-					printf("%03d, ", simuGrpIdx);
-					simuGrpIdx += 64;
-				}
-				printf("\n");
-				simuGrpBase +=4;
-			}
-			printf("\n");
-		}
-*/
-		int grp_id;
-		printf("##########################\n");
-		printf("# group number = %d\n", group_num);
-		printf("# pix maps = %d\n", pix_maps);
-		printf("# pix group number = %d\n", pix_groups);
-		printf("# input group number = %d\n", in_gruops);
-		printf("# k_out number = %d\n", extProblem->K);	
-		printf("# k_out maps = %d\n", k_maps);// meige
-		printf("# k_out group number = %d\n", k_groups);
-		printf("##########################\n");
-		for (int se = 0; se < 4; se++)
-		{
-			printf("SE=%d:", se);
-			simuGrpBase = se; 
-
-			for (int cu = 0; cu < 16; cu++)
-			{
-				printf("\t[%02d]:", cu);
-				simuGrpIdx = simuGrpBase;
-
-				while (simuGrpIdx < group_num)
-				{
-					printf("(%02d/%02d),", 
-						batch_id_buff[simuGrpIdx], wei_id_buff[simuGrpIdx], pos_id_buff[simuGrpIdx]);
-					simuGrpIdx += 64;
-				}
-				printf("\n");
-				simuGrpBase += 4;
-			}
-			printf("\n");
-		}
-	}
-
-
 
 	/************************************************************************/
-	/* 分别配置两个kernel								                        */
+	/* 两个kernel										                    */
 	/************************************************************************/
 	E_ReturnState SetupSolution0()
 	{
 		printf("setup solution.\n");
 	
-		setupPrefetch();
-		setupCalcu();
-
-		// warm up
-		LaunchSolution();
+//		setupPrefetch();
+//		setupCalcu();
+//
+//		// warm up
+//		LaunchSolution();
 	
 		return E_ReturnState::SUCCESS;
 	}
@@ -866,9 +895,7 @@ public:
 		solutionCfg->ElapsedTimes.clear();
 	}
 	
-	/************************************************************************/
-	/* 分别加载两个kernel								                        */
-	/************************************************************************/
+
 	E_ReturnState LaunchSolution0()
 	{
 		printf("set argue.\n");
@@ -878,13 +905,13 @@ public:
 		solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
 		for (int i = 0; i < solutionCfg->RepeatTime; i++)
 		{	
-			setArgusPrefetch();
-			setArgusCalcu();
-	
-	
-			printf("launch solution.\n");
-			runtime->LanchKernel();	
-			preKernel->LanchKernel();
+//			setArgusPrefetch();
+//			setArgusCalcu();
+//	
+//	
+//			printf("launch solution.\n");
+//			preKernel->LanchKernel2();
+//			runtime->LanchKernel2();	
 		}
 		return E_ReturnState::SUCCESS;
 	}
@@ -956,8 +983,9 @@ public:
 		return E_ReturnState::SUCCESS;
 	}
 
-
-	
+	/************************************************************************/
+	/* 自动生成kernel								                        */
+	/************************************************************************/
 	void wirteCommom1(std::string common)
 	{
 		asmKernelStr.append("/************************************************************************************/\n");
@@ -1745,7 +1773,7 @@ public:
 	}
 	
 };
-
+ 
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
@@ -1785,7 +1813,7 @@ public:
 			// problem config 1：
 			extProblemConfig = new T_ExtConvFwd1x1ProblemConfig();
 			//extProblemConfig->W = 7;		extProblemConfig->H = 7;
-			//extProblemConfig->C = 832;		extProblemConfig->K = 256;
+			//extProblemConfig->C = 1024;		extProblemConfig->K = 1024;
 
 			extProblemConfig->W = 28;		extProblemConfig->H = 28;
 			extProblemConfig->C = 192;		extProblemConfig->K = 64;
@@ -2067,9 +2095,12 @@ public:
 		exCfg->stride_k_out = exCfg->width_out * exCfg->heigh_out;
 		exCfg->stride_n_out = exCfg->width_out * exCfg->heigh_out * exCfg->K;
 
+		exCfg->prefetch_loop = 32; // exCfg->C / CACHE_LINE;
+
 		exCfg->size_in = exCfg->W * exCfg->H * exCfg->C * exCfg->N;
 		exCfg->size_wei = exCfg->X * exCfg->Y * exCfg->C * exCfg->K;
 		exCfg->size_out = exCfg->W * exCfg->H * exCfg->K * exCfg->N;
+		exCfg->size_sig = exCfg->prefetch_loop * CU_NUM;
 
 		problemCfg->Calculation = 1.0 * exCfg->W * exCfg->H * exCfg->C * exCfg->N * exCfg->K * exCfg->X * exCfg->Y; // */stride_R/stride_S
 		//problemCfg->TheoryElapsedTime = problemCfg->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
@@ -2082,6 +2113,7 @@ public:
 		exCfg->h_wei = (float*)HstMalloc(exCfg->size_wei * sizeof(float));
 		exCfg->h_out = (float*)HstMalloc(exCfg->size_out * sizeof(float));
 		exCfg->out_ref = (float*)HstMalloc(exCfg->size_out * sizeof(float));
+		exCfg->h_signal = (int*)HstMalloc(exCfg->size_sig * sizeof(int));
 
 		printf("input  WHCN = [%d, %d, %d, %d]\n", exCfg->width_in, exCfg->heigh_in, exCfg->C, exCfg->N);
 		printf("weight WHCK = [%d, %d, %d, %d]\n", exCfg->width_wei, exCfg->heigh_wei, exCfg->C, exCfg->K);
@@ -2107,6 +2139,10 @@ public:
 		for (int i = 0; i < exCfg->size_out; i++)
 		{
 			exCfg->h_out[i] = 0;
+		}
+		for (int i = 0; i < exCfg->size_sig; i++)
+		{
+			exCfg->h_signal[i] = 567;
 		}
 
 		//printTensor("input", h_in, exCfg->W, exCfg->H, exCfg->C, exCfg->N);
@@ -2241,3 +2277,4 @@ public:
 		}
 	}
 };
+ 

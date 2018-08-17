@@ -54,6 +54,20 @@
 .set K_FETCH_STEP,				16				// cache_line
 .set SUB_LOOP,					(K/K_FETCH_SUB)
 .set FETCH_LOOP,				(C/K_FETCH_STEP)
+.set CLOOP0,					(MLO_N_LCL_IN_MAPS / MLO_N_LCL_IN_MAPS_ONCE / 2)
+
+.set IN_PIXEL_PER_GROUP,			64
+.set IN_PIXEL_PER_GROUP_LOG2,		6
+.set IN_PIXEL_PER_GROUP_MOD_MASK,	63
+
+.set CU_NUM,						64
+.set CU_NUM_MOD_MASK,				63
+.set SIGNAL_NUM_PER_CU,				16			// channel 数除以 catch_line长度取2的n次幂
+.set SIGNAL_NUM_PER_CU_LOG2,		4
+
+.set SIGNAL_REQ_FETCH,				0x1234
+.set SIGNAL_EXIT,					0xF0F0
+.set SIGNAL_NULL,					0x0
 
 // ==================================================================================
 // SGPR 初始排布
@@ -77,7 +91,7 @@ gid_z0 = 8
 // ==================================================================================
 .GPR_ALLOC_BEGIN
     .SGPR_ALLOC_FROM 9
-	.SGPR_ALLOC s_temp0
+	.SGPR_ALLOC s_tmp0
     .SGPR_ALLOC s_ptr_in, 2
     .SGPR_ALLOC s_ptr_wei, 2
     .SGPR_ALLOC s_ptr_out, 2
@@ -102,11 +116,13 @@ gid_z0 = 8
 	
 	.SGPR_ALLOC s_loop_cnt
 	.SGPR_ALLOC s_sub_loop_cnt
+	.SGPR_ALLOC s_block_id
+	.SGPR_ALLOC s_signal
+	.SGPR_ALLOC s_tmp1
 
 	// ------------------------------------------------------------------------------
     .VGPR_ALLOC_FROM 0
     .VGPR_ALLOC tid
-    .VGPR_ALLOC v_temp0
 	
     .LDS_ALLOC_FROM 0
 .GPR_ALLOC_END
@@ -136,78 +152,11 @@ ConvFwd1x1_Jasm_Prefetch:
 		workgroup_group_segment_byte_size 	= 0		//[caculated] group segment memory required by a work-group in bytes		
 	.end_amd_kernel_code_t
 
-// Disassembly:
-	
-	// ===============================================================================
-	// 获取计算参数
-	// ===============================================================================
-	s_load_dwordx2 			s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off	// desc_in = in_ptr
-	s_load_dwordx2 			s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off	// desc_wei = wei_ptr
-	s_load_dwordx2 			s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off	// desc_out = out_ptr
-	s_load_dwordx2			s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
-	s_waitcnt 				lgkmcnt(0)
-	
-	//s_mov_b64				exec, 0x01
-	
-	// ------------------------------------------------------------------------------
-	s_mov_b32 				s[s_loop_cnt], 0x0
-	
-PRE_FETCH:
-	s_mov_b32				s[s_sub_loop_cnt], 0x0
-	
-FETCH_SUB:
-	imm_offset = 0
-	s_fetch = s_wei1
 
-	.rept K_FETCH_SUB / 2
-		s_load_dword 		s[s_fetch], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
-		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
-		s_fetch = s_fetch + 1
-		s_load_dword 		s[s_fetch], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
-		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
-		s_fetch = s_fetch + 1
-		s_waitcnt lgkmcnt(0)													// 最多15条s_load_指令(lgkmcnt为4bit计数器)		
-	.endr
-	
-	// ------------------------------------------------------------------------------
-	// 调整指针: 到下一个16 k_out
-	s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_CHANNEL_STRIDE * K_FETCH_SUB * 4
-	s_addc_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
-	
-	s_add_u32 				s[s_sub_loop_cnt], s[s_sub_loop_cnt], 1
-	s_cmpk_eq_i32 			s[s_sub_loop_cnt], 0x0 + SUB_LOOP
-	s_cbranch_scc0 			FETCH_SUB
-	
-	//s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//.rept 10
-	//	s_nop				0x0F
-	//.endr
-	//s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	
-	// ------------------------------------------------------------------------------
-FETCH_WAIT:
-	s_sleep					0x10
-	s_load_dword 			s[s_temp0], s[s_ptr_sig:s_ptr_sig+1], 0x0 
-	s_waitcnt 				lgkmcnt(0)
-	s_cmp_eq_u32			s[s_temp0], 0x1234									// if(signal == 0x1234) prefetch next sub
-	//s_cbranch_scc0		FETCH_WAIT
-	
-	// ------------------------------------------------------------------------------
-	// 调整指针
-	s_sub_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
-	s_subb_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
-	s_waitcnt 				lgkmcnt(0)
-	
-	// ------------------------------------------------------------------------------
-	s_add_u32 				s[s_loop_cnt], s[s_loop_cnt], 1
-	s_cmpk_eq_i32 			s[s_loop_cnt], 0x0 + FETCH_LOOP						// if(s_loop_cnt <= FETCH_LOOP) prefetch next
-	s_cbranch_scc0 			PRE_FETCH
-	
-
-// =================================================================================================================
-// =================================================================================================================
-/*
-DBG_SEG:
+/************************************************************************************/
+/* 测试 																			*/
+/************************************************************************************/
+.macro m_debug_func
 	// ------------------------------------------------------------------------------
 	// 计算输出地址(线性测试用) 
 	// __global float* q = out_ptr + FIXED_WORKGROUP_SIZE * gid_x + tid;
@@ -221,10 +170,7 @@ DBG_SEG:
 	v_mov_b32 			v[v_tmp2], s[s_ptr_out+1]										// v_tmp2 = s_ptr_outp[31:16]
 	v_add_co_u32 		v[v_addr_dbg], vcc, s[s_ptr_out], v[v_tmp1]						// ...
 	v_addc_co_u32 		v[v_addr_dbg+1], vcc, 0, v[v_tmp2], vcc							// v_addr_dbg = out_ptr + FIXED_WORKGROUP_SIZE * gid_x + tid
-	
-	// ===============================================================================
-	// 测试 
-	// ===============================================================================	
+		
 	//v_mov_b32 		v[v_tmp2], s[s_tmp1]											// v_tmp2 = s_tmp1
 	//v_cvt_f32_u32 	v[v_tmp2], v[tid]												// v_tmp2 = (float)tid
 
@@ -248,9 +194,120 @@ DBG_SEG:
 	global_store_dword v[v_addr_dbg:v_addr_dbg+1], v[v_tmp1], off						// v_addr_dbg = v_tmp1 (测试单个输出)
 	
 	s_branch END_PROG
-*/	
+.endm	
+	
+	
 
+/************************************************************************************/
+/* 等待信号 																		*/
+/************************************************************************************/
+.macro m_wait_signal
+	s_mov_b32				s[s_signal], SIGNAL_NULL
+FETCH_WAIT:
+	//s_sleep					0x01
+	
+	s_lshl_b32				s[s_tmp1], s[s_loop_cnt], 0x02
+	s_load_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
+	s_waitcnt 				lgkmcnt(0)
+	
+	s_cmp_eq_u32			s[s_signal], SIGNAL_REQ_FETCH					// if(signal == SIGNAL_NULL) wait
+	s_cbranch_scc0			FETCH_WAIT
+.endm	
 
+/************************************************************************************/
+/* 预读取 																			*/
+/************************************************************************************/
+.macro m_fetch_sub
+	imm_offset = 0
+	s_fetch = s_wei1
+	
+	.rept K_FETCH_SUB / 2
+		s_load_dword 		s[s_fetch], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
+		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
+		s_fetch = s_fetch + 1
+		
+		s_load_dword 		s[s_fetch], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
+		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
+		s_fetch = s_fetch + 1
+		
+		s_waitcnt lgkmcnt(0)															// 最多15条s_load_指令(lgkmcnt为4bit计数器)		
+	.endr
+	
+	// ------------------------------------------------------------------------------
+	// 调整指针: 到下一个 16 k_out
+	// ------------------------------------------------------------------------------
+	s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_CHANNEL_STRIDE * K_FETCH_SUB * 4
+	s_addc_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
+.endm
+
+/************************************************************************************/
+/* 预读取一轮																		*/
+/************************************************************************************/
+.macro m_fetch_round
+	.rept  SUB_LOOP	
+		m_fetch_sub
+	.endr
+	m_point_nx_round
+.endm
+
+/************************************************************************************/
+/* 调整指针: 指向下一组																*/
+/************************************************************************************/
+.macro m_point_nx_round
+	s_sub_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
+	s_subb_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
+	// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//s_sub_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_STRIDE * 4
+	//s_subb_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
+.endm
+
+// ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+	
+// Disassembly:	
+	// ===============================================================================
+	// 获取计算参数
+	// ===============================================================================
+	s_load_dwordx2 			s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off	// desc_in = in_ptr
+	s_load_dwordx2 			s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off	// desc_wei = wei_ptr
+	s_load_dwordx2 			s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off	// desc_out = out_ptr
+	s_load_dwordx2			s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
+	s_waitcnt 				lgkmcnt(0)
+		
+	// -------------------------------------------------------------------------------
+	// 计算 signal 地址 
+	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
+	// -------------------------------------------------------------------------------
+	s_and_b32				s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
+	s_lshl_b32				s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
+	s_add_u32				s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
+	s_addc_u32				s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
+	
+		
+	//m_point_nx_round	// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//m_point_nx_round	// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		
+	// ------------------------------------------------------------------------------
+	//s_mov_b64				exec, 0x01
+	s_mov_b32 				s[s_loop_cnt], CLOOP0 - 1									// channel 的循环	
+	
+	m_fetch_round	
+	
+PRE_FETCH:
+	m_fetch_round
+	
+	// ------------------------------------------------------------------------------
+	// 等待信号
+	// ------------------------------------------------------------------------------
+	//m_wait_signal
+	
+	// -------------------------------------------------------------------------------
+	// 循环控制 :
+	// -------------------------------------------------------------------------------
+	s_sub_u32 				s[s_loop_cnt], s[s_loop_cnt], 0x1							// s_loop_cnt--
+	//s_cmpk_eq_i32 		s[s_loop_cnt], 0x0											// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	s_cmpk_eq_i32 			s[s_loop_cnt], 0x0+ CLOOP0-3
+	s_cbranch_scc0 			PRE_FETCH
+	
 END_PROG:
 	s_endpgm
 	

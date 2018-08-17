@@ -113,8 +113,11 @@
     <None Include="Kernels\IsaSleep.s" />
     <None Include="Kernels\MIOpenConv1x1J1.cl" />
     <None Include="Kernels\MIOpenConv1x1J1_256thread.cl" />
+    <None Include="Kernels\MIOpenConv1x1J1_64reorg.cl" />
     <None Include="Kernels\MIOpenConv1x1J1_offset.cl" />
     <None Include="Kernels\ProducerConsumer.s" />
+    <None Include="Kernels\PS_Consumer.s" />
+    <None Include="Kernels\PS_Producer.s" />
     <None Include="Kernels\Test.cl" />
     <None Include="Kernels\VectorAdd.cl" />
     <None Include="Kernels\VectorAdd.s" />
