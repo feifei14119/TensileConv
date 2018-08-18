@@ -516,7 +516,8 @@ public:
 			solutionCfg->g_wk2 = 1;
 
 			//solutionCfg->l_wk0 = 1;
-			//solutionCfg->g_wk0 = 64 * solutionCfg->l_wk0;
+			//solutionCfg->g_wk0 = 64* solutionCfg->l_wk0;
+			solutionCfg->g_wk0 += (64 * solutionCfg->l_wk0);
 		}
 		else if (solutionCfg->ConfigName == "TensileConv")
 		{
@@ -2023,16 +2024,16 @@ public:
 
 		for (int i = 0; i < exCfg->size_in; i++)
 		{
-			exCfg->h_in[i] = 1;
+			//exCfg->h_in[i] = 1;
 			//exCfg->h_in[i] = (float)(i % 7) + 1.0f;
-			//exCfg->h_in[i] = (float)(rand() % 100 - 50);
+			exCfg->h_in[i] = (float)(rand() % 100 - 50);
 			//exCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exCfg->size_wei; i++)
 		{
-			exCfg->h_wei[i] = 1;
+			//exCfg->h_wei[i] = 1;
 			//exCfg->h_wei[i] = (float)(i % 13) + 1.0f;
-			//exCfg->h_wei[i] = (float)(rand() % 100 - 50);
+			exCfg->h_wei[i] = (float)(rand() % 100 - 50);
 			//exCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exCfg->size_out; i++)
