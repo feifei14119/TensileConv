@@ -121,7 +121,7 @@ public:
 		solutionCfg->KernelArgus->push_back(d_in);
 		solutionCfg->KernelArgus->push_back(d_wei);
 		solutionCfg->KernelArgus->push_back(d_out);
-		//solutionCfg->KernelArgus->push_back(d_signal);
+		solutionCfg->KernelArgus->push_back(d_signal);
 
 		extSol->preArgus = new std::list<T_KernelArgu>;
 		extSol->preArgus->push_back(d_in);
@@ -184,7 +184,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -220,19 +220,19 @@ public:
 		}
 
 		// ======================================================================
-		// solution config 4: PreFetch: 64thread
+		// solution config 4: sigle kernrl PreFetch
 		// ======================================================================
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
 			solutionConfig = new T_SolutionConfig();
 			solutionConfig->ConfigName = "PreFetch1";
-			solutionConfig->RepeatTime = 4;
+			solutionConfig->RepeatTime = 1;
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -360,6 +360,9 @@ public:
 
 			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
 			N_OUT_GROUPS = (extProblem->feature_out / N_LCL_OUT_MAPS);
+			
+			extSolution->k_out_maps = N_LCL_OUT_MAPS;
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
 		}
 		else if ((solutionCfg->ConfigName == "SQC") || (solutionCfg->ConfigName == "TensileConv"))
 		{
@@ -398,6 +401,21 @@ public:
 			printf("	group_size=[%d]\n", extSolution->group_size);
 			printf("----------------------------------------------------------------------\n");
 
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+			extSolution->c_in_maps = extProblem->C;
+			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+			extSolution->c_in_maps_once = 8;
+			extSolution->out_pix_tile = 1;
+			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+			extSolution->in_pix_maps = 64;
+			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+		}		
+		else if (solutionCfg->ConfigName == "PreFetch1")
+		{
+			extSolution->k_out_maps = 16;
+			extSolution->group_size = 64;
 			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
 			extSolution->c_in_maps = extProblem->C;
 			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
@@ -452,17 +470,14 @@ public:
 				std::string(" -DMLO_CLOOP0=") + std::to_string(CLOOP0) +
 				std::string(" -DMLO_CLOOP2=") + std::to_string(CLOOP2) +
 				std::string(" -DMLO_N_LCL_OUT_MAPS=") + std::to_string(N_LCL_OUT_MAPS) +
-				std::string(" -DMLO_CHEAT_SHADER_COMPILER=1 ") + // to disable macro defines for CodeXL Shader Analyzer
-				std::string(" -DMLopen_RUNNING=1 ") +
-				std::string(" -DMIOPEN_USE_FP32=1 ");
-
-			extSolution->k_out_maps = N_LCL_OUT_MAPS;
-			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+				std::string(" -DMLO_CHEAT_SHADER_COMPILER=1") +
+				std::string(" -DMLopen_RUNNING=1") +
+				std::string(" -DMIOPEN_USE_FP32=1");
 		}
-		else if (solutionCfg->ConfigName == "SQC")
+		else
 		{
-			solutionCfg->extCompilerOpt =
-				std::string(" -Wa, -defsym, $name=$val ");
+			//solutionCfg->extCompilerOpt = 
+			//	std::string(" -Wa, -defsym, $name=$val ");
 		}
 	}
 
@@ -479,6 +494,8 @@ public:
 			solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
 			solutionCfg->g_wk1 = 1;
 			solutionCfg->g_wk2 = 1;
+
+			//solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE*4;
 		}
 		else if (solutionCfg->ConfigName == "SQC")
 		{
@@ -499,7 +516,7 @@ public:
 			solutionCfg->g_wk2 = 1;
 
 			//solutionCfg->l_wk0 = 1;
-			solutionCfg->g_wk0 = 64 * solutionCfg->l_wk0;
+			//solutionCfg->g_wk0 = 64 * solutionCfg->l_wk0;
 		}
 		else if (solutionCfg->ConfigName == "TensileConv")
 		{
@@ -521,7 +538,7 @@ public:
 		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
 			solutionCfg->KernelName = "MIOpenConv1x1";
-			solutionCfg->KernelFile = "MIOpenConv1x1J1_64reorg.cl";
+			solutionCfg->KernelFile = "MIOpenConv1x1J1_NewOrg.cl";
 			//solutionCfg->KernelFile = "MIOpenConv1x1J1_256thread.cl";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
 		}
@@ -531,10 +548,11 @@ public:
 			solutionCfg->KernelFile = "ConvFwd1x1_Jasm.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
-		else if (solutionCfg->ConfigName == "PreFetch")
+		else if (solutionCfg->ConfigName == "PreFetch1")
 		{
 			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "PreFetch2")
@@ -569,131 +587,12 @@ public:
 	/************************************************************************/
 	/* 测试下标计算															*/
 	/************************************************************************/
-	void simulateIndex0()
-	{
-		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
-		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-
-		int group_num = solutionCfg->g_wk0 / solutionCfg->l_wk0;
-		batch_id_buff = (int*)HstMalloc(group_num * sizeof(int));
-		wei_id_buff = (int*)HstMalloc(group_num * sizeof(int));
-		pos_id_buff = (int*)HstMalloc(group_num * sizeof(int));
-
-		uint local_id0;
-		uint grp_id0;
-		uint out_grp_block;
-		uint grp_id0_faked;
-
-		uint batch_id;
-		uint out_id;
-		uint pos_id;
-
-		uint gbl_in_off;
-		uint gbl_wei_off;
-		uint gbl_out_off;
-
-		uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
-		uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-		uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
-		uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
-		uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
-		uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
-		uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-
-		uint in_group_maps = (extProblem->W * extProblem->H + solutionCfg->l_wk0 - 1) / solutionCfg->l_wk0;	// 每批次每层input的图像分给几个work_group去做
-		uint in_batch;		// 当前是第几个batch
-		uint in_batch_offset;
-
-		uint out_val;
-		uint pos_val;
-
-		int pix_maps = FIXED_WORKGROUP_SIZE;
-		int pix_groups = (extProblem->W*extProblem->H + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE;// 每层图像被分到几个group上
-		int in_gruops = pix_groups * extProblem->N;// 所有input分到多少个gruop上做
-		int k_maps = extSolution->k_out_maps;		// 每个group计算多少个K				
-		int k_groups = extProblem->K / k_maps;	// 1个K分到多少个group上做
-		//k_groups = 4;
-		int round_id, round_left;
-		int wei_id;
-		int in_id;
-		int groups_per_cu = group_num / CU_NUM; // 每个CU分多少个group
-		int pix_groups_per_cu = groups_per_cu / k_groups; // 每个CU分多少个input_group
-		int group_id_last_round = pix_groups_per_cu * 64;
-		int cu_fake_id;
-		int cu_id, se_id;
-		int group_left;
-
-		int hang_id, lie_id;
-		int wei_per_block = 4;		// 每块有多少列计算相同的input, 不同的weight
-		int block_num_per_cu = groups_per_cu / wei_per_block;	// 每个CU上有多少个块
-		int block_num_per_cu_ceil = (groups_per_cu + wei_per_block- 1) / wei_per_block;	// 每个CU上有多少个块
-		int block_id;			// 当前CU上第几个块
-		int wei_cu_num_pair = k_groups / block_num_per_cu;	// 所有的输出k会分到几个CU对儿上
-		int cu_pair_block_id;		// CU对儿的ID
-		int cu_pair_id;
-		int serial_id;	// group 按照第一个CU开始的连续序号
-		int conv_group_num = wei_per_block * in_gruops;
-
-		for (int grp = 0; grp < group_num; grp++)
-		{
-			se_id = grp % SE_NUM;
-			cu_id = grp % CU_NUM / SE_NUM;
-
-			hang_id = CU_PER_SE * se_id + cu_id;
-			lie_id = grp / CU_NUM;
-			block_id = lie_id / wei_per_block;
-
-			cu_fake_id = CU_PER_SE * se_id + cu_id;
-
-			round_id = grp / CU_NUM;
-			round_left = grp % CU_NUM;
-			group_left = groups_per_cu % k_groups;
-			cu_pair_block_id = hang_id / 2 / wei_cu_num_pair;
-			cu_pair_id = hang_id / 2;
-
-			/*if ((groups_per_cu - round_id) <= group_left) 
-			{
-				//wei_id = cu_fake_id / 2 % k_groups;
-				//in_id = cu_fake_id / k_groups / 2 * 2 + cu_fake_id % 2 + group_id_last_round;
-				//wei_id = -1;
-				//in_id = 0;
-				//wei_id = round_id % k_groups;
-				wei_id = cu_fake_id;
-				in_id = round_id / k_groups + pix_groups_per_cu * cu_fake_id;
-			}
-			else
-			{
-				wei_id = round_id % k_groups;
-				in_id = round_id / k_groups + pix_groups_per_cu * cu_fake_id;
-				in_id = (block_num_per_cu * (cu_pair_id % wei_cu_num_pair) + block_id);
-			}*/
-
-			serial_id = groups_per_cu * hang_id + lie_id;
-			block_id = serial_id / wei_per_block;
-			wei_id = block_id % pix_groups;
-			in_id = (block_num_per_cu_ceil *wei_per_block* hang_id +lie_id)/ wei_per_block;
-
-			batch_id = in_id / pix_groups;
-			pos_id = in_id % pix_groups;
-			out_id = wei_id;
-			
-			batch_id_buff[grp] = in_id;
-			wei_id_buff[grp] = in_id;
-			pos_id_buff[grp] = lie_id;
-		}
-
-
-		Copy2Dev((cl_mem)(d_in_off.ptr), batch_id_buff, group_num * sizeof(uint));
-		Copy2Dev((cl_mem)(d_wei_off.ptr), wei_id_buff, group_num * sizeof(uint));
-		Copy2Dev((cl_mem)(d_out_off.ptr), pos_id_buff, group_num * sizeof(uint));
-	}
-
 	void simulateIndex()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		if (solutionCfg->ConfigName == "MIOpenOcl")
+		//if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
 			// group size = 256
 			/*{
@@ -774,7 +673,7 @@ public:
 					uint local_id0 = 0;
 					uint grp_id0 = grp;
 
-					//// old orgenazition
+					//// old organization
 					//uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
 					//uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
 					//
@@ -786,7 +685,7 @@ public:
 					//uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
 					//uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
 					
-					// new orgernazition
+					// new organization
 					uint inBlkId, weiBlkId;
 					uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);	// 第几轮Z格子
 					
@@ -812,7 +711,7 @@ public:
 
 					testInBlkId[grp_id0] = grp_id0_faked;
 					testWeiBlkId[grp_id0] = out_grp_block;
-
+					
 					testPosId[grp_id0] = pos;
 					testBatchId[grp_id0] = batch_id;
 					testOutId[grp_id0] = out_id;
@@ -820,12 +719,12 @@ public:
 
 				printIndex(testGrpId, "group id");
 
-				//printIndex(testInBlkId, "input block id");
-				//printIndex(testWeiBlkId, "weight block id");
+				printIndex(testInBlkId, "input block id");
+				printIndex(testWeiBlkId, "weight block id");
 
-				printIndex(testBatchId, "batch id");
-				printIndex(testOutId, "out id");
-				printIndex(testPosId, "pos id");
+				//printIndex(testBatchId, "batch id");
+				//printIndex(testOutId, "out id");
+				//printIndex(testPosId, "pos id");
 			}
 		}
 	} 
@@ -1041,7 +940,7 @@ public:
 		fout.write(asmKernelStr.c_str(), asmKernelStr.length());
 		fout.close();
 	}
-	 
+	
 
 	
 

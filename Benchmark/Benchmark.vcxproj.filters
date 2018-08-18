@@ -180,7 +180,10 @@
     <None Include="Kernels\PS_Producer.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
-    <None Include="Kernels\MIOpenConv1x1J1_64reorg.cl">
+    <None Include="Kernels\MIOpenConv1x1J1_NewOrg.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_NewOrg.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
   </ItemGroup>
