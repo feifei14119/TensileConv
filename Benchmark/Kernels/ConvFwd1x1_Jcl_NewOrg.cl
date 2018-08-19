@@ -137,7 +137,7 @@
 
 
 __attribute__((reqd_work_group_size(MLO_GRP_SZ0, MLO_GRP_SZ1, MLO_GRP_SZ2))) __kernel void
-MIOpenConv1x1(const __global _FLOAT* __restrict in_ptr,
+ConvFwd1x1(const __global _FLOAT* __restrict in_ptr,
               __constant _FLOAT* __restrict wei_ptr,
               __global _FLOAT* __restrict out_ptr//,
               //UNUSED _FLOAT dummy_val // nothing

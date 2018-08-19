@@ -516,7 +516,7 @@ public:
 			solutionCfg->g_wk2 = 1;
 
 			//solutionCfg->l_wk0 = 1;
-			//solutionCfg->g_wk0 = 64* solutionCfg->l_wk0;
+			solutionCfg->g_wk0 = 64 * 3 * solutionCfg->l_wk0;
 			solutionCfg->g_wk0 += (64 * solutionCfg->l_wk0);
 		}
 		else if (solutionCfg->ConfigName == "TensileConv")
@@ -536,35 +536,32 @@ public:
 
 	void generateSource()
 	{
+		solutionCfg->KernelName = "ConvFwd1x1";
 		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			solutionCfg->KernelName = "MIOpenConv1x1";
-			solutionCfg->KernelFile = "MIOpenConv1x1J1_NewOrg.cl";
-			//solutionCfg->KernelFile = "MIOpenConv1x1J1_256thread.cl";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jcl.cl";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jcl_NewOrg.cl";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jcl_256thread.cl";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
 		}
 		else if (solutionCfg->ConfigName == "SQC")
 		{
-			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
 			solutionCfg->KernelFile = "ConvFwd1x1_Jasm.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "PreFetch1")
 		{
-			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
-			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "PreFetch2")
 		{
-			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
 			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch2.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "TensileConv")
 		{
-			solutionCfg->KernelName = "ConvFwd1x1_Jasm";
 			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_TensileConv.s";
 			writeAsmKernel();
 			saveKernelStr2File();

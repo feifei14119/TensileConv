@@ -2,10 +2,10 @@
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
 
 .text
-.globl ConvFwd1x1_Jasm
+.globl ConvFwd1x1
 .p2align 8
-.type ConvFwd1x1_Jasm,@function
-.amdgpu_hsa_kernel ConvFwd1x1_Jasm
+.type ConvFwd1x1,@function
+.amdgpu_hsa_kernel ConvFwd1x1
 
 .include "gpr_alloc.inc"
 .include "common.inc"
@@ -191,7 +191,7 @@ gid_z0 	   = 8
 /************************************************************************************/
 /* 主程序																			*/
 /************************************************************************************/
-ConvFwd1x1_Jasm:
+ConvFwd1x1:
     .amd_kernel_code_t	
 		enable_sgpr_private_segment_buffer	= 1		// needed by this kernel specially
 		enable_sgpr_kernarg_segment_ptr 	= 1		//(use 1 SGPR) 64 bit address of Kernarg segment.
@@ -794,7 +794,7 @@ END_PROG:
 .amd_amdgpu_hsa_metadata
 { Version: [ 1, 0 ],
   Kernels: 
-    - { Name: ConvFwd1x1_Jasm, SymbolName: 'ConvFwd1x1_Jasm', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
+    - { Name: ConvFwd1x1, SymbolName: 'ConvFwd1x1', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 64, 1, 1 ] }
         CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 512 }
         Args:

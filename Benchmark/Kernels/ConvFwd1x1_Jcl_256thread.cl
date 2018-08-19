@@ -94,7 +94,7 @@
 
 #define MLO_N_OUT_GROUPS (MLO_N_OUTPUTS / MLO_N_LCL_OUT_MAPS)
 
-#define MLO_GRP_SZ0 64
+#define MLO_GRP_SZ0 256
 #define MLO_GRP_SZ1 1
 #define MLO_GRP_SZ2 1
 
@@ -103,6 +103,8 @@
 #define TWO 2
 #define FOUR 4
 #define EIGHT 8
+
+#define MIOPEN_USE_FP32 1
 
 #if MIOPEN_USE_FP16 == 1
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
@@ -164,62 +166,41 @@ inline void AtomicAdd(volatile __global _FLOAT* source, const _FLOAT operand)
 }
 
 __attribute__((reqd_work_group_size(MLO_GRP_SZ0, MLO_GRP_SZ1, MLO_GRP_SZ2))) __kernel void
-MIOpenConv1x1(const __global _FLOAT* __restrict in_ptr,
+ConvFwd1x1(const __global _FLOAT* __restrict in_ptr,
               __constant _FLOAT* __restrict wei_ptr,
 #if MLO_CONV_BIAS
               const __global _FLOAT* __restrict bias,
 #endif
-              __global _FLOAT* __restrict out_ptr,
-			  
-              __global int* __restrict p_bathc_id,
-              __global int* __restrict p_out_id,
-              __global int* __restrict p_pos
+              __global _FLOAT* __restrict out_ptr
               )
 {
 
-    uint grp_id0   = get_group_id(0);
     uint local_id0 = get_local_id(0);
-	
+    uint grp_id0   = get_group_id(0);
+
+	uint out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
+    uint grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
+
 #if MLO_CHEAT_SHADER_COMPILER == 1
     uint grp_id2 = get_group_id(2);
 #endif
 
-/*	
-    uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
-    uint in_grp_block  = (uint)(grp_id0 / MLO_N_OUT_GROUPS) % MLO_N_IN_GROUPS;
-    uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
-
-
-    uint pos      = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) % MLO_IN_CHANNEL_STRIDE;
-    uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) / MLO_IN_CHANNEL_STRIDE;
-    uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-
-    if(batch_id >= BATCHSIZE)
+    uint pos      = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+    uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+    uint out_id   = out_grp_block * MLO_N_LCL_OUT_MAPS;
+    if(batch_id  >= BATCHSIZE)
         return;
 
-
-    uint gbl_in_off0 = batch_id * MLO_IN_BATCH_STRIDE + in_grp_block * MLO_N_LCL_IN_MAPS * MLO_IN_CHANNEL_STRIDE + pos;
-    uint wei_off0 = out_id * MLO_WEI_CHANNEL_STRIDE + in_grp_block * MLO_N_LCL_IN_MAPS;
-	uint gbl_out_off0 = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-*/
-
-	uint batch_id = p_bathc_id[grp_id0];
-	uint out_id   = p_out_id[grp_id0] * MLO_N_LCL_OUT_MAPS;
-	uint pos      = p_pos[grp_id0] * FIXED_WORKGROUP_SIZE + local_id0;
-	
-    if(pos >= MLO_IN_CHANNEL_STRIDE)
-        return;
-	
     uint gbl_in_off  = batch_id * MLO_IN_BATCH_STRIDE                                    + pos;
     uint wei_off     =                                   out_id * MLO_WEI_CHANNEL_STRIDE      ;
 	uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-	
+
+#if 1
     _FLOAT accum[MLO_N_LCL_OUT_MAPS];
     _FLOAT weights[MLO_N_LCL_IN_MAPS_ONCE];
     _FLOAT dat[MLO_N_LCL_IN_MAPS_ONCE];
     _FLOAT dat2[MLO_N_LCL_IN_MAPS_ONCE];
 
-#if 1
 
 // ATOMIC is needed if INPUTS in many waves
 #if(MLO_N_LCL_IN_MAPS != MLO_N_INPUTS)
@@ -401,15 +382,12 @@ MIOpenConv1x1(const __global _FLOAT* __restrict in_ptr,
             w += MLO_N_LCL_IN_MAPS_ONCE;
         }
     }
-
-#endif
     __global _FLOAT* q = out_ptr + gbl_out_off;
 
     for(uint o = 0; o < MLO_N_LCL_OUT_MAPS; ++o)
     {
 #if(MLO_N_LCL_IN_MAPS == MLO_N_INPUTS)
-		 *q = accum[o];
-       //*q = 1.23;
+		*q = accum[o];
         q += MLO_OUT_CHANNEL_STRIDE;
 #else
         AtomicAdd(q, accum[o]);
@@ -417,8 +395,13 @@ MIOpenConv1x1(const __global _FLOAT* __restrict in_ptr,
 #endif
     }
 
-	//__global _FLOAT* q = out_ptr + 64 * grp_id0 + local_id0;
-	//*q = batch_id;
+#else
+	__global _FLOAT* q = out_ptr + grp_id0 * 256 + local_id0;
+
+	//for (uint o = 0; o < MLO_N_LCL_OUT_MAPS; ++o)
+	{
+		*q = local_id0;
+		//q += MLO_OUT_CHANNEL_STRIDE;
+	}
+#endif
 }
-
-

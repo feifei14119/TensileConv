@@ -2,10 +2,10 @@
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
 
 .text
-.globl ConvFwd1x1_Jasm
+.globl ConvFwd1x1
 .p2align 16
-.type ConvFwd1x1_Jasm,@function
-.amdgpu_hsa_kernel ConvFwd1x1_Jasm
+.type ConvFwd1x1,@function
+.amdgpu_hsa_kernel ConvFwd1x1
 
 .include "gpr_alloc.inc"
 .include "common.inc"
@@ -17,49 +17,49 @@
 // ==================================================================================
 // 常量定义
 // ==================================================================================
-.set W,							28
-.set H,							28
-.set C,							192
-.set K,							64
-.set N,							16
-
-.set MLO_IN_CHANNEL_STRIDE,		(W * H)
-.set MLO_IN_BATCH_STRIDE,		(H * W * C)
-.set MLO_WEI_CHANNEL_STRIDE,	(1 * 1 * C)
-.set MLO_WEI_STRIDE,			(1 * 1 * C * K)
-.set MLO_OUT_CHANNEL_STRIDE,	(W * H)
-.set MLO_OUT_BATCH_STRIDE,		(H * W * K)
-
-.set SE_NUM,					(4)
-.set CU_PER_SE,					(16)
-.set CU_NUM,					(CU_PER_SE * SE_NUM)
-.set CU_NUM_LOG2,				(6)
-.set CU_NUM_MOD_MASK,			(63)
-.set WAVE_SIZE,					(64)
-.set WAVE_SIZE_LOG2,			(6)
-.set WAVE_SIZE_MOD_MASK,		(63)
-
-.set MLO_N_OUT_GROUPS,			4				// 一个输出像素的所有特征，分到几个CU上计算
-.set MLO_N_OUT_GROUPS_LOG2,		2				// 乘除法时的移位
-.set MLO_N_OUT_GROUPS_MOD_MASK, 0x3 			// 求余时的mask
-.set MLO_N_IN_GROUPS,			1				// 所有输入通道被分到几个CU
-.set MLO_N_IN_GROUPS_LOG2,		0				// 乘除法时的移位
-.set MLO_N_IN_GROUPS_DIV_MASK,	0x0				// 求余时的mask
-
-.set MLO_N_LCL_IN_MAPS,			192				// 每个CU负责计算的输入通道个数
-.set MLO_N_LCL_IN_MAPS_ONCE,	8				// 每次循环（不展开）负责计算的输入通道个数
-.set MLO_N_LCL_OUT_MAPS,		16				// 每个CU负责计算的输出特征数
-.set MLO_N_LCL_OUT_MAPS_LOG2,	4
-.set MLO_IN_PIX_GROUP,			64				// 每个workgroup处理多少个input pixal
-.set MLO_IN_PIX_GROUP_LOG2,		6
-.set MLO_IN_PIX_GROUP_DIV_MASK,	0x3F
-
-.set SE_NUM,					4				// shader engin 个数
-.set SE_NUM_LOG2,				2
-.set FIXED_WORKGROUP_SIZE,		64				// 每个CU的线程数
-.set FIXED_WORKGROUP_SIZE_LOG2,	6
-.set GROUPS_PER_OUT_BATCH,		(W * H / FIXED_WORKGROUP_SIZE * MLO_N_OUT_GROUPS)	// 48
-.set CLOOP0,					(MLO_N_LCL_IN_MAPS / MLO_N_LCL_IN_MAPS_ONCE / 2)
+.set W,								28
+.set H,								28
+.set C,								192
+.set K,								64
+.set N,								16
+	
+.set MLO_IN_CHANNEL_STRIDE,			(W * H)
+.set MLO_IN_BATCH_STRIDE,			(H * W * C)
+.set MLO_WEI_CHANNEL_STRIDE,		(1 * 1 * C)
+.set MLO_WEI_STRIDE,				(1 * 1 * C * K)
+.set MLO_OUT_CHANNEL_STRIDE,		(W * H)
+.set MLO_OUT_BATCH_STRIDE,			(H * W * K)
+	
+.set SE_NUM,						(4)
+.set CU_PER_SE,						(16)
+.set CU_NUM,						(CU_PER_SE * SE_NUM)
+.set CU_NUM_LOG2,					(6)
+.set CU_NUM_MOD_MASK,				(63)
+.set WAVE_SIZE,						(64)
+.set WAVE_SIZE_LOG2,				(6)
+.set WAVE_SIZE_MOD_MASK,			(63)
+	
+.set MLO_N_OUT_GROUPS,				4				// 一个输出像素的所有特征，分到几个CU上计算
+.set MLO_N_OUT_GROUPS_LOG2,			2				// 乘除法时的移位
+.set MLO_N_OUT_GROUPS_MOD_MASK, 	0x3 			// 求余时的mask
+.set MLO_N_IN_GROUPS,				1				// 所有输入通道被分到几个CU
+.set MLO_N_IN_GROUPS_LOG2,			0				// 乘除法时的移位
+.set MLO_N_IN_GROUPS_DIV_MASK,		0x0				// 求余时的mask
+	
+.set MLO_N_LCL_IN_MAPS,				192				// 每个CU负责计算的输入通道个数
+.set MLO_N_LCL_IN_MAPS_ONCE,		8				// 每次循环（不展开）负责计算的输入通道个数
+.set MLO_N_LCL_OUT_MAPS,			16				// 每个CU负责计算的输出特征数
+.set MLO_N_LCL_OUT_MAPS_LOG2,		4
+.set MLO_IN_PIX_GROUP,				64				// 每个workgroup处理多少个input pixal
+.set MLO_IN_PIX_GROUP_LOG2,			6
+.set MLO_IN_PIX_GROUP_DIV_MASK,		0x3F
+	
+.set SE_NUM,						4				// shader engin 个数
+.set SE_NUM_LOG2,					2
+.set FIXED_WORKGROUP_SIZE,			64				// 每个CU的线程数
+.set FIXED_WORKGROUP_SIZE_LOG2,		6
+.set GROUPS_PER_OUT_BATCH,			(W * H / FIXED_WORKGROUP_SIZE * MLO_N_OUT_GROUPS)	// 48
+.set CLOOP0,						(MLO_N_LCL_IN_MAPS / MLO_N_LCL_IN_MAPS_ONCE / 2)
 
 .set IN_PIXEL_PER_GROUP,			64
 .set IN_PIXEL_PER_GROUP_LOG2,		6
@@ -70,7 +70,7 @@
 .set OUT_BLOCKS_PER_GROUP,			4
 .set OUT_BLOCKS_PER_GROUP_LOG2,		2
 
-.set SIGNAL_NUM_PER_CU,				16			// channel 数除以 catch_line长度取2的n次幂
+.set SIGNAL_NUM_PER_CU,				16				// channel 数除以 catch_line长度取2的n次幂
 .set SIGNAL_NUM_PER_CU_LOG2,		4
 
 .set SIGNAL_REQ_FETCH,				0x1234
@@ -85,10 +85,12 @@
 .set MLO_Z_ROUND_NUM,			 	(MLO_GRP_NUM / (CU_NUM * MLO_N_OUT_GROUPS))
 .set MLO_INBLOCK_LEFT,			 	(MLO_Z_ROUND_NUM * CU_NUM)
 
-.set K_FETCH_SUB,				16				// 每次fetch多少通道的weight: cache_line * K < 4K DWORD
-.set K_FETCH_STEP,				16				// cache_line
-.set SUB_LOOP,					(K/K_FETCH_SUB)
-.set FETCH_LOOP,				(C/K_FETCH_STEP)
+.set K_FETCH_SUB,					16				// 每次fetch多少通道的weight: cache_line * K < 4K DWORD
+.set K_FETCH_STEP,					16				// cache_line
+.set SUB_LOOP,						(K/K_FETCH_SUB)
+.set FETCH_LOOP,					(C/K_FETCH_STEP)
+.set FETCH_LINE_NUM,				(2)				// 每次fetch 2个catch_line
+.set FETCH_LINE_NUM_MOD_MASK,		(1)
 
 // ==================================================================================
 // SGPR 初始排布
@@ -161,10 +163,8 @@ gid_z0 = 8
 	.SGPR_ALLOC s_tmp4
 	.SGPR_ALLOC s_ptr_save, 2
 	.SGPR_ALLOC s_loop_cnt
-	.SGPR_ALLOC s_block_id
 	.SGPR_ALLOC s_signal
-	.SGPR_ALLOC s_feature_loop_cnt
-	.SGPR_ALLOC s_prefetch_loop_cnt
+	.SGPR_ALLOC s_sig_cnt
 
 	// ------------------------------------------------------------------------------
     .VGPR_ALLOC_FROM 0
@@ -234,7 +234,7 @@ gid_z0 = 8
 /************************************************************************************/
 /* 主程序																			*/
 /************************************************************************************/
-ConvFwd1x1_Jasm:
+ConvFwd1x1:
     .amd_kernel_code_t	
 		enable_sgpr_private_segment_buffer	= 1		// needed by this kernel specially
 		enable_sgpr_kernarg_segment_ptr 	= 1		//(use 1 SGPR) 64 bit address of Kernarg segment.
@@ -540,7 +540,7 @@ ConvFwd1x1_Jasm:
 .macro m_wait_signal
 	s_mov_b32				s[s_signal], SIGNAL_NULL
 FETCH_WAIT:
-	s_sleep					0x10
+	//s_sleep					0x10
 	
 	s_lshl_b32				s[s_tmp1], s[s_loop_cnt], 0x02
 	s_load_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
@@ -554,8 +554,8 @@ FETCH_WAIT:
 /* 调整fetch指针: 指向下一组														*/
 /************************************************************************************/
 .macro m_point_nx_round
-	//s_sub_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
-	//s_subb_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
+	//s_sub_u32 			s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
+	//s_subb_u32 			s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
 	
 	s_mov_b64				s[s_ptr_wei:s_ptr_wei+1], s[s_ptr_save:s_ptr_save+1]
 	s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2
@@ -596,9 +596,9 @@ FETCH_WAIT:
 
 	.rept  SUB_LOOP	
 		m_fetch_sub
-	.endr
+	.endr	
 	
-	m_point_nx_round
+	m_point_nx_round	
 .endm
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -626,23 +626,28 @@ PREFETCH_GROUP:
 	s_add_u32				s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32				s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
 	
-	s_mov_b32 				s[s_loop_cnt], CLOOP0 - 1									// channel 的循环	
+	s_mov_b32 				s[s_loop_cnt], CLOOP0-1										// channel 的循环	
 	
-	m_fetch_round	
-	
-PRE_FETCH:
 	m_fetch_round
-	
+//	m_fetch_round	
+		
+PRE_FETCH:	
 	// ------------------------------------------------------------------------------
 	// 等待信号
 	// ------------------------------------------------------------------------------
 	m_wait_signal
 	
+	// ------------------------------------------------------------------------------
+	// 预读取
+	// ------------------------------------------------------------------------------
+	m_fetch_round
+//	m_fetch_round
+	
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
 	// -------------------------------------------------------------------------------
 	s_sub_u32 				s[s_loop_cnt], s[s_loop_cnt], 0x1							// s_loop_cnt--
-	s_cmpk_eq_i32 			s[s_loop_cnt], 0x0
+	s_cmpk_le_i32 			s[s_loop_cnt], 0x0
 	s_cbranch_scc0 			PRE_FETCH
 	
 	s_branch				END_PROG
@@ -774,15 +779,14 @@ MAIN_CONV:
 	// 读取8输入通道的input data
 	// -------------------------------------------------------------------------------
 	//m_weight_pre_fatch
+	s_mov_b32					s[s_sig_cnt], 0x0
 	s_mov_b32 					s[s_loop_cnt], CLOOP0 - 1								// s_loop_cnt = CLOOP0 - 1
 	m_load_input2 				v_data0
 	weight_offset = 0
-	s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	.rept 1000
-		s_nop				0x0F
-	.endr
-	s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	
+	// -------------------------------------------------------------------------------
+	// 循环体 :
+	// -------------------------------------------------------------------------------
 LOOP_CONV:	
 	s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	.rept 500
@@ -793,8 +797,17 @@ LOOP_CONV:
 	m_load_input2 				v_datb0	
 	m_cacul_all_feature_ping 	v_data0, weight_offset
 	
+	// -------------------------------------------------------------------------------
+	// 发送信号 :
+	// -------------------------------------------------------------------------------
 	m_send_signal				SIGNAL_REQ_FETCH
-	
+//	s_add_u32					s[s_sig_cnt], s[s_sig_cnt], 0x1
+//	s_cmp_eq_u32				s[s_sig_cnt], 0x0 + FETCH_LINE_NUM
+//	s_cbranch_scc0				END_SEND_SIGNAL	
+//	m_send_signal				SIGNAL_REQ_FETCH
+//	s_mov_b32					s[s_sig_cnt], 0x0
+//END_SEND_SIGNAL:
+		
 	m_load_input2 				v_data0
 	m_cacul_all_feature_pang 	v_datb0, weight_offset
 	
@@ -831,7 +844,7 @@ END_PROG:
 .amd_amdgpu_hsa_metadata
 { Version: [ 1, 0 ],
   Kernels: 
-    - { Name: ConvFwd1x1_Jasm, SymbolName: 'ConvFwd1x1_Jasm', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
+    - { Name: ConvFwd1x1, SymbolName: 'ConvFwd1x1', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 64, 1, 1 ] }
         CodeProps: { KernargSegmentSize: 32, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 256 }
         Args:

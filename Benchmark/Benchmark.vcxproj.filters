@@ -132,22 +132,10 @@
     <None Include="Kernels\VectorAdd.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
-    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
     <None Include="Kernels\Test.cl">
       <Filter>problems\test\kernels</Filter>
     </None>
-    <None Include="Kernels\MIOpenConv1x1J1.cl">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
     <None Include="Kernels\ConvFwd1x1_Jasm.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
-    <None Include="Kernels\MIOpenConv1x1J1_256thread.cl">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
-    <None Include="Kernels\MIOpenConv1x1J1_offset.cl">
       <Filter>problems\tensile\kernels</Filter>
     </None>
     <None Include="Kernels\IsaDs.s">
@@ -171,19 +159,28 @@
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch2.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
-    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch0.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
     <None Include="Kernels\PS_Consumer.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
     <None Include="Kernels\PS_Producer.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
-    <None Include="Kernels\MIOpenConv1x1J1_NewOrg.cl">
+    <None Include="Kernels\ConvFwd1x1_Jasm_NewOrg.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
-    <None Include="Kernels\ConvFwd1x1_Jasm_NewOrg.s">
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch1.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_Prefetch20.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jcl.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jcl_256thread.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jcl_NewOrg.cl">
       <Filter>problems\tensile\kernels</Filter>
     </None>
   </ItemGroup>
