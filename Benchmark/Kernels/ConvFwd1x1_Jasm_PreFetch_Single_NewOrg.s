@@ -376,8 +376,6 @@ ConvFwd1x1:
 /*     ... ...                                                                      */
 /* }                                                                                */
 /************************************************************************************/
-// ===================================================================================
-// ===================================================================================
 .macro m_cacul_all_feature 		input, wei_offset, wait_cnt, en_offset_adj, en_addr_adj
 	// -------------------------------------------------------------------------------
 	// 地址指针: 指向16个输出feature的第一个
@@ -500,7 +498,7 @@ ConvFwd1x1:
 .macro m_wait_signal
 	s_mov_b32					s[s_signal], SIGNAL_NULL
 FETCH_WAIT:	
-	s_sleep						0x04
+	s_sleep						0x10
 		
 	s_lshl_b32					s[s_tmp1], s[s_loop_cnt], 0x02
 	s_load_dword				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
@@ -530,7 +528,7 @@ FETCH_WAIT:
 	//s_fetch = s_weia0
 	
 	.rept MLO_N_LCL_OUT_MAPS
-		s_load_dword 		s[\wei_fetch], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
+		s_load_dword 			s[\wei_fetch], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
 		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
 		\wei_fetch = \wei_fetch + 1		
 	.endr
@@ -538,19 +536,19 @@ FETCH_WAIT:
 	// ------------------------------------------------------------------------------
 	// 调整指针: 到下一个 16 k_out
 	// ------------------------------------------------------------------------------
-	s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_CHANNEL_STRIDE * K_FETCH_SUB * 4
-	s_addc_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
+	s_add_u32 					s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_CHANNEL_STRIDE * K_FETCH_SUB * 4
+	s_addc_u32 					s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
 .endm
 
 /************************************************************************************/
 /* 预读取n个输出通道k_out															*/
 /************************************************************************************/
-.macro m_fetch_k_out_blk	k_out_block_num
-	s_mov_b64				s[s_ptr_save:s_ptr_save+1], s[s_ptr_wei:s_ptr_wei+1]
+.macro m_fetch_k_out_blk		k_out_block_num
+	s_mov_b64					s[s_ptr_save:s_ptr_save+1], s[s_ptr_wei:s_ptr_wei+1]
 	s_wei_fetch = s_weia0
 
 	.rept  \k_out_block_num
-		m_fetch_sub 		s_wei_fetch
+		m_fetch_sub 			s_wei_fetch
 	.endr
 	
 	m_point_nx_round	
@@ -571,7 +569,7 @@ FETCH_WAIT:
 	imm_offset = 0
 	tmp = s_weic0
 	.rept MLO_N_LCL_OUT_MAPS
-		s_load_dword 		s[tmp], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
+		s_load_dword 			s[tmp], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
 		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
 		tmp = tmp + 1
 	.endr
@@ -609,8 +607,8 @@ FETCH_WAIT:
 /************************************************************************************/
 .macro m_debug_wait
 	s_barrier
-	.rept 1000
-		s_nop				0x0F
+	.rept 10
+		s_nop					0x0F
 	.endr
 	s_barrier
 .endm
@@ -660,11 +658,11 @@ PREFETCH_GROUP:
 		
 	s_mov_b32 					s[s_loop_cnt], CLOOP0-1										// channel 的循环	
 	
-	m_fetch_k_out_blk			4
+	m_fetch_k_out_blk			2
 		
 PRE_FETCH:
 	m_wait_signal
-	m_fetch_k_out_blk			4
+	m_fetch_k_out_blk			2
 	
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
@@ -817,6 +815,7 @@ MAIN_CONV:
 	// 循环体 :
 	// -------------------------------------------------------------------------------
 LOOP_CONV:	
+	m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature		 	v_data0, weight_offset, 8, disable, disable	
 	m_send_signal				SIGNAL_REQ_FETCH	

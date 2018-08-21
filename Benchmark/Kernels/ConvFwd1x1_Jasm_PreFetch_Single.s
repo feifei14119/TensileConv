@@ -348,8 +348,6 @@ ConvFwd1x1:
 /*     ... ...                                                                      */
 /* }                                                                                */
 /************************************************************************************/
-// ===================================================================================
-// ===================================================================================
 .macro m_cacul_all_feature 		input, wei_offset, wait_cnt, en_offset_adj, en_addr_adj
 	// -------------------------------------------------------------------------------
 	// 地址指针: 指向16个输出feature的第一个
@@ -594,8 +592,8 @@ FETCH_WAIT:
 /************************************************************************************/
 .macro m_debug_wait
 	s_barrier
-	.rept 1000
-		s_nop				0x0F
+	.rept 10
+		s_nop					0x0F
 	.endr
 	s_barrier
 .endm
@@ -677,7 +675,7 @@ PRE_FETCH:
 
 INSTR_FETCH_GROUP:
 	s_mov_b64					exec, 0x0
-	s_branch					LOOP_CONV
+	s_branch					LAST_CYCLE
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -791,6 +789,7 @@ MAIN_CONV:
 	// 循环体 :
 	// -------------------------------------------------------------------------------
 LOOP_CONV:	
+	m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature 		v_data0, weight_offset, 8, disable, disable
 	m_send_signal				SIGNAL_REQ_FETCH
@@ -833,12 +832,14 @@ LAST_CYCLE:
 	// 循环体 :
 	// -------------------------------------------------------------------------------
 LOOP_CONV:	
+	m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datd0, enable
 	m_cacul_all_feature 		v_data0, weight_offset, 24, disable, disable
 	m_send_signal				SIGNAL_REQ_FETCH		
 	m_load_input 				v_data0, enable
 	m_cacul_all_feature 		v_datb0, weight_offset, 24, enable,  enable
 	
+	m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature 		v_datc0, weight_offset, 24, disable, disable
 	m_send_signal				SIGNAL_REQ_FETCH		
@@ -866,8 +867,6 @@ LAST_CYCLE:
 	m_cacul_all_feature 		v_datc0, weight_offset,  8, disable, disable
 	m_cacul_all_feature 		v_datd0, weight_offset,  0, enable,  disable
 *************************************************************************************/
-
-	
 	
 	// -------------------------------------------------------------------------------
 	// 存储结果
