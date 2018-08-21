@@ -17,6 +17,8 @@
 // ==================================================================================
 // 常量定义
 // ==================================================================================
+.set enable,						1
+.set disable,						0
 .set W,								28
 .set H,								28
 .set C,								192
@@ -291,28 +293,7 @@ ConvFwd1x1:
 		float_mode 							= 240	// ?
 		workgroup_group_segment_byte_size 	= 0		//[caculated] group segment memory required by a work-group in bytes		
 	.end_amd_kernel_code_t
-	
-/************************************************************************************/
-/* 预读取16个output channel的weight													*/
-/*  	for(c=0;c<192;c+16)//12														*/
-/*  	{																			*/
-/*  		for(k=0;k<16;k++)														*/
-/*  		{																		*/
-/*  			temp[c] = s_load wei;												*/
-/*  		}																		*/
-/* 		s_wait0																		*/
-/* }																				*/
-/************************************************************************************/
-.macro m_weight_pre_fatch
-	imm_offset = 0
-	tmp = s_weic0
-	.rept MLO_N_LCL_OUT_MAPS
-		s_load_dword 		s[tmp], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
-		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
-		tmp = tmp + 1
-	.endr
-.endm
-	
+		
 /************************************************************************************/
 /* 读取8输入通道的input data														*/
 /* for (uint j = 0; j < MLO_N_LCL_IN_MAPS_ONCE; ++j)	// read 8 input channel     */
@@ -320,34 +301,30 @@ ConvFwd1x1:
 /*     dat[j] = *p;                                                                 */
 /*     p += MLO_IN_CHANNEL_STRIDE;                                                  */
 /* }                                                                                */
+/*																					*/
+/* offset 为12 bit，故此当W/H <= 28时(W*H < 12bit)时可使用							*/
 /************************************************************************************/
-// ===================================================================================
-// ===================================================================================
-.macro m_load_input1 dest_base
-	v_dat = \dest_base
-	.rept (MLO_N_LCL_IN_MAPS_ONCE)
-		global_load_dword 	v[v_dat], v[v_addr_in:v_addr_in+1], off						// v_dat[1..7] = *v_addr_in
-		v_add_co_u32 		v[v_addr_in], vcc, 0x0 + MLO_IN_CHANNEL_STRIDE * 4, v[v_addr_in]
-		v_addc_co_u32 		v[v_addr_in+1], vcc, 0, v[v_addr_in+1], vcc					// v_addr_in += MLO_IN_CHANNEL_STRIDE
-		v_dat = v_dat + 1
-	.endr
-.endm
-
-// ===================================================================================
-// 当 W/H <= 28时使用, W*H < 12bit
-// ===================================================================================
-.macro m_load_input2 		dest_base
-	v_dat = \dest_base
-	voffset = v_io_offset0
-	.rept (MLO_N_LCL_IN_MAPS_ONCE / 2)
-		global_load_dword 	v[v_dat], v[voffset:voffset + 1], s[s_ptr_in:s_ptr_in + 1]	offset:0
-		v_dat = v_dat + 1
-		global_load_dword 	v[v_dat], v[voffset:voffset + 1], s[s_ptr_in:s_ptr_in + 1]	offset : 0x0 + MLO_IN_CHANNEL_STRIDE * 4
-		v_dat = v_dat + 1
-		voffset = voffset + 2
-	.endr
-	s_add_u32    s[s_ptr_in], 0x0 + MLO_IN_CHANNEL_STRIDE * 4 * 8, s[s_ptr_in]
-	s_addc_u32   s[s_ptr_in + 1], 0, s[s_ptr_in + 1]
+.macro m_load_input 			dest_base, en_offset
+	v_dat = \dest_base	
+	.if (\en_offset == enable)
+		voffset = v_io_offset0
+		.rept (MLO_N_LCL_IN_MAPS_ONCE / 2)
+			global_load_dword 	v[v_dat], v[voffset:voffset + 1], s[s_ptr_in:s_ptr_in + 1]	offset:0
+			v_dat = v_dat + 1
+			global_load_dword 	v[v_dat], v[voffset:voffset + 1], s[s_ptr_in:s_ptr_in + 1]	offset : 0x0 + MLO_IN_CHANNEL_STRIDE * 4
+			v_dat = v_dat + 1
+			voffset = voffset + 2
+		.endr
+		s_add_u32    			s[s_ptr_in], 0x0 + MLO_IN_CHANNEL_STRIDE * 4 * 8, s[s_ptr_in]
+		s_addc_u32   			s[s_ptr_in + 1], 0, s[s_ptr_in + 1]
+	.else
+		.rept (MLO_N_LCL_IN_MAPS_ONCE)
+			global_load_dword 	v[v_dat], v[v_addr_in:v_addr_in+1], off						// v_dat[1..7] = *v_addr_in
+			v_add_co_u32 		v[v_addr_in], vcc, 0x0 + MLO_IN_CHANNEL_STRIDE * 4, v[v_addr_in]
+			v_addc_co_u32 		v[v_addr_in+1], vcc, 0, v[v_addr_in+1], vcc					// v_addr_in += MLO_IN_CHANNEL_STRIDE
+			v_dat = v_dat + 1
+		.endr
+	.endif
 .endm
 
 /************************************************************************************/
@@ -358,19 +335,15 @@ ConvFwd1x1:
 /*     w ++;                                                                        */
 /* }                                                                                */
 /************************************************************************************/
-// ===================================================================================
-// ===================================================================================
-.macro m_load_weight1 wei_base
-	s_load_dwordx8 		s[\wei_base:\wei_base+7], s[s_ptr_wei:s_ptr_wei+1], 0x0			// s_weia[0..15] = ptr_wei (s_weia0需要16DWORD对齐)	
-	s_add_u32 			s[s_ptr_wei], s[s_ptr_wei], MLO_WEI_CHANNEL_STRIDE * 4			// weight地址调整: w += MLO_WEI_CHANNEL_STRIDE
-	s_addc_u32 			s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0								// s_ptr_wei += MLO_WEI_CHANNEL_STRIDE (DWORD寻址)
-.endm
-
-// ===================================================================================
-// ===================================================================================
-.macro m_load_weight2 	wei_base, imm_offset
-	s_load_dwordx8 		s[\wei_base:\wei_base+7], s[s_ptr_wei:s_ptr_wei+1], 0x0 + \imm_offset	// s_weia[0..15] = ptr_wei (s_weia0需要16DWORD对齐)	
-	\imm_offset = \imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
+.macro m_load_weight 			wei_base, imm_offset, en_offset
+	.if (\en_offset == enable)
+		s_load_dwordx8 			s[\wei_base:\wei_base+7], s[s_ptr_wei:s_ptr_wei+1], 0x0 + \imm_offset	// s_weia[0..15] = ptr_wei (s_weia0需要16DWORD对齐)	
+		\imm_offset = \imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
+	.else
+		s_load_dwordx8 			s[\wei_base:\wei_base+7], s[s_ptr_wei:s_ptr_wei+1], 0x0			// s_weia[0..15] = ptr_wei (s_weia0需要16DWORD对齐)	
+		s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], MLO_WEI_CHANNEL_STRIDE * 4			// weight地址调整: w += MLO_WEI_CHANNEL_STRIDE
+		s_addc_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0								// s_ptr_wei += MLO_WEI_CHANNEL_STRIDE (DWORD寻址)
+	.endif
 .endm
 
 /************************************************************************************/
@@ -380,16 +353,16 @@ ConvFwd1x1:
 /*     accum[o] += dat[c] * weights[c];                                             */
 /* }                                                                                */
 /************************************************************************************/
-.macro m_conv_once input, weight, output
+.macro m_conv_once 				input, weight, output
 	v_dat = \input
 	s_wei = \weight
 	.rept MLO_N_LCL_IN_MAPS_ONCE
-		//v_mov_b32 			v[\output], s[s_tmp1]									// ;for debug
-		//v_cvt_f32_u32			v[\output], v[\output]									// ;for debug
-		//v_add_f32 			v[\output], s[s_wei], v[\output]						// ;for debug		
-		//s_mov_b32				s[s_wei], 0x01											// ;for debug
-		//v_mov_b32				v[v_dat], 0x01											// ;for debug
-		v_fma_f32 				v[\output], v[v_dat], s[s_wei], v[\output]				// v_tmp1 = accum += v_dat[0..7] * s_wei[0..7]
+		//v_mov_b32 			v[\output], s[s_tmp1]											// ;for debug
+		//v_cvt_f32_u32			v[\output], v[\output]											// ;for debug
+		//v_add_f32 			v[\output], s[s_wei], v[\output]								// ;for debug		
+		//s_mov_b32				s[s_wei], 0x01													// ;for debug
+		//v_mov_b32				v[v_dat], 0x01													// ;for debug
+		v_fma_f32 				v[\output], v[v_dat], s[s_wei], v[\output]						// v_tmp1 = accum += v_dat[0..7] * s_wei[0..7]
 		v_dat = v_dat + 1
 		s_wei = s_wei + 1
 	.endr
@@ -405,92 +378,87 @@ ConvFwd1x1:
 /************************************************************************************/
 // ===================================================================================
 // ===================================================================================
-.macro m_cacul_all_feature input wei_offset wait_cnt en_addr_adj
+.macro m_cacul_all_feature 		input, wei_offset, wait_cnt, en_offset_adj, en_addr_adj
 	// -------------------------------------------------------------------------------
 	// 地址指针: 指向16个输出feature的第一个
 	// -------------------------------------------------------------------------------
 	v_acc = v_acc0
-	.if (\en_addr_adj == 0)
-		\wei_offset = 0
-	.else
+	.if (\en_offset_adj == enable)
 		\wei_offset = \wei_offset + (MLO_N_LCL_IN_MAPS_ONCE - MLO_WEI_CHANNEL_STRIDE * MLO_N_LCL_OUT_MAPS) * 4
+	.else
+		\wei_offset = 0
 	.endif
 	
-	m_load_weight2 		s_weia0, \wei_offset	
-	s_waitcnt 			lgkmcnt(0)
-	m_load_weight2 		s_weib0, \wei_offset	
-	s_waitcnt			vmcnt(\wait_cnt)
-	m_conv_once 		\input, s_weia0, v_acc
+	m_load_weight 				s_weia0, \wei_offset, enable
+	s_waitcnt 					lgkmcnt(0)
+	m_load_weight 				s_weib0, \wei_offset, enable
+	s_waitcnt					vmcnt(\wait_cnt)
+	m_conv_once 				\input, s_weia0, v_acc
 	
 	.rept MLO_N_LCL_OUT_MAPS / 2 - 1
-		s_waitcnt 		lgkmcnt(0)
-		m_load_weight2 	s_weia0, \wei_offset
-		m_conv_once 	\input, s_weib0, v_acc
-		
-		s_waitcnt 		lgkmcnt(0)		
-		m_load_weight2 	s_weib0, \wei_offset
-		m_conv_once 	\input, s_weia0, v_acc
+		s_waitcnt 				lgkmcnt(0)
+		m_load_weight 			s_weia0, \wei_offset, enable
+		m_conv_once 			\input, s_weib0, v_acc
+				
+		s_waitcnt 				lgkmcnt(0)		
+		m_load_weight 			s_weib0, \wei_offset, enable
+		m_conv_once 			\input, s_weia0, v_acc
 	.endr
 	
 	// -------------------------------------------------------------------------------
 	// weight地址调整: 指向下一组8个的weight
 	// -------------------------------------------------------------------------------
-	.if (\en_addr_adj == 1)
-		s_add_u32 			s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2
-		s_addc_u32 			s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0									// s_ptr_wei ++ (DWORD寻址)
+	.if (\en_addr_adj == enable)
+		s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2
+		s_addc_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0									// s_ptr_wei ++ (DWORD寻址)
 	.endif
 	
-	s_waitcnt 			lgkmcnt(0)	
-	
-	.if (\en_addr_adj == 1)
-		//m_weight_pre_fatch
-	.endif
-	
-	m_conv_once 		\input, s_weib0, v_acc
+	s_waitcnt 					lgkmcnt(0)	
+	//m_weight_pre_fatch	
+	m_conv_once 				\input, s_weib0, v_acc
 .endm
 
 // ===================================================================================
 // ===================================================================================
-.macro m_cacul_all_feature_last input wei_offset
+.macro m_cacul_all_feature_save input wei_offset
 	// -------------------------------------------------------------------------------
 	// 地址指针: 指向16个输出feature的第一个
 	// -------------------------------------------------------------------------------
 	v_acc = v_acc0
 	\wei_offset = \wei_offset + (MLO_N_LCL_IN_MAPS_ONCE - MLO_WEI_CHANNEL_STRIDE * MLO_N_LCL_OUT_MAPS) * 4
-	vout_offset = v_io_offset0
+	//vout_offset = v_io_offset0
 		
-	m_load_weight2 		s_weia0, \wei_offset	
-	s_waitcnt 			lgkmcnt(0)
-	m_load_weight2 		s_weib0, \wei_offset	
-	s_waitcnt			vmcnt(0)
-	m_conv_once 		\input, s_weia0, v_acc	
-	//m_save_one_output	v_acc
+	m_load_weight 				s_weia0, \wei_offset, enable	
+	s_waitcnt 					lgkmcnt(0)
+	m_load_weight 				s_weib0, \wei_offset, enable	
+	s_waitcnt					vmcnt(0)
+	m_conv_once 				\input, s_weia0, v_acc	
+	//m_save_one_output			v_acc
 	//global_store_dword    	v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0
 	
 	.rept MLO_N_LCL_OUT_MAPS / 2 - 1
-		s_waitcnt 			lgkmcnt(0)
-		m_load_weight2 		s_weia0, \wei_offset
-		m_conv_once 		\input, s_weib0, v_acc		
-		//m_save_one_output	v_acc
-		//global_store_dword    	v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0 + MLO_OUT_CHANNEL_STRIDE * 4
+		s_waitcnt 				lgkmcnt(0)
+		m_load_weight 			s_weia0, \wei_offset, enable
+		m_conv_once 			\input, s_weib0, v_acc		
+		//m_save_one_output		v_acc
+		//global_store_dword    v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0 + MLO_OUT_CHANNEL_STRIDE * 4
 		//vout_offset = vout_offset + 2
 		
-		s_waitcnt 			lgkmcnt(0)		
-		m_load_weight2 		s_weib0, \wei_offset
-		m_conv_once 		\input, s_weia0, v_acc		
-		//m_save_one_output	v_acc
-		//global_store_dword    	v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0
+		s_waitcnt 				lgkmcnt(0)		
+		m_load_weight 			s_weib0, \wei_offset, enable
+		m_conv_once 			\input, s_weia0, v_acc		
+		//m_save_one_output		v_acc
+		//global_store_dword    v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0
 	.endr
 	
-	s_waitcnt 				lgkmcnt(0)	
-	m_conv_once 			\input, s_weib0, v_acc
-	//m_save_one_output		v_acc
-	//global_store_dword    	v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0 + MLO_OUT_CHANNEL_STRIDE * 4
-	
+	s_waitcnt 					lgkmcnt(0)	
+	m_conv_once 				\input, s_weib0, v_acc
+	//m_save_one_output			v_acc
+	//global_store_dword    	v[vout_offset:vout_offset + 1], v[v_acc-1], s[s_ptr_out:s_ptr_out+1]	offset:0x0 + MLO_OUT_CHANNEL_STRIDE * 4	
 .endm
 
 /************************************************************************************/
-/* 存取:																			*/
+/* 存储:																			*/
 /* 存储16个输出feature的output: 													*/
 /* for (uint j = 0; j < MLO_N_LCL_OUT_MAPS; ++j) // 16 output feature				*/
 /* {																				*/
@@ -501,53 +469,28 @@ ConvFwd1x1:
 .macro m_save_output
 	v_sum = v_acc0
 	.rept MLO_N_LCL_OUT_MAPS
-		//v_mov_b32			v[v_sum], 1.23												// ; for debug only
-		global_store_dword 	v[v_addr_out:v_addr_out+1], v[v_sum], off					// *v_addr_out = v_vdat[1..15]
-		v_add_co_u32 		v[v_addr_out], vcc, 0x0 + MLO_OUT_CHANNEL_STRIDE * 4, v[v_addr_out]
-		v_addc_co_u32 		v[v_addr_out+1], vcc, 0, v[v_addr_out+1], vcc				// v_addr_out += MLO_OUT_CHANNEL_STRIDE
+		//v_mov_b32				v[v_sum], 0x0 + .AUTO_VGPR_COUNT							// ; for debug only
+		//v_cvt_f32_u32			v[v_sum], v[v_sum]
+			
+		global_store_dword 		v[v_addr_out:v_addr_out+1], v[v_sum], off					// *v_addr_out = v_vdat[1..15]
+		v_add_co_u32 			v[v_addr_out], vcc, 0x0 + MLO_OUT_CHANNEL_STRIDE * 4, v[v_addr_out]
+		v_addc_co_u32 			v[v_addr_out+1], vcc, 0, v[v_addr_out+1], vcc				// v_addr_out += MLO_OUT_CHANNEL_STRIDE
 		v_sum = v_sum + 1
 	.endr
 .endm
 
 /************************************************************************************/
-/* 测试 																			*/
-/************************************************************************************/
-.macro m_debug_func
-	// ------------------------------------------------------------------------------
-	// 计算输出地址(线性测试用) 
-	// __global float* q = out_ptr + FIXED_WORKGROUP_SIZE * gid_x + tid;
-	// ------------------------------------------------------------------------------
-	s_waitcnt lgkmcnt(0)
-	
-	v_lshlrev_b32 		v[v_tmp1], 0x0 + FIXED_WORKGROUP_SIZE_LOG2, s[gid_x0]
-	v_add_lshl_u32 		v[v_tmp1], v[v_tmp1], v[tid], 2
-		
-	v_mov_b32			v[v_tmp2], s[s_ptr_out+1]
-	v_add_co_u32 		v[v_addr_dbg], vcc, s[s_ptr_out], v[v_tmp1]
-	v_addc_co_u32 		v[v_addr_dbg+1], vcc, 0, v[v_tmp2], vcc
-	
-	// ------------------------------------------------------------------------------
-	// 输出测试数据
-	// * q = ;
-	// ------------------------------------------------------------------------------
-	//v_mov_b32				v[v_tmp1],0x0 + MLO_ROUND_LEFT
-	v_cvt_f32_u32			v[v_tmp1], v[v_acc12]
-	
-	global_store_dword v[v_addr_dbg:v_addr_dbg+1], v[v_tmp1], off						// v_addr_dbg = v_tmp1 (测试单个输出)	
-.endm
-
-/************************************************************************************/
 /* 向prefetch kernel发射信号														*/
 /************************************************************************************/
-.macro m_send_signal 	signal_type
+.macro m_send_signal 			signal_type
 	.if (\signal_type == SIGNAL_REQ_FETCH)
-		s_lshl_b32			s[s_tmp1], s[s_loop_cnt], 0x02
-		s_store_dword		s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
+		s_lshl_b32				s[s_tmp1], s[s_loop_cnt], 0x02
+		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
 	.elseif (\signal_type == SIGNAL_EXIT)
-		s_mov_b32			s[s_signal], 0x0 + SIGNAL_EXIT
-		s_mov_b32			s[s_tmp1], CLOOP0
-		s_lshl_b32			s[s_tmp1], s[s_tmp1], 0x02
-		s_store_dword		s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
+		s_mov_b32				s[s_signal], 0x0 + SIGNAL_EXIT
+		s_mov_b32				s[s_tmp1], CLOOP0
+		s_lshl_b32				s[s_tmp1], s[s_tmp1], 0x02
+		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
 	.endif
 .endm
 
@@ -555,28 +498,28 @@ ConvFwd1x1:
 /* 等待信号 																		*/
 /************************************************************************************/
 .macro m_wait_signal
-	s_mov_b32				s[s_signal], SIGNAL_NULL
-FETCH_WAIT:
-	s_sleep					0x01
-	
-	s_lshl_b32				s[s_tmp1], s[s_loop_cnt], 0x02
-	s_load_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
-	s_waitcnt 				lgkmcnt(0)
-	
-	s_cmp_eq_u32			s[s_signal], SIGNAL_REQ_FETCH					// if(signal == SIGNAL_NULL) wait
-	s_cbranch_scc0			FETCH_WAIT
-.endm	
+	s_mov_b32					s[s_signal], SIGNAL_NULL
+FETCH_WAIT:	
+	s_sleep						0x04
+		
+	s_lshl_b32					s[s_tmp1], s[s_loop_cnt], 0x02
+	s_load_dword				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
+	s_waitcnt 					lgkmcnt(0)
+		
+	s_cmp_eq_u32				s[s_signal], SIGNAL_REQ_FETCH								// if(signal == SIGNAL_NULL) wait
+	s_cbranch_scc0				FETCH_WAIT
+.endm
 
 /************************************************************************************/
-/* 调整fetch指针: 指向下一组														*/
+/* 调整fetch指针: 指向下一个循环													*/
 /************************************************************************************/
 .macro m_point_nx_round
-	//s_sub_u32 			s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
-	//s_subb_u32 			s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
-	
-	s_mov_b64				s[s_ptr_wei:s_ptr_wei+1], s[s_ptr_save:s_ptr_save+1]
-	s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2
-	s_addc_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0								
+	//s_sub_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
+	//s_subb_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
+		
+	s_mov_b64					s[s_ptr_wei:s_ptr_wei+1], s[s_ptr_save:s_ptr_save+1]
+	s_add_u32 					s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2
+	s_addc_u32 					s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0								
 .endm
 
 /************************************************************************************/
@@ -600,17 +543,76 @@ FETCH_WAIT:
 .endm
 
 /************************************************************************************/
-/* 预读取一轮																		*/
+/* 预读取n个输出通道k_out															*/
 /************************************************************************************/
-.macro m_fetch_round
+.macro m_fetch_k_out_blk	k_out_block_num
 	s_mov_b64				s[s_ptr_save:s_ptr_save+1], s[s_ptr_wei:s_ptr_wei+1]
 	s_wei_fetch = s_weia0
 
-	.rept  SUB_LOOP / 1
+	.rept  \k_out_block_num
 		m_fetch_sub 		s_wei_fetch
 	.endr
 	
 	m_point_nx_round	
+.endm
+	
+/************************************************************************************/
+/* 预读取16个output channel的weight													*/
+/*  	for(c=0;c<192;c+16)//12														*/
+/*  	{																			*/
+/*  		for(k=0;k<16;k++)														*/
+/*  		{																		*/
+/*  			temp[c] = s_load wei;												*/
+/*  		}																		*/
+/* 		s_wait0																		*/
+/* }																				*/
+/************************************************************************************/
+.macro m_fetch_all_in_chan
+	imm_offset = 0
+	tmp = s_weic0
+	.rept MLO_N_LCL_OUT_MAPS
+		s_load_dword 		s[tmp], s[s_ptr_wei:s_ptr_wei+1], 0x0 + imm_offset
+		imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4
+		tmp = tmp + 1
+	.endr
+.endm
+
+/************************************************************************************/
+/* 测试 																			*/
+/************************************************************************************/
+.macro m_debug_func
+	// ------------------------------------------------------------------------------
+	// 计算输出地址(线性测试用) 
+	// __global float* q = out_ptr + FIXED_WORKGROUP_SIZE * gid_x + tid;
+	// ------------------------------------------------------------------------------
+	s_waitcnt lgkmcnt(0)
+	
+	v_lshlrev_b32 				v[v_tmp1], 0x0 + FIXED_WORKGROUP_SIZE_LOG2, s[gid_x0]
+	v_add_lshl_u32 				v[v_tmp1], v[v_tmp1], v[tid], 2
+				
+	v_mov_b32					v[v_tmp2], s[s_ptr_out+1]
+	v_add_co_u32 				v[v_addr_dbg], vcc, s[s_ptr_out], v[v_tmp1]
+	v_addc_co_u32 				v[v_addr_dbg+1], vcc, 0, v[v_tmp2], vcc
+	
+	// ------------------------------------------------------------------------------
+	// 输出测试数据
+	// * q = ;
+	// ------------------------------------------------------------------------------
+	//v_mov_b32					v[v_tmp1],0x0 + MLO_ROUND_LEFT
+	v_cvt_f32_u32				v[v_tmp1], v[v_acc12]
+		
+	global_store_dword 			v[v_addr_dbg:v_addr_dbg+1], v[v_tmp1], off					// v_addr_dbg = v_tmp1 (测试单个输出)	
+.endm
+
+/************************************************************************************/
+/* 用于测试的等待与同步																*/
+/************************************************************************************/
+.macro m_debug_wait
+	s_barrier
+	.rept 1000
+		s_nop				0x0F
+	.endr
+	s_barrier
 .endm
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -619,23 +621,23 @@ FETCH_WAIT:
 	// ===============================================================================
 	// 获取计算参数
 	// ===============================================================================
-	s_load_dwordx2 			s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off
-	s_load_dwordx2 			s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off
-	s_load_dwordx2 			s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off
-	s_load_dwordx2 			s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
-	
-	s_cmp_lt_u32			s[gid_x0], 0x0 + CU_NUM										// if(grp_id0 < CU_NUM) goto noraml_index
-	s_cbranch_scc0			CALCU_GROUP
+	s_load_dwordx2 				s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off
+	s_load_dwordx2 				s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off
+	s_load_dwordx2 				s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off
+	s_load_dwordx2 				s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
+		
+	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(grp_id0 < CU_NUM) goto noraml_index
+	s_cbranch_scc0				CALCU_GROUP
 	
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		
 	// -------------------------------------------------------------------------------
 	// PING_PANG_FETCH
 	// -------------------------------------------------------------------------------
-	s_lshr_b32				s[s_flag], s[gid_x0], 0x02
-	s_and_b32				s[s_flag], s[s_flag], 0x01
-	s_cmp_eq_u32			s[s_flag], 0x0	
-	s_cbranch_scc1			PREFETCH_GROUP
+	s_lshr_b32					s[s_flag], s[gid_x0], 0x02
+	s_and_b32					s[s_flag], s[s_flag], 0x01
+	s_cmp_eq_u32				s[s_flag], 0x0	
+	s_cbranch_scc1				PREFETCH_GROUP
 	
 	// ------------------------------------------------------------------------------
 	// 调整指针: 到下一个 16 k_out
@@ -650,134 +652,134 @@ PREFETCH_GROUP:
 	// 计算 signal 地址 
 	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
 	// -------------------------------------------------------------------------------
-	s_waitcnt 				lgkmcnt(0)
-	s_and_b32				s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
-	s_lshl_b32				s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
-	s_add_u32				s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
-	s_addc_u32				s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
+	s_waitcnt 					lgkmcnt(0)
+	s_and_b32					s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
+	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
+	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
+	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
+		
+	s_mov_b32 					s[s_loop_cnt], CLOOP0-1										// channel 的循环	
 	
-	s_mov_b32 				s[s_loop_cnt], CLOOP0-1										// channel 的循环	
-	
-	m_fetch_round
+	m_fetch_k_out_blk			4
 		
 PRE_FETCH:
 	m_wait_signal
-	m_fetch_round
+	m_fetch_k_out_blk			4
 	
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
 	// -------------------------------------------------------------------------------
-	s_sub_u32 				s[s_loop_cnt], s[s_loop_cnt], 0x1							// s_loop_cnt--
-	s_cmpk_le_i32 			s[s_loop_cnt], 0x0
-	s_cbranch_scc0 			PRE_FETCH
-	
-	s_branch				INSTR_FETCH_GROUP
+	s_sub_u32 					s[s_loop_cnt], s[s_loop_cnt], 0x1							// s_loop_cnt--
+	s_cmpk_le_i32 				s[s_loop_cnt], 0x0
+	s_cbranch_scc0 				PRE_FETCH
+		
+	s_branch					INSTR_FETCH_GROUP
 	
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 INSTR_FETCH_GROUP:
-	s_mov_b64				exec, 0x0
-	s_branch				LAST_CYCLE
+	s_mov_b64					exec, 0x0
+	s_branch					LAST_CYCLE
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 CALCU_GROUP:	
-	s_sub_u32				s[gid_x0], s[gid_x0], 0x0 + CU_NUM
+	s_sub_u32					s[gid_x0], s[gid_x0], 0x0 + CU_NUM
 	// -------------------------------------------------------------------------------
-	// uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);							// 第几轮Z格子
-	// uint inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;								// 即 grp_id0_faked
-	// uint weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;								// 即 out_grp_block
+	// uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);								// 第几轮Z格子
+	// uint inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;									// 即 grp_id0_faked
+	// uint weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;									// 即 out_grp_block
 	// -------------------------------------------------------------------------------
-	s_lshr_b32 				s[s_tmp1], s[gid_x0], 0x0 + Z_BLOCK_GRP_NUM_LOG2			// s_tmp1 = z_round
-	s_lshl_b32				s[s_tmp1], s[s_tmp1], 0x0 + CU_NUM_LOG2						// s_tmp1 = z_round * CU_NUM
-	s_and_b32 				s[s_tmp2], s[gid_x0], 0x0 + CU_NUM_MOD_MASK					// s_tmp2 = grp_id0 % CU_NUM
-	s_add_u32 				s[s_tmp1], s[s_tmp1], s[s_tmp2]								// s_tmp1 = inBlkId = grp_id0_faked
-	s_lshr_b32 				s[s_tmp2], s[gid_x0], 0x0 + CU_NUM_LOG2
-	s_and_b32 				s[s_tmp2], s[s_tmp2], 0x0 + MLO_N_OUT_GROUPS_MOD_MASK		// s_tmp2 = weiBlkId = out_grp_block
+	s_lshr_b32 					s[s_tmp1], s[gid_x0], 0x0 + Z_BLOCK_GRP_NUM_LOG2			// s_tmp1 = z_round
+	s_lshl_b32					s[s_tmp1], s[s_tmp1], 0x0 + CU_NUM_LOG2						// s_tmp1 = z_round * CU_NUM
+	s_and_b32 					s[s_tmp2], s[gid_x0], 0x0 + CU_NUM_MOD_MASK					// s_tmp2 = grp_id0 % CU_NUM
+	s_add_u32 					s[s_tmp1], s[s_tmp1], s[s_tmp2]								// s_tmp1 = inBlkId = grp_id0_faked
+	s_lshr_b32 					s[s_tmp2], s[gid_x0], 0x0 + CU_NUM_LOG2
+	s_and_b32 					s[s_tmp2], s[s_tmp2], 0x0 + MLO_N_OUT_GROUPS_MOD_MASK		// s_tmp2 = weiBlkId = out_grp_block
 
 	// -------------------------------------------------------------------------------
 	// if (grp_id0 >= MLO_ROUND_LEFT)
 	// {
 	// 	   uint leftGrpId = grp_id0 - MLO_ROUND_LEFT;
 	// 	   weiBlkId = leftGrpId % 4;
-	// 	   inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;									// 4 = MLO_N_OUT_GROUPS
+	// 	   inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;										// 4 = MLO_N_OUT_GROUPS
 	// }
 	// -------------------------------------------------------------------------------
-	s_cmp_ge_u32			s[gid_x0], 0x0+MLO_ROUND_LEFT
-	s_cbranch_scc0			NORMAL_GROUP												// if(!(grp_id0 >= MLO_ROUND_LEFT)) goto normal_group
-	s_sub_u32				s[s_tmp1], s[gid_x0], 0x0 + MLO_ROUND_LEFT					// s_tmp1 = leftGrpId
-	s_and_b32				s[s_tmp2], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_MOD_MASK		// s_tmp2 = weiBlkId = out_grp_block
-	s_lshr_b32				s[s_tmp1], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_LOG2	
-	s_add_u32				s[s_tmp1], s[s_tmp1], 0x0 + MLO_INBLOCK_LEFT				// s_tmp1 = inBlkId = grp_id0_faked
-		
-NORMAL_GROUP:
-	v_mov_b32				v[v_acc12], s[s_tmp2]										// v_acc12 = out_grp_block = weiBlkId
-	v_mov_b32				v[v_acc13], s[s_tmp1]										// v_acc13 = grp_id0_faked = inBlkId
+	s_cmp_ge_u32				s[gid_x0], 0x0+MLO_ROUND_LEFT
+	s_cbranch_scc0				NORMAL_GROUP												// if(!(grp_id0 >= MLO_ROUND_LEFT)) goto normal_group
+	s_sub_u32					s[s_tmp1], s[gid_x0], 0x0 + MLO_ROUND_LEFT					// s_tmp1 = leftGrpId
+	s_and_b32					s[s_tmp2], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_MOD_MASK		// s_tmp2 = weiBlkId = out_grp_block
+	s_lshr_b32					s[s_tmp1], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_LOG2	
+	s_add_u32					s[s_tmp1], s[s_tmp1], 0x0 + MLO_INBLOCK_LEFT				// s_tmp1 = inBlkId = grp_id0_faked
+			
+NORMAL_GROUP:	
+	v_mov_b32					v[v_acc12], s[s_tmp2]										// v_acc12 = out_grp_block = weiBlkId
+	v_mov_b32					v[v_acc13], s[s_tmp1]										// v_acc13 = grp_id0_faked = inBlkId
 	
 	// -------------------------------------------------------------------------------
     // uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) / MLO_IN_CHANNEL_STRIDE;
     // uint pos      = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) % MLO_IN_CHANNEL_STRIDE;
     // uint out_id   = out_grp_block * MLO_N_LCL_OUT_MAPS;
 	// -------------------------------------------------------------------------------
-	v_lshlrev_b32			v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[v_acc13]
-	v_add_co_u32			v[v_acc13], vcc, v[v_acc13], v[tid]
-	v_mov_b32				v[v_acc6], 0x0 + MLO_IN_CHANNEL_STRIDE
-	mv_div_u32				v[v_acc13], v[v_acc6], v[v_acc7], v[v_acc8]					// v_acc7 = batch_id v_acc8 = pos
-	v_lshlrev_b32			v[v_acc6], 0x0 + MLO_N_LCL_OUT_MAPS_LOG2, v[v_acc12]		// v_acc6 = out_id
+	v_lshlrev_b32				v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[v_acc13]
+	v_add_co_u32				v[v_acc13], vcc, v[v_acc13], v[tid]
+	v_mov_b32					v[v_acc6], 0x0 + MLO_IN_CHANNEL_STRIDE
+	mv_div_u32					v[v_acc13], v[v_acc6], v[v_acc7], v[v_acc8]					// v_acc7 = batch_id v_acc8 = pos
+	v_lshlrev_b32				v[v_acc6], 0x0 + MLO_N_LCL_OUT_MAPS_LOG2, v[v_acc12]		// v_acc6 = out_id
 	
 	// -------------------------------------------------------------------------------
 	// 计算 input 地址
     // uint gbl_in_off  = batch_id * MLO_IN_BATCH_STRIDE + pos;
 	// -------------------------------------------------------------------------------
-	v_mov_b32 				v[v_acc9], 0x0 + MLO_IN_BATCH_STRIDE
-	v_mul_u32_u24			v[v_acc10], v[v_acc7], v[v_acc9]
-	v_add_co_u32			v[v_acc13], vcc, v[v_acc10], v[v_acc8]						// v_acc13 = gbl_in_off
-		
-	// offset_list	
-	v_lshlrev_b32 			v[v_io_offset0], 2, v[v_acc13]								// v_io_offset0 = gbl_in_off(DWORD)
-	v_mov_b32				v[v_tmp1], 0x0 + MLO_IN_CHANNEL_STRIDE * 2 * 4
-	v_add_co_u32			v[v_io_offset1], vcc, v[v_io_offset0], v[v_tmp1]
-	v_add_co_u32			v[v_io_offset2], vcc, v[v_io_offset1], v[v_tmp1]
-	v_add_co_u32			v[v_io_offset3], vcc, v[v_io_offset2], v[v_tmp1]
+	v_mov_b32 					v[v_acc9], 0x0 + MLO_IN_BATCH_STRIDE
+	v_mul_u32_u24				v[v_acc10], v[v_acc7], v[v_acc9]
+	v_add_co_u32				v[v_acc13], vcc, v[v_acc10], v[v_acc8]						// v_acc13 = gbl_in_off
+			
+	// offset_list		
+	v_lshlrev_b32 				v[v_io_offset0], 2, v[v_acc13]								// v_io_offset0 = gbl_in_off(DWORD)
+	v_mov_b32					v[v_tmp1], 0x0 + MLO_IN_CHANNEL_STRIDE * 2 * 4
+	v_add_co_u32				v[v_io_offset1], vcc, v[v_io_offset0], v[v_tmp1]
+	v_add_co_u32				v[v_io_offset2], vcc, v[v_io_offset1], v[v_tmp1]
+	v_add_co_u32				v[v_io_offset3], vcc, v[v_io_offset2], v[v_tmp1]
 	
 	// -------------------------------------------------------------------------------
 	// 计算 weight 地址
     // uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
 	// -------------------------------------------------------------------------------
-	v_mov_b32 				v[v_acc9], 0x0 + MLO_WEI_CHANNEL_STRIDE
-	v_mul_u32_u24			v[v_acc9], v[v_acc6], v[v_acc9]
-	v_readfirstlane_b32		s[s_tmp0], v[v_acc9]
-	s_lshl_b32				s[s_tmp1], s[s_tmp0], 2
-	s_waitcnt 				lgkmcnt(0)
-	s_add_u32				s[s_ptr_wei], s[s_ptr_wei], s[s_tmp1]
-	s_addc_u32				s[s_ptr_wei + 1], 0x0, s[s_ptr_wei + 1]
+	v_mov_b32 					v[v_acc9], 0x0 + MLO_WEI_CHANNEL_STRIDE
+	v_mul_u32_u24				v[v_acc9], v[v_acc6], v[v_acc9]
+	v_readfirstlane_b32			s[s_tmp0], v[v_acc9]
+	s_lshl_b32					s[s_tmp1], s[s_tmp0], 2
+	s_waitcnt 					lgkmcnt(0)
+	s_add_u32					s[s_ptr_wei], s[s_ptr_wei], s[s_tmp1]
+	s_addc_u32					s[s_ptr_wei + 1], 0x0, s[s_ptr_wei + 1]
 	
 	
 	// -------------------------------------------------------------------------------
 	// 计算 output 地址 
 	// uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
 	// -------------------------------------------------------------------------------
-	v_mov_b32 				v[v_acc9], 0x0 + MLO_OUT_BATCH_STRIDE
-	v_mul_u32_u24			v[v_acc9], v[v_acc7], v[v_acc9]								// v_acc9 = batch_id * MLO_OUT_BATCH_STRIDE
-	v_mov_b32 				v[v_acc10], 0x0 + MLO_OUT_CHANNEL_STRIDE					// v_acc8 = pos
-	v_mul_u32_u24			v[v_acc11], v[v_acc6], v[v_acc10]							// v_acc11 = out_id * MLO_OUT_CHANNEL_STRIDE
-	v_add3_u32				v[v_acc12], v[v_acc9], v[v_acc11], v[v_acc8]				// v_acc12 = gbl_out_off
-	v_lshlrev_b32 			v[v_acc12], 2, v[v_acc12]
-		
-	v_mov_b32				v[v_addr_out + 1], s[s_ptr_out + 1]
-	v_add_co_u32			v[v_addr_out], vcc, s[s_ptr_out], v[v_acc12]
-	v_addc_co_u32			v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc
+	v_mov_b32 					v[v_acc9], 0x0 + MLO_OUT_BATCH_STRIDE
+	v_mul_u32_u24				v[v_acc9], v[v_acc7], v[v_acc9]								// v_acc9 = batch_id * MLO_OUT_BATCH_STRIDE
+	v_mov_b32 					v[v_acc10], 0x0 + MLO_OUT_CHANNEL_STRIDE					// v_acc8 = pos
+	v_mul_u32_u24				v[v_acc11], v[v_acc6], v[v_acc10]							// v_acc11 = out_id * MLO_OUT_CHANNEL_STRIDE
+	v_add3_u32					v[v_acc12], v[v_acc9], v[v_acc11], v[v_acc8]				// v_acc12 = gbl_out_off
+	v_lshlrev_b32 				v[v_acc12], 2, v[v_acc12]
+			
+	v_mov_b32					v[v_addr_out + 1], s[s_ptr_out + 1]
+	v_add_co_u32				v[v_addr_out], vcc, s[s_ptr_out], v[v_acc12]
+	v_addc_co_u32				v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc
 	
 	// -------------------------------------------------------------------------------
 	// 计算 signal 地址 
 	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
 	// -------------------------------------------------------------------------------
-	s_and_b32				s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
-	s_lshl_b32				s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
-	s_add_u32				s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
-	s_addc_u32				s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
-		
-	s_mov_b32				s[s_signal], SIGNAL_REQ_FETCH
+	s_and_b32					s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
+	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
+	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
+	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
+			
+	s_mov_b32					s[s_signal], SIGNAL_REQ_FETCH
 	
 	
 MAIN_CONV:
@@ -808,31 +810,23 @@ MAIN_CONV:
 	// -------------------------------------------------------------------------------
 	//m_weight_pre_fatch
 	s_mov_b32 					s[s_loop_cnt], CLOOP0 - 1								// s_loop_cnt = CLOOP0 - 1
-	m_load_input2 				v_data0
+	m_load_input 				v_data0, enable
 	weight_offset = 0
 	
 	// -------------------------------------------------------------------------------
 	// 循环体 :
 	// -------------------------------------------------------------------------------
 LOOP_CONV:	
-	//s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//.rept 500
-	//	s_nop				0x0F
-	//.endr
-	//s_barrier	// ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	m_load_input 				v_datb0, enable
+	m_cacul_all_feature		 	v_data0, weight_offset, 8, disable, disable	
+	m_send_signal				SIGNAL_REQ_FETCH	
+	m_load_input 				v_data0, enable
+	m_cacul_all_feature		 	v_datb0, weight_offset, 8, enable, enable
 	
-	m_load_input2 				v_datb0	
-	m_cacul_all_feature		 	v_data0, weight_offset, 8, 0
-	
-	m_send_signal				SIGNAL_REQ_FETCH
-	
-	m_load_input2 				v_data0
-	m_cacul_all_feature		 	v_datb0, weight_offset, 8, 1
-	
-END_LOOP_CONV:
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
 	// -------------------------------------------------------------------------------
+END_LOOP_CONV:
 	s_sub_u32 					s[s_loop_cnt], s[s_loop_cnt], 0x01						// s_loop_cnt--
 	s_and_b32					s[s_loop_cnt], s[s_loop_cnt], exec_lo
 	s_cmpk_eq_i32 				s[s_loop_cnt], 0x0										// for(s_loop_cnt == CLOOP0)
@@ -842,10 +836,9 @@ END_LOOP_CONV:
 	// 循环排空 :
 	// -------------------------------------------------------------------------------
 LAST_CYCLE:
-	m_load_input2 				v_datb0
-	
-	m_cacul_all_feature		 	v_data0, weight_offset, 8, 0
-	m_cacul_all_feature_last 	v_datb0, weight_offset
+	m_load_input 				v_datb0, enable	
+	m_cacul_all_feature		 	v_data0, weight_offset, 8, disable, disable
+	m_cacul_all_feature		 	v_datb0, weight_offset, 0, enable,  disable
 	
 	// -------------------------------------------------------------------------------
 	// 存储结果

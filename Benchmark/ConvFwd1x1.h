@@ -586,8 +586,8 @@ public:
 		}
 		else if (solutionCfg->ConfigName == "PreFetch_Single")
 		{
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
-			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "PreFetch_Mult")
