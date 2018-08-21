@@ -156,9 +156,6 @@
     <None Include="Kernels\ProducerConsumer.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
-    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch2.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
     <None Include="Kernels\PS_Consumer.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
@@ -168,12 +165,6 @@
     <None Include="Kernels\ConvFwd1x1_Jasm_NewOrg.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
-    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch1.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
-    <None Include="Kernels\ConvFwd1x1_Jasm_Prefetch20.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
     <None Include="Kernels\ConvFwd1x1_Jcl.cl">
       <Filter>problems\tensile\kernels</Filter>
     </None>
@@ -181,6 +172,18 @@
       <Filter>problems\tensile\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jcl_NewOrg.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Mult_Conv.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_Prefetch_Mult_Fetch.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
   </ItemGroup>

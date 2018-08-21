@@ -291,7 +291,7 @@ ConvFwd1x1:
 .endm
 
 .macro m_load_input3 		dest_base, v_offset
-	// 需要修正基地址:
+	// 需要提前修正基地址:
 	//s_add_u32 			s[s_ptr_in], 0x0 + MLO_IN_CHANNEL_STRIDE * 4, s[s_ptr_in]
 	//s_addc_u32 			s[s_ptr_in+1], 0, s[s_ptr_in+1]
 	v_dat = \dest_base

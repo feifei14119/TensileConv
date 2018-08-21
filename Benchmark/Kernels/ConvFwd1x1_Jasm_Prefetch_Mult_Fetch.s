@@ -2,10 +2,10 @@
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
 
 .text
-.globl ConvFwd1x1_Jasm_Prefetch
+.globl ConvFwd1x1_Prefetch
 .p2align 16
-.type ConvFwd1x1_Jasm_Prefetch,@function
-.amdgpu_hsa_kernel ConvFwd1x1_Jasm_Prefetch
+.type ConvFwd1x1_Prefetch,@function
+.amdgpu_hsa_kernel ConvFwd1x1_Prefetch
 
 .include "gpr_alloc.inc"
 .include "common.inc"
@@ -96,7 +96,7 @@ gid_z0 = 8
     .SGPR_ALLOC s_ptr_wei, 2
     .SGPR_ALLOC s_ptr_out, 2
 	.SGPR_ALLOC s_ptr_sig, 2
-    .SGPR_ALLOC s_save_wei, 2
+	.SGPR_ALLOC s_ptr_save, 2
 	.SGPR_ALLOC s_wei1
 	.SGPR_ALLOC s_wei2
 	.SGPR_ALLOC s_wei3
@@ -131,7 +131,7 @@ gid_z0 = 8
 /************************************************************************************/
 /* 主程序																			*/
 /************************************************************************************/
-ConvFwd1x1_Jasm_Prefetch:
+ConvFwd1x1_Prefetch:
     .amd_kernel_code_t	
 		enable_sgpr_private_segment_buffer	= 1		// needed by this kernel specially
 		enable_sgpr_kernarg_segment_ptr 	= 1		//(use 1 SGPR) 64 bit address of Kernarg segment.
@@ -195,8 +195,6 @@ ConvFwd1x1_Jasm_Prefetch:
 	
 	s_branch END_PROG
 .endm	
-	
-	
 
 /************************************************************************************/
 /* 等待信号 																		*/
@@ -212,7 +210,19 @@ FETCH_WAIT:
 	
 	s_cmp_eq_u32			s[s_signal], SIGNAL_REQ_FETCH					// if(signal == SIGNAL_NULL) wait
 	s_cbranch_scc0			FETCH_WAIT
-.endm	
+.endm
+
+/************************************************************************************/
+/* 调整fetch指针: 指向下一组														*/
+/************************************************************************************/
+.macro m_point_nx_round
+	//s_sub_u32 			s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
+	//s_subb_u32 			s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
+	
+	s_mov_b64				s[s_ptr_wei:s_ptr_wei+1], s[s_ptr_save:s_ptr_save+1]
+	s_add_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2
+	s_addc_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0		
+.endm
 
 /************************************************************************************/
 /* 预读取 																			*/
@@ -244,21 +254,13 @@ FETCH_WAIT:
 /* 预读取一轮																		*/
 /************************************************************************************/
 .macro m_fetch_round
+	s_mov_b64				s[s_ptr_save:s_ptr_save+1], s[s_ptr_wei:s_ptr_wei+1]
+	
 	.rept  SUB_LOOP	
 		m_fetch_sub
 	.endr
+	
 	m_point_nx_round
-.endm
-
-/************************************************************************************/
-/* 调整指针: 指向下一组																*/
-/************************************************************************************/
-.macro m_point_nx_round
-	s_sub_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + (MLO_WEI_STRIDE - K_FETCH_STEP) * 4
-	s_subb_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
-	// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//s_sub_u32 				s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_STRIDE * 4
-	//s_subb_u32 				s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
 .endm
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
@@ -272,7 +274,7 @@ FETCH_WAIT:
 	s_load_dwordx2 			s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off	// desc_out = out_ptr
 	s_load_dwordx2			s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
 	s_waitcnt 				lgkmcnt(0)
-		
+	
 	// -------------------------------------------------------------------------------
 	// 计算 signal 地址 
 	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
@@ -281,33 +283,30 @@ FETCH_WAIT:
 	s_lshl_b32				s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
 	s_add_u32				s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32				s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
-	
-		
-	//m_point_nx_round	// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//m_point_nx_round	// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		
 	// ------------------------------------------------------------------------------
-	//s_mov_b64				exec, 0x01
 	s_mov_b32 				s[s_loop_cnt], CLOOP0 - 1									// channel 的循环	
 	
 	m_fetch_round	
 	
 PRE_FETCH:
-	m_fetch_round
-	
 	// ------------------------------------------------------------------------------
 	// 等待信号
 	// ------------------------------------------------------------------------------
-	//m_wait_signal
+	m_wait_signal
+	
+	// ------------------------------------------------------------------------------
+	// 预读取
+	// ------------------------------------------------------------------------------
+	m_fetch_round
 	
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
 	// -------------------------------------------------------------------------------
 	s_sub_u32 				s[s_loop_cnt], s[s_loop_cnt], 0x1							// s_loop_cnt--
-	//s_cmpk_eq_i32 		s[s_loop_cnt], 0x0											// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	s_cmpk_eq_i32 			s[s_loop_cnt], 0x0+ CLOOP0-3
+	s_cmpk_le_i32 			s[s_loop_cnt], 0x0
 	s_cbranch_scc0 			PRE_FETCH
-	
+		
 END_PROG:
 	s_endpgm
 	
@@ -317,7 +316,7 @@ END_PROG:
 .amd_amdgpu_hsa_metadata
 { Version: [ 1, 0 ],
   Kernels: 
-    - { Name: ConvFwd1x1_Jasm_Prefetch, SymbolName: 'ConvFwd1x1_Jasm_Prefetch', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
+    - { Name: ConvFwd1x1_Prefetch, SymbolName: 'ConvFwd1x1_Prefetch', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 1, 1, 1 ] }
         CodeProps: { KernargSegmentSize: 32, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 512 }
         Args:

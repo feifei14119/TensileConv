@@ -211,7 +211,7 @@ public:
 
 			solutionConfig = new T_SolutionConfig();
 			solutionConfig->ConfigName = "SQC";
-			solutionConfig->RepeatTime = 100;
+			solutionConfig->RepeatTime = 1;
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
@@ -220,13 +220,13 @@ public:
 		}
 
 		// ======================================================================
-		// solution config 4: sigle kernrl PreFetch
+		// solution config 4: Sigle-kernrl PreFetch
 		// ======================================================================
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
 			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "PreFetch1";
+			solutionConfig->ConfigName = "PreFetch_Single";
 			solutionConfig->RepeatTime = 1;
 			solutionConfig->extConfig = extSolutionConfig;
 
@@ -236,13 +236,13 @@ public:
 		}
 
 		// ======================================================================
-		// solution config 5: Mult-kernel perfetch
+		// solution config 5: Mult-kernel Perfetch
 		// ======================================================================
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
 			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "PreFetch2";
+			solutionConfig->ConfigName = "PreFetch_Mult";
 			solutionConfig->RepeatTime = 1;
 			solutionConfig->extConfig = extSolutionConfig;
 
@@ -364,7 +364,54 @@ public:
 			extSolution->k_out_maps = N_LCL_OUT_MAPS;
 			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
 		}
-		else if ((solutionCfg->ConfigName == "SQC") || (solutionCfg->ConfigName == "TensileConv"))
+		else if (solutionCfg->ConfigName == "SQC")
+		{
+			extSolution->group_size = 64;
+			extSolution->k_out_maps = 16;
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+			extSolution->c_in_maps = extProblem->C;
+			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+			extSolution->c_in_maps_once = 8;
+			extSolution->out_pix_tile = 1;
+			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+			extSolution->in_pix_maps = 64;
+			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size +
+				extSolution->in_pix_maps - 1) / extSolution->in_pix_maps) * extSolution->in_pix_maps;
+		}
+		else if (solutionCfg->ConfigName == "PreFetch_Single")
+		{
+			extSolution->group_size = 64;
+			extSolution->k_out_maps = 16;
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+			extSolution->c_in_maps = extProblem->C;
+			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+			extSolution->c_in_maps_once = 8;
+			extSolution->out_pix_tile = 1;
+			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+			extSolution->in_pix_maps = 64;
+			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+		}
+		else if (solutionCfg->ConfigName == "PreFetch_Mult")
+		{
+			extSolution->group_size = 64;
+			extSolution->k_out_maps = 16;
+			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
+			extSolution->c_in_maps = extProblem->C;
+			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
+
+			extSolution->c_in_maps_once = 8;
+			extSolution->out_pix_tile = 1;
+			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
+			extSolution->in_pix_maps = 64;
+			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size +
+				extSolution->in_pix_maps - 1) / extSolution->in_pix_maps) * extSolution->in_pix_maps;
+		}
+		else if (solutionCfg->ConfigName == "TensileConv")
 		{
 			solutionCfg->KernelSearchSpace.StartGetParam();
 			while (true)
@@ -401,36 +448,6 @@ public:
 			printf("	group_size=[%d]\n", extSolution->group_size);
 			printf("----------------------------------------------------------------------\n");
 
-			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
-			extSolution->c_in_maps = extProblem->C;
-			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
-
-			extSolution->c_in_maps_once = 8;
-			extSolution->out_pix_tile = 1;
-			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
-			extSolution->in_pix_maps = 64;
-			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
-			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
-		}		
-		else if (solutionCfg->ConfigName == "PreFetch1")
-		{
-			extSolution->k_out_maps = 16;
-			extSolution->group_size = 64;
-			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
-			extSolution->c_in_maps = extProblem->C;
-			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
-
-			extSolution->c_in_maps_once = 8;
-			extSolution->out_pix_tile = 1;
-			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
-			extSolution->in_pix_maps = 64;
-			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
-			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
-		}
-		else if (solutionCfg->ConfigName == "PreFetch2")
-		{
-			extSolution->k_out_maps = 16;
-			extSolution->group_size = 256;
 			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
 			extSolution->c_in_maps = extProblem->C;
 			extSolution->c_in_group = (extProblem->C + extSolution->c_in_maps - 1) / extSolution->c_in_maps;
@@ -505,8 +522,25 @@ public:
 			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
 			solutionCfg->g_wk1 = 1;
 			solutionCfg->g_wk2 = 1;
+
+			//solutionCfg->l_wk0 = 1;
+			//solutionCfg->g_wk0 = 64;
 		}
-		else if ((solutionCfg->ConfigName == "PreFetch1") || (solutionCfg->ConfigName == "PreFetch2"))
+		else if (solutionCfg->ConfigName == "PreFetch_Single")
+		{
+			solutionCfg->l_wk0 = extSolution->group_size;
+			solutionCfg->l_wk1 = 1;
+			solutionCfg->l_wk2 = 1;
+			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
+			solutionCfg->g_wk1 = 1;
+			solutionCfg->g_wk2 = 1;
+
+			//solutionCfg->l_wk0 = 64;		// 需要注释掉循环控制的exec
+			//solutionCfg->g_wk0 = (64 * solutionCfg->l_wk0);
+			
+			solutionCfg->g_wk0 += (64 * solutionCfg->l_wk0);
+		}
+		else if (solutionCfg->ConfigName == "PreFetch_Mult")
 		{
 			solutionCfg->l_wk0 = extSolution->group_size;
 			solutionCfg->l_wk1 = 1;
@@ -516,8 +550,7 @@ public:
 			solutionCfg->g_wk2 = 1;
 
 			//solutionCfg->l_wk0 = 1;
-			solutionCfg->g_wk0 = 64 * 3 * solutionCfg->l_wk0;
-			solutionCfg->g_wk0 += (64 * solutionCfg->l_wk0);
+			//solutionCfg->g_wk0 = 64;
 		}
 		else if (solutionCfg->ConfigName == "TensileConv")
 		{
@@ -530,8 +563,8 @@ public:
 		}
 
 		solutionCfg->b_wk0 = solutionCfg->g_wk0 / solutionCfg->l_wk0;
-		solutionCfg->b_wk1 = solutionCfg->g_wk0 / solutionCfg->l_wk1;
-		solutionCfg->b_wk2 = solutionCfg->g_wk0 / solutionCfg->l_wk2;
+		solutionCfg->b_wk1 = solutionCfg->g_wk1 / solutionCfg->l_wk1;
+		solutionCfg->b_wk2 = solutionCfg->g_wk2 / solutionCfg->l_wk2;
 	}
 
 	void generateSource()
@@ -547,17 +580,19 @@ public:
 		else if (solutionCfg->ConfigName == "SQC")
 		{
 			solutionCfg->KernelFile = "ConvFwd1x1_Jasm.s";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_256thread.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
-		else if (solutionCfg->ConfigName == "PreFetch1")
+		else if (solutionCfg->ConfigName == "PreFetch_Single")
 		{
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch1.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
-		else if (solutionCfg->ConfigName == "PreFetch2")
+		else if (solutionCfg->ConfigName == "PreFetch_Mult")
 		{
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_Prefetch2.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Mult_Conv.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "TensileConv")
@@ -590,144 +625,124 @@ public:
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		//if (solutionCfg->ConfigName == "MIOpenOcl")
+		int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testInBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testWeiBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+
+		if (extSolution->group_size == 256)
 		{
-			// group size = 256
-			/*{
-				uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
-				uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-				uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
-				uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
-				uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
-				uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
-				uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+			uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
+			uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+			uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
+			uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
+			uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
+			uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
+			uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
 
-				int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-				int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-				int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-				int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-
-				for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
-				{
-					uint local_id0 = 0;
-					uint grp_id0 = grp;
-
-					uint out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
-					uint grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
-
-					uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-					uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-					uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-
-					uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
-					uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
-					uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-
-					testGrpId[grp_id0] = grp_id0;
-
-					testPosId[grp_id0] = pos;
-					testBatchId[grp_id0] = batch_id;
-					testOutId[grp_id0] = out_id;
-				}
-
-				printIndex(testGrpId, "group id");
-				printIndex(testBatchId, "batch id");
-				printIndex(testOutId, "out id");
-				printIndex(testPosId, "pos id");
-
-			}*/
-
-			// group size = 64
+			for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
 			{
-				uint MLO_IN_HEIGHT = extProblem->H;
-				uint MLO_IN_WIDTH = extProblem->W;
-				uint MLO_N_INPUTS = extProblem->C;
-				uint MLO_N_LCL_IN_MAPS = extProblem->C;
-				uint MLO_N_IN_GROUPS = ((MLO_N_INPUTS + MLO_N_LCL_IN_MAPS - 1) / MLO_N_LCL_IN_MAPS);
-				uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
-				uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-				uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
-				uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
-				uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
-				uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
-				uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+				uint local_id0 = 0;
+				uint grp_id0 = grp;
 
-				uint MLO_ROUND_NUMBER = solutionCfg->b_wk0 / CU_NUM;
-				uint MLO_ROUND_LEFT = MLO_ROUND_NUMBER * CU_NUM;
-				uint MLO_Z_ROUND_NUM = solutionCfg->b_wk0 / (CU_NUM * MLO_N_OUT_GROUPS);
-				uint MLO_INBLOCK_LEFT = MLO_Z_ROUND_NUM * CU_NUM;
+				uint out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
+				uint grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
 
-				int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+				uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+				uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+				uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
 
-				int *testInBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-				int *testWeiBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-
-				int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-				int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-				int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-
-				for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
-				{
-					uint local_id0 = 0;
-					uint grp_id0 = grp;
-
-					//// old organization
-					//uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
-					//uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
-					//
-					//uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-					//uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-					//uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-					//
-					//uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
-					//uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
-					//uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-					
-					// new organization
-					uint inBlkId, weiBlkId;
-					uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);	// 第几轮Z格子
-					
-					inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;		// 即 grp_id0_faked
-					weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;		// 即 out_grp_block
-					
-					if (grp_id0 >= MLO_ROUND_LEFT)
-					{
-						uint leftGrpId = 0;
-						leftGrpId = grp_id0 - MLO_ROUND_LEFT;
-						inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;
-						weiBlkId = leftGrpId % 4;
-					}
-					
-					uint out_grp_block = weiBlkId;
-					uint grp_id0_faked = inBlkId;
-					
-					uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-					uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-					uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-
-					testGrpId[grp_id0] = grp_id0;
-
-					testInBlkId[grp_id0] = grp_id0_faked;
-					testWeiBlkId[grp_id0] = out_grp_block;
-					
-					testPosId[grp_id0] = pos;
-					testBatchId[grp_id0] = batch_id;
-					testOutId[grp_id0] = out_id;
-				}
-
-				printIndex(testGrpId, "group id");
-
-				printIndex(testInBlkId, "input block id");
-				printIndex(testWeiBlkId, "weight block id");
-
-				//printIndex(testBatchId, "batch id");
-				//printIndex(testOutId, "out id");
-				//printIndex(testPosId, "pos id");
+				uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
+				uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
+				uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
+				
+				testGrpId[grp_id0] = grp_id0;
+				testInBlkId[grp_id0] = grp_id0_faked;
+				testWeiBlkId[grp_id0] = out_grp_block;
+				testPosId[grp_id0] = pos;
+				testBatchId[grp_id0] = batch_id;
+				testOutId[grp_id0] = out_id;
 			}
 		}
+
+		if (extSolution->group_size == 64)
+		{
+			uint MLO_IN_HEIGHT = extProblem->H;
+			uint MLO_IN_WIDTH = extProblem->W;
+			uint MLO_N_INPUTS = extProblem->C;
+			uint MLO_N_LCL_IN_MAPS = extProblem->C;
+			uint MLO_N_IN_GROUPS = ((MLO_N_INPUTS + MLO_N_LCL_IN_MAPS - 1) / MLO_N_LCL_IN_MAPS);
+			uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
+			uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+			uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
+			uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
+			uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
+			uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
+			uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
+
+			uint MLO_ROUND_NUMBER = solutionCfg->b_wk0 / CU_NUM;
+			uint MLO_ROUND_LEFT = MLO_ROUND_NUMBER * CU_NUM;
+			uint MLO_Z_ROUND_NUM = solutionCfg->b_wk0 / (CU_NUM * MLO_N_OUT_GROUPS);
+			uint MLO_INBLOCK_LEFT = MLO_Z_ROUND_NUM * CU_NUM;
+
+			for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
+			{
+				uint local_id0 = 0;
+				uint grp_id0 = grp;
+
+				//// old organization
+				//uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
+				//uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
+				//
+				//uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+				//uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+				//uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+				//
+				//uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
+				//uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
+				//uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
+
+				// new organization
+				uint inBlkId, weiBlkId;
+				uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);	// 第几轮Z格子
+				
+				inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;		// 即 grp_id0_faked
+				weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;		// 即 out_grp_block
+				
+				if (grp_id0 >= MLO_ROUND_LEFT)
+				{
+					uint leftGrpId = 0;
+					leftGrpId = grp_id0 - MLO_ROUND_LEFT;
+					inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;
+					weiBlkId = leftGrpId % 4;
+				}
+				
+				uint out_grp_block = weiBlkId;
+				uint grp_id0_faked = inBlkId;
+				
+				uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+				uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+				uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+
+				testGrpId[grp_id0] = grp_id0;
+				testInBlkId[grp_id0] = grp_id0_faked;
+				testWeiBlkId[grp_id0] = out_grp_block;
+				testPosId[grp_id0] = pos;
+				testBatchId[grp_id0] = batch_id;
+				testOutId[grp_id0] = out_id;
+			}
+		}
+
+		printIndex(testGrpId, "group id");
+		printIndex(testInBlkId, "input block id");
+		printIndex(testWeiBlkId, "weight block id");
+		//printIndex(testBatchId, "batch id");
+		//printIndex(testOutId, "out id");
+		//printIndex(testPosId, "pos id");
 	} 
-
-
+	
 	/************************************************************************/
 	/* 两个kernel										                    */
 	/************************************************************************/
@@ -735,11 +750,11 @@ public:
 	{
 		printf("setup solution.\n");
 	
-//		setupPrefetch();
-//		setupCalcu();
-//
-//		// warm up
-//		LaunchSolution();
+		setupPrefetch();
+		setupCalcu();
+
+		// warm up
+		LaunchSolution();
 	
 		return E_ReturnState::SUCCESS;
 	}
@@ -748,8 +763,8 @@ public:
 	{
 		printf("setup pre-fetch solution.\n");
 
-		preKernel->KernelName = "ConvFwd1x1_Jasm_Prefetch";
-		preKernel->KernelFile = "ConvFwd1x1_Jasm_Prefetch0.s";
+		preKernel->KernelName = "ConvFwd1x1_Prefetch";
+		preKernel->KernelFile = "ConvFwd1x1_Jasm_Prefetch_Mult_Fetch.s";
 		preKernel->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		
 		dim3 l_wk = dim3(1, 1, 1);
@@ -802,13 +817,12 @@ public:
 		solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
 		for (int i = 0; i < solutionCfg->RepeatTime; i++)
 		{	
-//			setArgusPrefetch();
-//			setArgusCalcu();
-//	
-//	
-//			printf("launch solution.\n");
-//			preKernel->LanchKernel2();
-//			runtime->LanchKernel2();	
+			setArgusPrefetch();
+			setArgusCalcu();
+		
+			printf("launch solution.\n");
+			preKernel->LanchKernel2();
+			runtime->LanchKernel2();	
 		}
 		return E_ReturnState::SUCCESS;
 	}
@@ -938,9 +952,7 @@ public:
 		fout.write(asmKernelStr.c_str(), asmKernelStr.length());
 		fout.close();
 	}
-	
-
-	
+		
 
 	void writeAsmKernel()
 	{
@@ -1668,7 +1680,6 @@ public:
 		asmKernelStr.append("    m_save_output\n");
 		asmKernelStr.append("\n");
 	}
-	
 };
  
 /************************************************************************/

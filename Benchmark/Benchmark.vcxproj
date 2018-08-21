@@ -101,9 +101,10 @@
     <None Include="Kernels\common.inc" />
     <None Include="Kernels\ConvFwd1x1_Jasm.s" />
     <None Include="Kernels\ConvFwd1x1_Jasm_NewOrg.s" />
-    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch1.s" />
-    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch2.s" />
-    <None Include="Kernels\ConvFwd1x1_Jasm_Prefetch20.s" />
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Mult_Conv.s" />
+    <None Include="Kernels\ConvFwd1x1_Jasm_Prefetch_Mult_Fetch.s" />
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single.s" />
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s" />
     <None Include="Kernels\ConvFwd1x1_Jcl.cl" />
     <None Include="Kernels\ConvFwd1x1_Jcl_256thread.cl" />
     <None Include="Kernels\ConvFwd1x1_Jcl_NewOrg.cl" />
