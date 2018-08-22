@@ -227,7 +227,7 @@ public:
 
 			solutionConfig = new T_SolutionConfig();
 			solutionConfig->ConfigName = "PreFetch_Single";
-			solutionConfig->RepeatTime = 1;
+			solutionConfig->RepeatTime = 2;
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
@@ -536,7 +536,7 @@ public:
 			solutionCfg->g_wk2 = 1;
 
 			//solutionCfg->l_wk0 = 64;		// 需要注释掉循环控制的exec
-			solutionCfg->g_wk0 = (64 * solutionCfg->l_wk0);
+			//solutionCfg->g_wk0 = (64 * solutionCfg->l_wk0);
 			
 			solutionCfg->g_wk0 += (64 * solutionCfg->l_wk0);
 		}
@@ -586,8 +586,8 @@ public:
 		}
 		else if (solutionCfg->ConfigName == "PreFetch_Single")
 		{
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
-			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "PreFetch_Mult")
@@ -822,7 +822,7 @@ public:
 		
 			printf("launch solution.\n");
 			preKernel->LanchKernel2();
-			runtime->LanchKernel2();	
+			runtime->LanchKernel2();
 		}
 		return E_ReturnState::SUCCESS;
 	}

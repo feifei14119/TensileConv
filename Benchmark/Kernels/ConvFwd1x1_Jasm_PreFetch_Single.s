@@ -439,7 +439,7 @@ ConvFwd1x1:
 .macro m_save_output
 	v_sum = v_acc0
 	.rept MLO_N_LCL_OUT_MAPS
-		//v_mov_b32				v[v_sum], 0x0 + .AUTO_VGPR_COUNT							// ; for debug only
+		//v_mov_b32				v[v_sum], 0x0 + .AUTO_SGPR_COUNT							// ; for debug only
 		//v_cvt_f32_u32			v[v_sum], v[v_sum]
 			
 		global_store_dword 		v[v_addr_out:v_addr_out+1], v[v_sum], off					// *v_addr_out = v_vdat[1..15]
@@ -452,9 +452,9 @@ ConvFwd1x1:
 /************************************************************************************/
 /* 向prefetch kernel发射信号														*/
 /************************************************************************************/
-.macro m_send_signal 			signal_type
+.macro m_send_signal 			signal_type, index_reg
 	.if (\signal_type == SIGNAL_REQ_FETCH)
-		s_lshl_b32				s[s_tmp1], s[s_loop_cnt], 0x02
+		s_lshl_b32				s[s_tmp1], s[\index_reg], 0x02
 		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
 	.elseif (\signal_type == SIGNAL_EXIT)
 		s_mov_b32				s[s_signal], 0x0 + SIGNAL_EXIT
@@ -463,16 +463,16 @@ ConvFwd1x1:
 		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
 	.endif
 .endm
-
+	
 /************************************************************************************/
 /* 等待信号 																		*/
 /************************************************************************************/
-.macro m_wait_signal
+.macro m_wait_signal			index_reg
 	s_mov_b32					s[s_signal], SIGNAL_NULL
 FETCH_WAIT:	
 	s_sleep						0x04
 		
-	s_lshl_b32					s[s_tmp1], s[s_loop_cnt], 0x02
+	s_lshl_b32					s[s_tmp1], s[\index_reg], 0x02
 	s_load_dword				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
 	s_waitcnt 					lgkmcnt(0)
 		
@@ -618,7 +618,7 @@ FETCH_WAIT:
 	s_lshr_b32					s[s_flag], s[gid_x0], 0x02
 	s_and_b32					s[s_flag], s[s_flag], 0x01
 	s_cmp_eq_u32				s[s_flag], 0x0
-	s_cbranch_scc1				INSTR_FETCH_GROUP
+	s_cbranch_scc0				INSTR_FETCH_GROUP
 	
 PREFETCH_GROUP:		
 	// -------------------------------------------------------------------------------
@@ -655,7 +655,7 @@ PRE_FETCH:
 	// ------------------------------------------------------------------------------
 	// 等待信号
 	// ------------------------------------------------------------------------------
-	m_wait_signal
+	m_wait_signal				s_loop_cnt
 	
 	// ------------------------------------------------------------------------------
 	// 预读取
@@ -675,7 +675,7 @@ PRE_FETCH:
 
 INSTR_FETCH_GROUP:
 	s_mov_b64					exec, 0x0
-	s_branch					LAST_CYCLE
+	s_branch					PREPARE_LOOP
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -775,11 +775,12 @@ MAIN_CONV:
 		v_acc = v_acc + 1
 	.endr	
 	
-/*************************************************************************************/
+/*************************************************************************************
 	// -------------------------------------------------------------------------------
 	// 循环填充 :
 	// 读取8输入通道的input data
 	// -------------------------------------------------------------------------------
+PREPARE_LOOP:
 	//m_fetch_all_in_chan
 	s_mov_b32 					s[s_loop_cnt], CLOOP0 - 1									// s_loop_cnt = CLOOP0 - 1
 	m_load_input 				v_data0, enable
@@ -789,10 +790,10 @@ MAIN_CONV:
 	// 循环体 :
 	// -------------------------------------------------------------------------------
 LOOP_CONV:	
-	m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature 		v_data0, weight_offset, 8, disable, disable
-	m_send_signal				SIGNAL_REQ_FETCH
+	m_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt
 	m_load_input 				v_data0, enable
 	m_cacul_all_feature 		v_datb0, weight_offset, 8, enable,  enable
 	
@@ -816,13 +817,15 @@ LAST_CYCLE:
 	
 	
 	
-/*************************************************************************************
+/*************************************************************************************/
 	// -------------------------------------------------------------------------------
 	// 循环填充 :
 	// 读取8输入通道的input data
 	// -------------------------------------------------------------------------------
+PREPARE_LOOP:
 	//m_fetch_all_in_chan
-	s_mov_b32 					s[s_loop_cnt], 0x05											// s_loop_cnt = CLOOP0 - 1 循环CLOOP0/2 - 1次
+	s_mov_b32					s[s_flag], CLOOP0 - 1
+	s_mov_b32 					s[s_loop_cnt], CLOOP0/2 - 1									// s_loop_cnt = CLOOP0 - 1 循环CLOOP0/2 - 1次
 	m_load_input 				v_data0, enable
 	m_load_input 				v_datb0, enable
 	m_load_input 				v_datc0, enable
@@ -832,19 +835,21 @@ LAST_CYCLE:
 	// 循环体 :
 	// -------------------------------------------------------------------------------
 LOOP_CONV:	
-	m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datd0, enable
 	m_cacul_all_feature 		v_data0, weight_offset, 24, disable, disable
-	m_send_signal				SIGNAL_REQ_FETCH		
+	m_send_signal				SIGNAL_REQ_FETCH, s_flag
 	m_load_input 				v_data0, enable
 	m_cacul_all_feature 		v_datb0, weight_offset, 24, enable,  enable
+	s_sub_u32 					s[s_flag], s[s_flag], 0x01
 	
-	m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature 		v_datc0, weight_offset, 24, disable, disable
-	m_send_signal				SIGNAL_REQ_FETCH		
+	m_send_signal				SIGNAL_REQ_FETCH, s_flag
 	m_load_input 				v_datc0, enable
 	m_cacul_all_feature 		v_datd0, weight_offset, 24, enable,  enable
+	s_sub_u32 					s[s_flag], s[s_flag], 0x01
 	
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
@@ -862,11 +867,11 @@ LAST_CYCLE:
 	m_load_input 				v_datd0, enable
 	
 	m_cacul_all_feature 		v_data0, weight_offset, 24, disable, disable
-	m_send_signal				SIGNAL_REQ_FETCH		
+	m_send_signal				SIGNAL_REQ_FETCH, s_flag
 	m_cacul_all_feature 		v_datb0, weight_offset, 16, enable,  enable
 	m_cacul_all_feature 		v_datc0, weight_offset,  8, disable, disable
 	m_cacul_all_feature 		v_datd0, weight_offset,  0, enable,  disable
-*************************************************************************************/
+/*************************************************************************************/
 	
 	// -------------------------------------------------------------------------------
 	// 存储结果
