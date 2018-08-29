@@ -504,7 +504,7 @@ FETCH_WAIT:
 	s_wei_fetch = s_weia0
 
 	.rept  \k_out_block_num
-		//s_wei_fetch = s_weia0
+		s_wei_fetch = s_weia0
 		m_fetch_sub 			s_wei_fetch
 		//s_waitcnt 			lgkmcnt(0)				
 	.endr
@@ -614,7 +614,17 @@ FETCH_GROUP_PING:
 	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
 	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
-		
+	
+	// -------------------------------------------------------------------------------
+	// 初始化消息队列
+	// -------------------------------------------------------------------------------
+	s_mov_b32					s[s_tmp1], 0x0
+	s_gpr_idx = 0
+	.rept CLOOP0
+		s_store_dword			s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], 0x0 + s_gpr_idx
+		s_gpr_idx = s_gpr_idx  + 4
+	.endr
+	
 	s_mov_b32 					s[s_loop_cnt], CLOOP0-1										// channel 的循环	
 	
 	m_fetch_k_out_blk			2
@@ -627,10 +637,13 @@ PRE_FETCH:
 	// 循环控制 :
 	// -------------------------------------------------------------------------------
 	s_sub_u32 					s[s_loop_cnt], s[s_loop_cnt], 0x1							// s_loop_cnt--
-	s_cmpk_le_i32 				s[s_loop_cnt], 0x0
+	s_cmpk_le_i32 				s[s_loop_cnt], 0x1
 	s_cbranch_scc0 				PRE_FETCH
 	
-	s_branch					END_PROG
+	// 最后一笔预取不再等待,转而去做指令预取
+	m_fetch_k_out_blk			2
+	
+	//s_branch					END_PROG
 	
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -640,7 +653,7 @@ INSTR_FETCH_GROUP:
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-CALCU_GROUP:	
+CALCU_GROUP:
 	s_sub_u32					s[gid_x0], s[gid_x0], 0x0 + CU_NUM
 	// -------------------------------------------------------------------------------
 	// uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);								// 第几轮Z格子
@@ -668,7 +681,7 @@ CALCU_GROUP:
 	s_and_b32					s[s_tmp2], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_MOD_MASK		// s_tmp2 = weiBlkId = out_grp_block
 	s_lshr_b32					s[s_tmp1], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_LOG2	
 	s_add_u32					s[s_tmp1], s[s_tmp1], 0x0 + MLO_INBLOCK_LEFT				// s_tmp1 = inBlkId = grp_id0_faked
-			
+	
 NORMAL_GROUP:	
 	v_mov_b32					v[v_acc12], s[s_tmp2]										// v_acc12 = out_grp_block = weiBlkId
 	v_mov_b32					v[v_acc13], s[s_tmp1]										// v_acc13 = grp_id0_faked = inBlkId
@@ -691,7 +704,7 @@ NORMAL_GROUP:
 	v_mov_b32 					v[v_acc9], 0x0 + MLO_IN_BATCH_STRIDE
 	v_mul_u32_u24				v[v_acc10], v[v_acc7], v[v_acc9]
 	v_add_co_u32				v[v_acc13], vcc, v[v_acc10], v[v_acc8]						// v_acc13 = gbl_in_off
-			
+	
 	// offset_list		
 	v_lshlrev_b32 				v[v_io_offset0], 2, v[v_acc13]								// v_io_offset0 = gbl_in_off(DWORD)
 	v_mov_b32					v[v_acc1], 0x0 + MLO_IN_CHANNEL_STRIDE * 2 * 4
@@ -722,7 +735,7 @@ NORMAL_GROUP:
 	v_mul_u32_u24				v[v_acc11], v[v_acc6], v[v_acc10]							// v_acc11 = out_id * MLO_OUT_CHANNEL_STRIDE
 	v_add3_u32					v[v_acc12], v[v_acc9], v[v_acc11], v[v_acc8]				// v_acc12 = gbl_out_off
 	v_lshlrev_b32 				v[v_acc12], 2, v[v_acc12]
-			
+	
 	v_mov_b32					v[v_addr_out + 1], s[s_ptr_out + 1]
 	v_add_co_u32				v[v_addr_out], vcc, s[s_ptr_out], v[v_acc12]
 	v_addc_co_u32				v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc
@@ -735,7 +748,7 @@ NORMAL_GROUP:
 	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
 	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
-			
+	
 	s_mov_b32					s[s_signal], SIGNAL_REQ_FETCH
 	
 	

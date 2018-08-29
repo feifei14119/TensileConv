@@ -119,6 +119,13 @@ struct Option
 	void *       _value;
 };
 
+#define	c2s(c)				std::string(c)
+#define	s2c(s)				s.c_str()
+#define	d2s(d)				std::to_string(d)
+#define d2c(d)				(char*)(s2c(d2s(d)))
+#define	d2hs(d)				std::string("0x0+"+std::to_string(d))
+#define	c2hs(c)				std::string("0x0+"+c2s(c))
+
 /************************************************************************/
 /* 常量定义																*/
 /************************************************************************/

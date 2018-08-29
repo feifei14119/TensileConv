@@ -369,7 +369,7 @@ ConvFwd1x1:
 		s_waitcnt 				lgkmcnt(0)
 		m_load_weight 			s_weia0, \wei_offset, enable
 		m_conv_once 			\input, s_weib0, v_acc
-				
+	
 		s_waitcnt 				lgkmcnt(0)		
 		m_load_weight 			s_weib0, \wei_offset, enable
 		m_conv_once 			\input, s_weia0, v_acc
@@ -600,7 +600,7 @@ FETCH_WAIT:
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-// Disassembly:
+// Disassembly:		
 	// ===============================================================================
 	// 获取计算参数
 	// ===============================================================================
@@ -608,10 +608,9 @@ FETCH_WAIT:
 	s_load_dwordx2 				s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off
 	s_load_dwordx2 				s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off
 	s_load_dwordx2 				s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
-		
+	
 	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(grp_id0 < CU_NUM) goto noraml_index
 	s_cbranch_scc0				CALCU_GROUP
-	
 	// -------------------------------------------------------------------------------
 	// 指令预读取
 	// -------------------------------------------------------------------------------
@@ -619,6 +618,7 @@ FETCH_WAIT:
 	s_and_b32					s[s_flag], s[s_flag], 0x01
 	s_cmp_eq_u32				s[s_flag], 0x0
 	s_cbranch_scc0				INSTR_FETCH_GROUP
+		
 	
 PREFETCH_GROUP:		
 	// -------------------------------------------------------------------------------
@@ -646,6 +646,16 @@ PREFETCH_GROUP:
 	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
 	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0	
+	
+	// -------------------------------------------------------------------------------
+	// 初始化消息队列
+	// -------------------------------------------------------------------------------
+	s_mov_b32					s[s_tmp1], 0x0
+	s_gpr_idx = 0
+	.rept CLOOP0
+		s_store_dword			s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], 0x0 + s_gpr_idx
+		s_gpr_idx = s_gpr_idx  + 4
+	.endr
 		
 	s_mov_b32 					s[s_loop_cnt], CLOOP0-1										// channel 的循环	
 		
@@ -675,12 +685,12 @@ PRE_FETCH:
 
 INSTR_FETCH_GROUP:
 	s_mov_b64					exec, 0x0
-	s_branch					PREPARE_LOOP
+	s_branch					INSTR_FETCH
 
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-CALCU_GROUP:	
-	s_sub_u32					s[gid_x0], s[gid_x0], 0x0 + CU_NUM
+CALCU_GROUP:
+	s_sub_u32					s[gid_x0], s[gid_x0], 0x0 + CU_NUM	
 	// -------------------------------------------------------------------------------	
 	// uint out_grp_block = gid % MLO_N_OUT_GROUPS;											// 第几个weight的组
     // uint grp_id0_faked = (uint)(gid / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;				// 第几个input的组
@@ -707,7 +717,7 @@ CALCU_GROUP:
 	v_mov_b32 					v[v_acc9], 0x0 + MLO_IN_BATCH_STRIDE
 	v_mul_u32_u24				v[v_acc10], v[v_acc7], v[v_acc9]
 	v_add_co_u32				v[v_acc13], vcc, v[v_acc10], v[v_acc8]						// v_acc13 = gbl_in_off
-			
+	
 	// offset_list		
 	v_lshlrev_b32 				v[v_io_offset0], 2, v[v_acc13]								// v_io_offset0 = gbl_in_off(DWORD)
 	v_mov_b32					v[v_acc1], 0x0 + MLO_IN_CHANNEL_STRIDE * 2 * 4
@@ -737,7 +747,7 @@ CALCU_GROUP:
 	v_mul_u32_u24				v[v_acc11], v[v_acc6], v[v_acc10]							// v_acc11 = out_id * MLO_OUT_CHANNEL_STRIDE
 	v_add3_u32					v[v_acc12], v[v_acc9], v[v_acc11], v[v_acc8]				// v_acc12 = gbl_out_off
 	v_lshlrev_b32 				v[v_acc12], 2, v[v_acc12]
-		
+	
 	v_mov_b32					v[v_addr_out + 1], s[s_ptr_out + 1]
 	v_add_co_u32				v[v_addr_out], vcc, s[s_ptr_out], v[v_acc12]
 	v_addc_co_u32				v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc
@@ -775,7 +785,7 @@ MAIN_CONV:
 		v_acc = v_acc + 1
 	.endr	
 	
-/*************************************************************************************
+/*************************************************************************************/
 	// -------------------------------------------------------------------------------
 	// 循环填充 :
 	// 读取8输入通道的input data
@@ -785,7 +795,7 @@ PREPARE_LOOP:
 	s_mov_b32 					s[s_loop_cnt], CLOOP0 - 1									// s_loop_cnt = CLOOP0 - 1
 	m_load_input 				v_data0, enable
 	weight_offset = 0
-	
+INSTR_FETCH:	
 	// -------------------------------------------------------------------------------
 	// 循环体 :
 	// -------------------------------------------------------------------------------
@@ -817,19 +827,21 @@ LAST_CYCLE:
 	
 	
 	
-/*************************************************************************************/
+/*************************************************************************************
 	// -------------------------------------------------------------------------------
 	// 循环填充 :
 	// 读取8输入通道的input data
 	// -------------------------------------------------------------------------------
 PREPARE_LOOP:
 	//m_fetch_all_in_chan
-	s_mov_b32					s[s_flag], CLOOP0 - 1
 	s_mov_b32 					s[s_loop_cnt], CLOOP0/2 - 1									// s_loop_cnt = CLOOP0 - 1 循环CLOOP0/2 - 1次
 	m_load_input 				v_data0, enable
 	m_load_input 				v_datb0, enable
 	m_load_input 				v_datc0, enable
 	weight_offset = 0
+	
+INSTR_FETCH:
+	s_mov_b32					s[s_flag], CLOOP0 - 1
 	
 	// -------------------------------------------------------------------------------
 	// 循环体 :

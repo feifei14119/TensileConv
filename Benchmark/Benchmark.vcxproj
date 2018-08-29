@@ -71,7 +71,9 @@
   <ItemGroup>
     <ClInclude Include="BasicClass.h" />
     <ClInclude Include="ConvFwd1x1.h" />
+    <ClInclude Include="GasWriter.h" />
     <ClInclude Include="IsaFlat.h" />
+    <ClInclude Include="IsaWriterGfx9.h" />
     <ClInclude Include="IsaGlobal.h" />
     <ClInclude Include="helper.h" />
     <ClInclude Include="helper_cl.h" />
@@ -79,6 +81,9 @@
     <ClInclude Include="IsaDs.h" />
     <ClInclude Include="IsaMubuf.h" />
     <ClInclude Include="IsaSleep.h" />
+    <ClInclude Include="IsaWriter.h" />
+    <ClInclude Include="KernelWriter.h" />
+    <ClInclude Include="KernelWriterConv1x1.h" />
     <ClInclude Include="ProblemControl.h" />
     <ClInclude Include="ProducerConsumer.h" />
     <ClInclude Include="RuntimeControl.h" />

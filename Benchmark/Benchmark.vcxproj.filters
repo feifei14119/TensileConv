@@ -70,6 +70,21 @@
     <ClInclude Include="ProducerConsumer.h">
       <Filter>problems\sample</Filter>
     </ClInclude>
+    <ClInclude Include="IsaWriter.h">
+      <Filter>problems\tensile</Filter>
+    </ClInclude>
+    <ClInclude Include="IsaWriterGfx9.h">
+      <Filter>problems\tensile</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelWriter.h">
+      <Filter>problems\tensile</Filter>
+    </ClInclude>
+    <ClInclude Include="KernelWriterConv1x1.h">
+      <Filter>problems\tensile</Filter>
+    </ClInclude>
+    <ClInclude Include="GasWriter.h">
+      <Filter>problems\tensile</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />

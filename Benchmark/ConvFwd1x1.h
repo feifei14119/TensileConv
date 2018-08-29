@@ -4,6 +4,10 @@
 #include "RuntimeControl.h"
 #include "ProblemControl.h"
 
+#include "GasWriter.h"
+#include "IsaWriterGfx9.h"
+#include "KernelWriterConv1x1.h"
+
 /************************************************************************/
 /* 扩展参数                                                              */
 /************************************************************************/
@@ -84,7 +88,7 @@ private:
 	int *pos_id_buff;
 
 	RuntimeCtrl * preKernel;
-	
+
 	size_t align;
 	int N_IN_GROUPS;
 	int N_LCL_IN_MAPS;
@@ -121,7 +125,7 @@ public:
 		solutionCfg->KernelArgus->push_back(d_in);
 		solutionCfg->KernelArgus->push_back(d_wei);
 		solutionCfg->KernelArgus->push_back(d_out);
-		solutionCfg->KernelArgus->push_back(d_signal);
+		//solutionCfg->KernelArgus->push_back(d_signal);
 
 		extSol->preArgus = new std::list<T_KernelArgu>;
 		extSol->preArgus->push_back(d_in);
@@ -129,17 +133,17 @@ public:
 		extSol->preArgus->push_back(d_out);
 		extSol->preArgus->push_back(d_signal);
 
-		d_in.size = sizeof(cl_mem);		d_in.isVal = false;		
-		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;	
-		d_out.size = sizeof(cl_mem);	d_out.isVal = false;	
-		d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;			
+		d_in.size = sizeof(cl_mem);		d_in.isVal = false;
+		d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;
+		d_out.size = sizeof(cl_mem);	d_out.isVal = false;
+		d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
 
 		Copy2Dev((cl_mem)(d_in.ptr), exCfg->h_in, exCfg->size_in * sizeof(float));
 		Copy2Dev((cl_mem)(d_wei.ptr), exCfg->h_wei, exCfg->size_wei * sizeof(float));
 
 		return E_ReturnState::SUCCESS;
 	}
-	
+
 	/************************************************************************/
 	/* 返回结果                                                            */
 	/************************************************************************/
@@ -227,12 +231,12 @@ public:
 
 			solutionConfig = new T_SolutionConfig();
 			solutionConfig->ConfigName = "PreFetch_Single";
-			solutionConfig->RepeatTime = 2;
+			solutionConfig->RepeatTime = 1;
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -271,7 +275,7 @@ public:
 			searchParam->ValueArray.push_back(8);
 			searchParam->ValueArray.push_back(16);
 			searchParam->ValueArray.push_back(32);
-			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+			//solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			//--------------------------------
 			searchParam = new T_SearchParam();
 			searchParam->Name = "group_size";
@@ -296,20 +300,20 @@ public:
 			searchParam->ValueArray.push_back(256);
 			searchParam->ValueArray.push_back(512);
 			//searchParam->ValueArray.push_back(1024);
-			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+			//solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
-		return E_ReturnState::SUCCESS; 
+		return E_ReturnState::SUCCESS;
 	}
 
 	/************************************************************************/
 	/* 根据solution参数生成source, complier和worksize                        */
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
-	{		
+	{
 		generateParameters();// 提取搜索参数		
 		generateCompilerOption();// 生成编译选项		
 		generateWorkLoad();// 生成worksize		
@@ -327,6 +331,7 @@ public:
 
 		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
+			extSolution->group_size = FIXED_WORKGROUP_SIZE;
 			// chunk config
 			// ---------------
 			int n_out_pix_tiles = 16;
@@ -360,7 +365,7 @@ public:
 
 			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
 			N_OUT_GROUPS = (extProblem->feature_out / N_LCL_OUT_MAPS);
-			
+
 			extSolution->k_out_maps = N_LCL_OUT_MAPS;
 			extSolution->k_out_group = (extProblem->K + extSolution->k_out_maps - 1) / extSolution->k_out_maps;
 		}
@@ -435,7 +440,7 @@ public:
 
 			if (extSolution->k_out_maps == 0)
 			{
-				extSolution->k_out_maps = 8;
+				extSolution->k_out_maps = 16;
 			}
 			if (extSolution->group_size == 0)
 			{
@@ -457,7 +462,8 @@ public:
 			extSolution->out_tile = extSolution->out_pix_tile * extSolution->k_out_maps;
 			extSolution->in_pix_maps = 64;
 			extSolution->loop = extSolution->c_in_maps / extSolution->c_in_maps_once;
-			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
+			align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + 
+				FIXED_WORKGROUP_SIZE - 1) / FIXED_WORKGROUP_SIZE) * FIXED_WORKGROUP_SIZE;
 		}
 	}
 
@@ -505,7 +511,7 @@ public:
 
 		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
-			solutionCfg->l_wk0 = FIXED_WORKGROUP_SIZE;
+			solutionCfg->l_wk0 = extSolution->group_size;
 			solutionCfg->l_wk1 = 1;
 			solutionCfg->l_wk2 = 1;
 			solutionCfg->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
@@ -537,7 +543,7 @@ public:
 
 			//solutionCfg->l_wk0 = 64;		// 需要注释掉循环控制的exec
 			//solutionCfg->g_wk0 = (64 * solutionCfg->l_wk0);
-			
+
 			solutionCfg->g_wk0 += (64 * solutionCfg->l_wk0);
 		}
 		else if (solutionCfg->ConfigName == "PreFetch_Mult")
@@ -560,6 +566,9 @@ public:
 			solutionCfg->g_wk0 = align * extSolution->c_in_group * extSolution->k_out_group;
 			solutionCfg->g_wk1 = 1;
 			solutionCfg->g_wk2 = 1;
+			
+			//solutionCfg->l_wk0 = 64;
+			//solutionCfg->g_wk0 = 64*64;
 		}
 
 		solutionCfg->b_wk0 = solutionCfg->g_wk0 / solutionCfg->l_wk0;
@@ -573,8 +582,8 @@ public:
 		if (solutionCfg->ConfigName == "MIOpenOcl")
 		{
 			solutionCfg->KernelFile = "ConvFwd1x1_Jcl.cl";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jcl_NewOrg.cl";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jcl_256thread.cl";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jcl_NewOrg.cl";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jcl_256thread.cl";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
 		}
 		else if (solutionCfg->ConfigName == "SQC")
@@ -586,8 +595,8 @@ public:
 		}
 		else if (solutionCfg->ConfigName == "PreFetch_Single")
 		{
-			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
-			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
+			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
+			//solutionCfg->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (solutionCfg->ConfigName == "PreFetch_Mult")
@@ -598,8 +607,7 @@ public:
 		else if (solutionCfg->ConfigName == "TensileConv")
 		{
 			solutionCfg->KernelFile = "ConvFwd1x1_Jasm_TensileConv.s";
-			writeAsmKernel();
-			saveKernelStr2File();
+			autoGenKernel();
 			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 	}
@@ -616,7 +624,7 @@ public:
 		printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
 		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
 	}
-	
+
 	/************************************************************************/
 	/* 测试下标计算															*/
 	/************************************************************************/
@@ -657,7 +665,7 @@ public:
 				uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
 				uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
 				uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-				
+
 				testGrpId[grp_id0] = grp_id0;
 				testInBlkId[grp_id0] = grp_id0_faked;
 				testWeiBlkId[grp_id0] = out_grp_block;
@@ -692,39 +700,39 @@ public:
 				uint local_id0 = 0;
 				uint grp_id0 = grp;
 
-				//// old organization
-				//uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
-				//uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
+				// old organization
+				uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
+				uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
+
+				uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
+				uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
+				uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
+
+				uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
+				uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
+				uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
+
+				// new organization
+				//uint inBlkId, weiBlkId;
+				//uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);	// 第几轮Z格子
+				//
+				//inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;		// 即 grp_id0_faked
+				//weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;		// 即 out_grp_block
+				//
+				//if (grp_id0 >= MLO_ROUND_LEFT)
+				//{
+				//	uint leftGrpId = 0;
+				//	leftGrpId = grp_id0 - MLO_ROUND_LEFT;
+				//	inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;
+				//	weiBlkId = leftGrpId % 4;
+				//}
+				//
+				//uint out_grp_block = weiBlkId;
+				//uint grp_id0_faked = inBlkId;
 				//
 				//uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
 				//uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
 				//uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-				//
-				//uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
-				//uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
-				//uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-
-				// new organization
-				uint inBlkId, weiBlkId;
-				uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);	// 第几轮Z格子
-				
-				inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;		// 即 grp_id0_faked
-				weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;		// 即 out_grp_block
-				
-				if (grp_id0 >= MLO_ROUND_LEFT)
-				{
-					uint leftGrpId = 0;
-					leftGrpId = grp_id0 - MLO_ROUND_LEFT;
-					inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;
-					weiBlkId = leftGrpId % 4;
-				}
-				
-				uint out_grp_block = weiBlkId;
-				uint grp_id0_faked = inBlkId;
-				
-				uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-				uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-				uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
 
 				testGrpId[grp_id0] = grp_id0;
 				testInBlkId[grp_id0] = grp_id0_faked;
@@ -735,27 +743,29 @@ public:
 			}
 		}
 
-		printIndex(testGrpId, "group id");
-		printIndex(testInBlkId, "input block id");
+		//printIndex(testGrpId, "group id");
+		//printIndex(testInBlkId, "input block id");
 		printIndex(testWeiBlkId, "weight block id");
 		//printIndex(testBatchId, "batch id");
 		//printIndex(testOutId, "out id");
 		//printIndex(testPosId, "pos id");
-	} 
-	
+		printf("input groups: %d.\n", align * N_IN_GROUPS);
+		printf("output group: %d.\n", N_OUT_GROUPS);
+	}
+
 	/************************************************************************/
 	/* 两个kernel										                    */
 	/************************************************************************/
 	E_ReturnState SetupSolution0()
 	{
 		printf("setup solution.\n");
-	
+
 		setupPrefetch();
 		setupCalcu();
 
 		// warm up
 		LaunchSolution();
-	
+
 		return E_ReturnState::SUCCESS;
 	}
 
@@ -766,7 +776,7 @@ public:
 		preKernel->KernelName = "ConvFwd1x1_Prefetch";
 		preKernel->KernelFile = "ConvFwd1x1_Jasm_Prefetch_Mult_Fetch.s";
 		preKernel->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-		
+
 		dim3 l_wk = dim3(1, 1, 1);
 		dim3 g_wk = dim3(64, 1, 1);
 		dim3 b_wk = dim3(64, 1, 1);
@@ -806,20 +816,20 @@ public:
 
 		solutionCfg->ElapsedTimes.clear();
 	}
-	
+
 
 	E_ReturnState LaunchSolution0()
 	{
 		printf("set argue.\n");
 		T_ExtConvFwd1x1SolutionConfig * ext = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 		UnixTimer tmr;
-	
+
 		solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
 		for (int i = 0; i < solutionCfg->RepeatTime; i++)
-		{	
+		{
 			setArgusPrefetch();
 			setArgusCalcu();
-		
+
 			printf("launch solution.\n");
 			preKernel->LanchKernel2();
 			runtime->LanchKernel2();
@@ -897,788 +907,14 @@ public:
 	/************************************************************************/
 	/* 自动生成kernel								                        */
 	/************************************************************************/
-	void wirteCommom1(std::string common)
+	void autoGenKernel()
 	{
-		asmKernelStr.append("/************************************************************************************/\n");
-		asmKernelStr.append("/* " + common + " */\n");
-		asmKernelStr.append("/************************************************************************************/\n");
-	}
-
-	void wirteCommom2(std::string common)
-	{
-		asmKernelStr.append("// ==================================================================================\n");
-		asmKernelStr.append("// " + common + " \n");
-		asmKernelStr.append("// ==================================================================================\n");
-	}
-
-	void wirteCommom3(std::string common)
-	{
-		asmKernelStr.append("// ----------------------------------------------------------------------------------\n");
-		asmKernelStr.append("// " + common + " \n");
-		asmKernelStr.append("// ----------------------------------------------------------------------------------\n");
-	}
-
-	void defineConst(std::string name, const char * fmt, int value)
-	{
-		char tmp[10];
-		sprintf(tmp, fmt, value);
-		asmKernelStr.append(".set " + name + ", " + std::string(tmp) + "\n");
-	}
-
-	int getLog2(int value)
-	{
-		int log2 = 0;
-		while (value > 1)
-		{
-			value = value / 2;
-			log2++;
-		}
-		return log2;
-	}
-
-	int getModMask(int value)
-	{
-		return value - 1;
-	}
-
-	void saveKernelStr2File()
-	{
-		std::string SrcFileName = "../../../Kernels/" + solutionCfg->KernelFile;
-		std::ofstream fout(SrcFileName, std::ios::out);
-		if (!fout.is_open())
-		{
-			FATAL("can't open save file");
-		}
-		fout.write(asmKernelStr.c_str(), asmKernelStr.length());
-		fout.close();
-	}
-		
-
-	void writeAsmKernel()
-	{
-		asmKernelStr.clear();
-		writeSignature();
-		writeConstantDefine();
-		writeRegisterLayout();
-		writeProgram();
-		writeMetadate();
-	}
-
-	void writeSignature()
-	{
-		asmKernelStr.append(".hsa_code_object_version 2, 1\n");
-		asmKernelStr.append(".hsa_code_object_isa 9, 0, 0, \"AMD\", \"AMDGPU\"\n");
-		asmKernelStr.append("\n");
-		asmKernelStr.append(".text\n");
-		asmKernelStr.append(".globl " + solutionCfg->KernelName + "\n");
-		asmKernelStr.append(".p2align 8\n");
-		asmKernelStr.append(".type " + solutionCfg->KernelName + ",@function\n");
-		asmKernelStr.append(".amdgpu_hsa_kernel " + solutionCfg->KernelName + "\n");
-		asmKernelStr.append("\n");
-		asmKernelStr.append(".include \"gpr_alloc.inc\"\n");
-		asmKernelStr.append(".include \"common.inc\"\n");
-		asmKernelStr.append(".include \"inst_wrappers.inc\"\n");
-		asmKernelStr.append("\n");
-	}
-	
-	void writeConstantDefine()
-	{
-		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
-		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-
-		wirteCommom1("Constant Define");
-		defineConst("N", "%d", extProblem->N);
-		defineConst("C", "%d", extProblem->C);
-		defineConst("H", "%d", extProblem->H);
-		defineConst("W", "%d", extProblem->W);
-		defineConst("K", "%d", extProblem->K);
-		asmKernelStr.append("\n");
-		defineConst("MLO_IN_CHANNEL_STRIDE", "%d", extProblem->stride_c_in);
-		defineConst("MLO_IN_BATCH_STRIDE", "%d", extProblem->stride_n_in);
-		defineConst("MLO_WEI_CHANNEL_STRIDE", "%d", extProblem->stride_k_wei);
-		defineConst("MLO_OUT_CHANNEL_STRIDE", "%d", extProblem->stride_k_out);
-		defineConst("MLO_OUT_BATCH_STRIDE", "%d", extProblem->stride_n_out);
-		asmKernelStr.append("\n");
-		defineConst("MLO_N_LCL_OUT_MAPS", "%d", extSolution->k_out_maps);
-		defineConst("MLO_N_LCL_OUT_MAPS_LOG2", "%d", getLog2(extSolution->k_out_maps));
-		defineConst("MLO_N_LCL_OUT_MAPS_DIV_MASK", "0x%X", getModMask(extSolution->k_out_maps));
-		defineConst("MLO_N_OUT_GROUPS", "%d", extSolution->k_out_group);
-		defineConst("MLO_N_OUT_GROUPS_LOG2", "%d", getLog2(extSolution->k_out_group));
-		defineConst("MLO_N_OUT_GROUPS_DIV_MASK", "0x%X", getModMask(extSolution->k_out_group));
-
-		defineConst("MLO_N_LCL_IN_MAPS", "%d", extSolution->c_in_maps);
-		defineConst("MLO_N_IN_GROUPS", "%d", extSolution->c_in_group);
-		defineConst("MLO_N_IN_GROUPS_LOG2", "%d", getLog2(extSolution->c_in_group));
-		defineConst("MLO_N_IN_GROUPS_DIV_MASK", "0x%X", getModMask(extSolution->c_in_group));
-		defineConst("MLO_N_LCL_IN_MAPS_ONCE", "%d", extSolution->c_in_maps_once);
-		asmKernelStr.append("\n");
-		defineConst("IN_PIXEL_PER_GROUP", "%d", 64);
-		defineConst("IN_PIXEL_PER_GROUP_LOG2", "%d", getLog2(64));
-		defineConst("IN_PIXEL_PER_GROUP_MOD_MASK", "%d", getModMask(64));
-		defineConst("WORKGROUP_SIZE", "%d", extSolution->group_size);
-		defineConst("WORKGROUP_SIZE_LOG2", "%d", getLog2(extSolution->group_size));
-		defineConst("OUT_BLOCKS_PER_GROUP", "%d", extSolution->group_size / 64);
-		defineConst("OUT_BLOCKS_PER_GROUP_LOG2", "%d", getLog2(extSolution->group_size / 64));
-
-		defineConst("CLOOP0", "%d", extSolution->loop / 2);
-		asmKernelStr.append("\n");
-	}
-
-	void writeRegisterLayout()
-	{
-		wirteCommom1("Register Layout"); 
-		writeSgprInit();
-		writeArgument();
-		writeRegUsage();
-	}
-
-	void writeSgprInit()
-	{
-		wirteCommom2("SGPR Init");
-		asmKernelStr.append("privateSeg = 0\n");
-		asmKernelStr.append("kernarg = 4\n");
-		asmKernelStr.append("gid_x0 = 6\n");
-		asmKernelStr.append("gid_y0 = 7\n");
-		asmKernelStr.append("gid_z0 = 8\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeArgument()
-	{
-		int offset = 0;
-		wirteCommom2("Input Argument");
-		defineConst("in_ptr_off", "0x%X", offset); offset += 8;
-		defineConst("wei_ptr_off", "0x%X", offset); offset += 8;
-		defineConst("out_ptr_off", "0x%X", offset); offset += 8;
-		asmKernelStr.append("\n");
-	}
-
-	void writeRegUsage()
-	{
-		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-
-		wirteCommom2("Register Usage");
-		asmKernelStr.append(".GPR_ALLOC_BEGIN\n");
-
-		wirteCommom3("SGPR");
-		asmKernelStr.append("\t.SGPR_ALLOC_FROM 9\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_tmp0\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_ptr_in, 2\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_ptr_wei, 2\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_ptr_out, 2\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_weia, " + 
-			std::to_string(extSolution->c_in_maps_once) + ", " + 
-			std::to_string(extSolution->c_in_maps_once) + "\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_weib, " +
-			std::to_string(extSolution->c_in_maps_once) + ", " +
-			std::to_string(extSolution->c_in_maps_once) + "\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_wei_prefetch, " +
-			std::to_string(extSolution->k_out_maps) + ", " +
-			std::to_string(extSolution->k_out_maps) + "\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_loop_cnt\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_prefatch\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_ptr_wei_save, 2\n");
-		//asmKernelStr.append("\t.SGPR_ALLOC s_wei_desc, 4\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_tmp1, 2\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_tmp2, 2\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_tmp3\n");
-		asmKernelStr.append("\t.SGPR_ALLOC s_tmp4\n");
-
-		wirteCommom3("VGPR");
-		asmKernelStr.append("\t.VGPR_ALLOC_FROM 0\n");
-		asmKernelStr.append("\t.VGPR_ALLOC tid\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_addr_in, 2\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_addr_out, 2\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_addr_dbg, 2\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_tmp1\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_tmp2\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_tmp3\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_tmp4\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_tmp5\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_tmp6\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_data, " + std::to_string(extSolution->c_in_maps_once) + "\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_datb, " + std::to_string(extSolution->c_in_maps_once) + "\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_acc, " + std::to_string(extSolution->k_out_maps) + "\n");
-		//asmKernelStr.append("\t.VGPR_ALLOC v_acc, 16\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_io_offset0, 2\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_io_offset1, 2\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_io_offset2, 2\n");
-		asmKernelStr.append("\t.VGPR_ALLOC v_io_offset3, 2\n");
-		//asmKernelStr.append("\t.VGPR_ALLOC v_io_offset4, 2\n");
-		//asmKernelStr.append("\t.VGPR_ALLOC v_io_offset5, 2\n");
-		//asmKernelStr.append("\t.VGPR_ALLOC v_io_offset6, 2\n");
-		//asmKernelStr.append("\t.VGPR_ALLOC v_io_offset7, 2\n");
-		//asmKernelStr.append("\t.VGPR_ALLOC v_test\n");
-
-		wirteCommom3("LDS");
-		asmKernelStr.append("\t.LDS_ALLOC_FROM 0\n");
-
-		asmKernelStr.append(".GPR_ALLOC_END\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeProgram()
-	{
-		wirteCommom1(solutionCfg->KernelName + "Program");
-		asmKernelStr.append(solutionCfg->KernelName + ":\n");
-		writeCodeObj();
-		asmKernelStr.append("START_PROG:\n");
-		//writeGetArgu();
-		writeFunctions();
-		writeCalcuIndex();
-		asmKernelStr.append("CONV_PROG:\n"); 
-		writeConvProgram();
-		asmKernelStr.append("END_PROG:\n");
-		asmKernelStr.append("\ts_endpgm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCodeObj()
-	{
-		wirteCommom2("code object");
-		asmKernelStr.append(".amd_kernel_code_t\n");
-		asmKernelStr.append("\tenable_sgpr_private_segment_buffer = 1\n");
-		asmKernelStr.append("\tenable_sgpr_kernarg_segment_ptr = 1\n");
-		asmKernelStr.append("\tenable_sgpr_workgroup_id_x = 1\n");
-		asmKernelStr.append("\tenable_sgpr_workgroup_id_y = 1\n");
-		asmKernelStr.append("\tenable_sgpr_workgroup_id_z = 1\n");
-		asmKernelStr.append("\tenable_vgpr_workitem_id = 0\n");
-		asmKernelStr.append("\tis_ptr64 = 1\n");
-		asmKernelStr.append("\tfloat_mode = 240\n");
-		asmKernelStr.append("\tuser_sgpr_count = 6\n");
-		asmKernelStr.append("\twavefront_sgpr_count = .AUTO_SGPR_COUNT\n");
-		asmKernelStr.append("\tworkitem_vgpr_count = .AUTO_VGPR_COUNT\n");
-		asmKernelStr.append("\tgranulated_workitem_vgpr_count = .AUTO_VGPR_GRANULATED_COUNT\n");
-		asmKernelStr.append("\tgranulated_wavefront_sgpr_count = .AUTO_SGPR_GRANULATED_COUNT\n");
-		asmKernelStr.append("\tkernarg_segment_byte_size = 56\n");
-		asmKernelStr.append("\tworkgroup_group_segment_byte_size = 0\n");
-		asmKernelStr.append(".end_amd_kernel_code_t\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeMetadate()
-	{
-		wirteCommom1("Metadate");
-		asmKernelStr.append(".amd_amdgpu_hsa_metadata\n");
-		asmKernelStr.append("{ Version: [1, 0],\n");
-		asmKernelStr.append("  Kernels :\n");
-		asmKernelStr.append("    - { Name: " + solutionCfg->KernelName + ",\n");
-		asmKernelStr.append("        SymbolName: " + solutionCfg->KernelName + ",\n");
-		asmKernelStr.append("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],\n");
-		asmKernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + std::to_string(solutionCfg->l_wk0) + ", 1, 1 ] }\n");
-		asmKernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 1024 }\n");
-		asmKernelStr.append("        Args:\n");
-		asmKernelStr.append("        - { Name: d_in  , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
-		asmKernelStr.append("        - { Name: d_wei , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
-		asmKernelStr.append("        - { Name: d_out , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global  }\n");
-		asmKernelStr.append("      }\n");
-		asmKernelStr.append("}\n");
-		asmKernelStr.append(".end_amd_amdgpu_hsa_metadata\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeGetArgu()
-	{
-		wirteCommom2("Get Argument");
-		asmKernelStr.append("\ts_load_dwordx2 		s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off\n");
-		asmKernelStr.append("\ts_load_dwordx2 		s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off\n");
-		asmKernelStr.append("\ts_load_dwordx2 		s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off\n");
-		//asmKernelStr.append("\ts_waitcnt 			lgkmcnt(0)\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeFunctions()
-	{
-		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
-		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-
-		wirteCommom2("Sub Functions");
-		writeWeightPrefetchFunc();
-
-		if(extProblem->W > 28)		//if (extProblem->W*extProblem->W > pow(2,12)-1)
-		{
-			writeReadInputOnceFunc1(); 
-		}
-		else
-		{
-			writeReadInputOnceFunc2();
-		}
-		writeReadWeightOnceFunc();
-		writeConvOneOutFeatureOnceFunc();
-		//writeCalcuAllOutFeatureOnceFunc();
-		writeCalcuAllOutFeaturePingFunc();
-		writeCalcuAllOutFeaturePangFunc();
-		writeCalcuAllOutFeatureLastFunc();
-		writeSaveOutputFunc();
-	}
-
-	void writeWeightPrefetchFunc()
-	{
-		wirteCommom3("weight pre-fetch function");
-		asmKernelStr.append(".macro m_weight_pre_fatch\n");
-		asmKernelStr.append("    imm_offset = 0\n");
-		asmKernelStr.append("    tmp = s_wei_prefetch\n");
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS\n");
-		asmKernelStr.append("        s_load_dword	s[tmp], s[s_ptr_wei:s_ptr_wei + 1], 0x0 + imm_offset\n");
-		asmKernelStr.append("        imm_offset = imm_offset + MLO_WEI_CHANNEL_STRIDE * 4\n");
-		asmKernelStr.append("        tmp = tmp + 1\n");
-		asmKernelStr.append("    .endr\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeReadInputOnceFunc1()
-	{
-		wirteCommom3("read input data once function");
-		asmKernelStr.append(".macro m_load_input dest_base\n");
-		asmKernelStr.append("    v_dat = \\dest_base\n");
-		asmKernelStr.append("    .rept(MLO_N_LCL_IN_MAPS_ONCE)\n");
-		asmKernelStr.append("        global_load_dword 	v[v_dat], v[v_addr_in:v_addr_in + 1], off\n");
-		asmKernelStr.append("        v_add_co_u32 		v[v_addr_in], vcc, 0x0 + MLO_IN_CHANNEL_STRIDE * 4, v[v_addr_in]\n");
-		asmKernelStr.append("        v_addc_co_u32 		v[v_addr_in + 1], vcc, 0, v[v_addr_in + 1], vcc\n");
-		asmKernelStr.append("        v_dat = v_dat + 1\n");
-		asmKernelStr.append("    .endr\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeReadInputOnceFunc2()
-	{
-		wirteCommom3("read input data once function");
-		asmKernelStr.append(".macro m_load_input	dest_base\n");
-		asmKernelStr.append("    v_dat = \\dest_base\n");
-		asmKernelStr.append("    voffset = v_io_offset0\n");
-		asmKernelStr.append("    .rept(MLO_N_LCL_IN_MAPS_ONCE / 2)\n");
-		asmKernelStr.append("        global_load_dword 	v[v_dat], v[voffset:voffset + 1], s[s_ptr_in:s_ptr_in + 1]	offset:0\n");
-		asmKernelStr.append("        v_dat = v_dat + 1\n");
-		asmKernelStr.append("        global_load_dword 	v[v_dat], v[voffset:voffset + 1], s[s_ptr_in:s_ptr_in + 1]	offset : 0x0 + MLO_IN_CHANNEL_STRIDE * 4\n");
-		asmKernelStr.append("        v_dat = v_dat + 1\n");
-		asmKernelStr.append("        voffset = voffset + 2\n");
-		asmKernelStr.append("    .endr\n");
-		asmKernelStr.append("    s_add_u32    s[s_ptr_in], 0x0 + MLO_IN_CHANNEL_STRIDE * 4 * 8, s[s_ptr_in]\n");
-		asmKernelStr.append("    s_addc_u32   s[s_ptr_in + 1], 0, s[s_ptr_in + 1]\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeReadWeightOnceFunc()
-	{
-		wirteCommom3("read weight once function");
-		asmKernelStr.append(".macro m_load_weight  wei_base, imm_offset\n");
-		asmKernelStr.append("    s_load_dwordx8    s[\\wei_base:\\wei_base + 7], s[s_ptr_wei:s_ptr_wei + 1], 0x0 + \\imm_offset\n");
-		asmKernelStr.append("    \\imm_offset = \\imm_offset + MLO_WEI_CHANNEL_STRIDE * 4\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-	
-	void writeConvOneOutFeatureOnceFunc()
-	{		
-		wirteCommom3("conv one out feature once function");
-		asmKernelStr.append(".macro m_conv_once input, weight, output\n");
-		asmKernelStr.append("    v_dat = \\input\n");
-		asmKernelStr.append("    s_wei = \\weight\n");
-		asmKernelStr.append("    .rept MLO_N_LCL_IN_MAPS_ONCE\n");
-		asmKernelStr.append("        v_fma_f32     v[\\output], v[v_dat], s[s_wei], v[\\output]\n");
-		asmKernelStr.append("        v_dat = v_dat + 1\n");
-		asmKernelStr.append("        s_wei = s_wei + 1\n");
-		asmKernelStr.append("    .endr\n");
-		asmKernelStr.append("    \\output = \\output + 1\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCalcuAllOutFeatureOnceFunc()
-	{
-		wirteCommom3("conv all out feature once function");
-		asmKernelStr.append(".macro m_cacul_all_feature_once input\n");
-		asmKernelStr.append("    v_sum = v_acc\n");
-		asmKernelStr.append("    weight_offset = 0\n");
-
-		asmKernelStr.append("    m_load_weight    s_weia, weight_offset\n");
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_load_weight    s_weib, weight_offset\n");
-		asmKernelStr.append("    s_waitcnt        vmcnt(8)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weia, v_sum\n");
-
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS / 2 - 1\n"); 
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weia, weight_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weib, v_sum\n");
-
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weib, weight_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weia, v_sum\n");
-		asmKernelStr.append("    .endr\n");
-
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weib, v_sum\n");
-
-		asmKernelStr.append("    s_add_u32        s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4\n");
-		asmKernelStr.append("    s_addc_u32       s[s_ptr_wei + 1], s[s_ptr_wei + 1], 0x0\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-	
-	void writeCalcuAllOutFeaturePingFunc()
-	{
-		wirteCommom3("conv all out feature once function");
-		asmKernelStr.append(".macro m_cacul_all_feature_ping input wei_offset\n");
-		asmKernelStr.append("    v_sum = v_acc\n");
-		asmKernelStr.append("    \\wei_offset = 0\n");
-
-		asmKernelStr.append("    m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        vmcnt(8)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weia, v_sum\n");
-
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS / 2 - 1\n");
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weib, v_sum\n");
-
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weia, v_sum\n");
-		asmKernelStr.append("    .endr\n");
-
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weib, v_sum\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCalcuAllOutFeaturePangFunc()
-	{
-		wirteCommom3("conv all out feature once function");
-		asmKernelStr.append(".macro m_cacul_all_feature_pang input wei_offset\n");
-		asmKernelStr.append("    v_sum = v_acc\n");
-		asmKernelStr.append("    \\wei_offset = \\wei_offset + (MLO_N_LCL_IN_MAPS_ONCE - MLO_WEI_CHANNEL_STRIDE * MLO_N_LCL_OUT_MAPS) * 4\n");
-
-		asmKernelStr.append("    m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        vmcnt(8)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weia, v_sum\n");
-
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS / 2 - 1\n");
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weib, v_sum\n");
-
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weia, v_sum\n");
-		asmKernelStr.append("    .endr\n");
-
-		asmKernelStr.append("    s_add_u32 			s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_N_LCL_IN_MAPS_ONCE * 4 * 2\n");
-		asmKernelStr.append("    s_addc_u32 		s[s_ptr_wei + 1], s[s_ptr_wei + 1], 0x0	\n");
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_weight_pre_fatch\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weib, v_sum\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCalcuAllOutFeatureLastFunc()
-	{
-		wirteCommom3("conv all out feature once function");
-		asmKernelStr.append(".macro m_cacul_all_feature_last input wei_offset\n");
-		asmKernelStr.append("    v_sum = v_acc\n");
-		asmKernelStr.append("    \\wei_offset = \\wei_offset + (MLO_N_LCL_IN_MAPS_ONCE - MLO_WEI_CHANNEL_STRIDE * MLO_N_LCL_OUT_MAPS) * 4\n");
-		asmKernelStr.append("    vout_offset = v_io_offset0\n");
-
-		asmKernelStr.append("    m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        vmcnt(0)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weia, v_sum\n");
-
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS / 2 - 1\n");
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weib, v_sum\n");
-		asmKernelStr.append("        vout_offset = vout_offset + 2\n");
-
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weia, v_sum\n");
-		asmKernelStr.append("    .endr\n");
-
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weib, v_sum\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCalcuAllOutFeatureLastnSaveFunc()
-	{
-		wirteCommom3("conv all out feature once and save output function");
-		asmKernelStr.append(".macro m_cacul_all_feature_last_save input wei_offset\n");
-		asmKernelStr.append("    v_sum = v_acc\n");
-		asmKernelStr.append("    \\wei_offset = \\wei_offset + (MLO_N_LCL_IN_MAPS_ONCE - MLO_WEI_CHANNEL_STRIDE * MLO_N_LCL_OUT_MAPS) * 4\n");
-		asmKernelStr.append("    vout_offset = v_io_offset0\n");
-
-		asmKernelStr.append("    m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("    s_waitcnt        vmcnt(0)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weia, v_sum\n");
-		asmKernelStr.append("    global_store_dword    	v[vout_offset:vout_offset + 1], v[v_sum - 1], s[s_ptr_out:s_ptr_out + 1]	offset:0x0\n");
-
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS / 2 - 1\n");
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weia, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weib, v_sum\n");
-		asmKernelStr.append("		 global_store_dword    	v[vout_offset:vout_offset + 1], v[v_sum - 1], s[s_ptr_out:s_ptr_out + 1]	offset:0x0 + MLO_OUT_CHANNEL_STRIDE * 4\n");
-		asmKernelStr.append("        vout_offset = vout_offset + 2\n");
-
-		asmKernelStr.append("        s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("        m_load_weight    s_weib, \\wei_offset\n");
-		asmKernelStr.append("        m_conv_once      \\input, s_weia, v_sum\n");
-		asmKernelStr.append("		global_store_dword    	v[vout_offset:vout_offset + 1], v[v_sum - 1], s[s_ptr_out:s_ptr_out + 1]	offset:0x0\n");
-		asmKernelStr.append("    .endr\n");
-
-		asmKernelStr.append("    s_waitcnt        lgkmcnt(0)\n");
-		asmKernelStr.append("    m_conv_once      \\input, s_weib, v_sum\n");
-		asmKernelStr.append("	 global_store_dword    	v[vout_offset:vout_offset + 1], v[v_sum - 1], s[s_ptr_out:s_ptr_out + 1]	offset:0x0 + MLO_OUT_CHANNEL_STRIDE * 4\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeSaveOutputFunc()
-	{
-		wirteCommom3("save output function");
-		asmKernelStr.append(".macro m_save_output\n");
-		asmKernelStr.append("    v_sum = v_acc\n");
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS\n");
-		asmKernelStr.append("        global_store_dword    v[v_addr_out:v_addr_out + 1], v[v_sum], off\n");
-		asmKernelStr.append("        v_add_co_u32          v[v_addr_out], vcc, 0x0 + MLO_OUT_CHANNEL_STRIDE * 4, v[v_addr_out]\n");
-		asmKernelStr.append("        v_addc_co_u32         v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc\n");
-		asmKernelStr.append("        v_sum = v_sum + 1\n");
-		asmKernelStr.append("    .endr\n");
-		asmKernelStr.append(".endm\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCalcuIndex()
-	{
-		wirteCommom2("Calculate Index");
-		//writeCalcuInputIdx();
-		//writeCalcuWeightIdx();
-		//writeCalcuOutputIdx();
-		asmKernelStr.append("    s_load_dwordx2 			s[s_ptr_in :s_ptr_in +1], s[kernarg:kernarg+1], 0x0 + in_ptr_off\n");
-		asmKernelStr.append("    s_load_dwordx2 			s[s_ptr_wei:s_ptr_wei + 1], s[kernarg:kernarg + 1], 0x0 + wei_ptr_off\n");
-		asmKernelStr.append("    s_load_dwordx2 			s[s_ptr_out:s_ptr_out + 1], s[kernarg:kernarg + 1], 0x0 + out_ptr_off\n");
-		//asmKernelStr.append("    s_waitcnt 					lgkmcnt(0)\n");
-
-		asmKernelStr.append("v_acc1 = v_data + 1\n");
-		asmKernelStr.append("v_acc2 = v_data + 2\n");
-		asmKernelStr.append("v_acc3 = v_data + 3\n");
-		asmKernelStr.append("v_acc4 = v_data + 4\n");
-		asmKernelStr.append("v_acc5 = v_data + 5\n");
-		asmKernelStr.append("v_acc6 = v_data + 6\n");
-		asmKernelStr.append("v_acc7 = v_data + 7\n");
-		asmKernelStr.append("v_acc8 = v_data + 8\n");
-		asmKernelStr.append("v_acc9 = v_data + 9\n");
-		asmKernelStr.append("v_acc10 = v_data + 10\n");
-		asmKernelStr.append("v_acc11 = v_data + 11\n");
-		asmKernelStr.append("v_acc12 = v_data + 12\n");
-		asmKernelStr.append("v_acc13 = v_data + 13\n");
-
-		asmKernelStr.append("    s_lshl_b32			s[s_tmp1], s[gid_x0], 0x0 + OUT_BLOCKS_PER_GROUP_LOG2\n");
-		asmKernelStr.append("    v_lshrrev_b32		v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_acc13], vcc, v[v_acc13], s[s_tmp1]\n");
-		asmKernelStr.append("    v_and_b32 			v[v_acc12], 0x0 + MLO_N_OUT_GROUPS_DIV_MASK, v[v_acc13]\n");	// acc12 = out_grp_block
-		asmKernelStr.append("    v_lshrrev_b32 		v[v_acc13], 0x0 + MLO_N_OUT_GROUPS_LOG2, v[v_acc13]\n");		// acc13 = grp_id0_faked
-
-		asmKernelStr.append("    v_lshlrev_b32		v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[v_acc13]\n");
-		asmKernelStr.append("    v_and_b32			v[v_acc11], 0x0 + IN_PIXEL_PER_GROUP_MOD_MASK, v[tid]\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_acc13], vcc, v[v_acc13], v[v_acc11]\n");
-		asmKernelStr.append("    v_mov_b32			v[v_acc6], 0x0 + MLO_IN_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    mv_div_u32			v[v_acc13], v[v_acc6], v[v_acc7], v[v_acc8]\n");			// acc7 = batch_id; acc8 = pos
-		asmKernelStr.append("    v_lshlrev_b32		v[v_acc6], 0x0 + MLO_N_LCL_OUT_MAPS_LOG2, v[v_acc12]\n");	// acc6 = out_id
-
-		asmKernelStr.append("    v_mov_b32 			v[v_acc9], 0x0 + MLO_IN_BATCH_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24		v[v_acc10], v[v_acc7], v[v_acc9]\n");
-		//asmKernelStr.append("    v_mov_b32 			v[v_acc11], 0x0 + MLO_N_LCL_IN_MAPS * MLO_IN_CHANNEL_STRIDE\n");
-		//asmKernelStr.append("    v_mul_u32_u24		v[v_acc12], v[v_acc4], s[v_acc11]\n");
-		//asmKernelStr.append("    v_add3_u32			v[v_acc13], v[v_acc10], v[v_acc12], v[v_acc8]\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_acc13], vcc, v[v_acc10], v[v_acc8]\n");	// v_acc13 = gbl_in_off
-		asmKernelStr.append("    v_lshlrev_b32 		v[v_io_offset0], 2, v[v_acc13]\n");			// v_io_offset0 = gbl_in_off(DWORD)
-		asmKernelStr.append("    v_mov_b32			v[v_tmp1], 0x0 + MLO_IN_CHANNEL_STRIDE * 2 * 4\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_io_offset1], vcc, v[v_io_offset0], v[v_tmp1]\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_io_offset2], vcc, v[v_io_offset1], v[v_tmp1]\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_io_offset3], vcc, v[v_io_offset2], v[v_tmp1]\n");
-
-		asmKernelStr.append("    s_waitcnt 			lgkmcnt(0)\n");//!!!!!!
-		asmKernelStr.append("    v_lshlrev_b32 		v[v_acc13], 2, v[v_acc13]\n");
-		asmKernelStr.append("    v_mov_b32			v[v_addr_in], s[s_ptr_in]\n");
-		asmKernelStr.append("    v_mov_b32			v[v_addr_in + 1], s[s_ptr_in + 1]\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_addr_in], vcc, v[v_acc13], v[v_addr_in]\n");
-		asmKernelStr.append("    v_addc_co_u32		v[v_addr_in + 1], vcc, 0, v[v_addr_in + 1], vcc\n");
-
-		asmKernelStr.append("    v_mov_b32 			v[v_acc9], 0x0 + MLO_WEI_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24		v[v_acc9], v[v_acc6], v[v_acc9]\n");
-		//asmKernelStr.append("    v_mov_b32 			v[v_acc10], 0x0 + MLO_N_LCL_IN_MAPS\n");
-		//asmKernelStr.append("    v_mul_u32_u24		v[v_acc10], v[v_acc4], v[v_acc10]\n");
-		//asmKernelStr.append("    v_add_u32			v[v_acc9], v[v_acc9], v[v_acc10]\n");
-		asmKernelStr.append("    v_readfirstlane_b32	s[s_tmp0], v[v_acc9]\n");	// s_tmp0 = v_acc9 = wei_off
-		asmKernelStr.append("    s_lshl_b32			s[s_tmp1], s[s_tmp0], 2\n");	// s_tmp1 = wei_off(DWORD)
-		asmKernelStr.append("    s_waitcnt 			lgkmcnt(0)\n");
-		asmKernelStr.append("    s_add_u32			s[s_ptr_wei], s[s_ptr_wei], s[s_tmp1]\n");
-		asmKernelStr.append("    s_addc_u32			s[s_ptr_wei + 1], 0x0, s[s_ptr_wei + 1]\n");
-
-		asmKernelStr.append("    v_mov_b32 			v[v_acc9], 0x0 + MLO_OUT_BATCH_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24		v[v_acc9], v[v_acc7], v[v_acc9]\n");
-		asmKernelStr.append("    v_mov_b32 			v[v_acc10], 0x0 + MLO_OUT_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24		v[v_acc11], v[v_acc6], v[v_acc10]\n");
-		asmKernelStr.append("    v_add3_u32			v[v_acc12], v[v_acc9], v[v_acc11], v[v_acc8]\n");
-		//asmKernelStr.append("    v_mov_b32			v[v_test], v[v_acc12]\n");
-		// direct write
-		asmKernelStr.append("    v_lshlrev_b32 		v[v_acc12], 2, v[v_acc12]\n");
-		asmKernelStr.append("    v_mov_b32			v[v_addr_out], s[s_ptr_out]\n");
-		asmKernelStr.append("    v_mov_b32			v[v_addr_out + 1], s[s_ptr_out + 1]\n");
-		asmKernelStr.append("    v_add_co_u32		v[v_addr_out], vcc, v[v_acc12], v[v_addr_out]\n");
-		asmKernelStr.append("    v_addc_co_u32		v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc\n");
-	}
-	
-	void writeCalcuInputIdx()
-	{
-		wirteCommom3("Input Index");
-		asmKernelStr.append("    s_lshr_b32       s[s_tmp1], s[gid_x0], 0x0 + MLO_N_OUT_GROUPS_LOG2\n");
-		asmKernelStr.append("    s_and_b32        s[s_tmp2], s[s_tmp1], 0x0 + MLO_N_IN_GROUPS_DIV_MASK\n");
-		asmKernelStr.append("    s_lshr_b32       s[s_tmp1], s[s_tmp1], 0x0 + MLO_N_IN_GROUPS_LOG2\n");
-		asmKernelStr.append("    v_lshl_add_u32   v[v_tmp3], s[s_tmp1], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_tmp4], 0x0 + MLO_IN_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    mv_div_u32       v[v_tmp3], v[v_tmp4], v[v_tmp5], v[v_tmp6]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_tmp3], 0x0 + MLO_IN_BATCH_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24    v[v_tmp3], v[v_tmp3], v[v_tmp5]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_tmp4], 0x0 + MLO_N_LCL_IN_MAPS * MLO_IN_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24    v[v_tmp4], v[v_tmp4], s[s_tmp2]\n");
-		asmKernelStr.append("    v_add3_u32       v[v_tmp1], v[v_tmp3], v[v_tmp4], v[v_tmp6]\n");
-		asmKernelStr.append("    v_lshlrev_b32    v[v_tmp1], 2, v[v_tmp1]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_addr_in], s[s_ptr_in]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_addr_in + 1], s[s_ptr_in + 1]\n");
-		asmKernelStr.append("    v_add_co_u32     v[v_addr_in], vcc, v[v_tmp1], v[v_addr_in]\n");
-		asmKernelStr.append("    v_addc_co_u32    v[v_addr_in + 1], vcc, 0, v[v_addr_in + 1], vcc\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCalcuWeightIdx()
-	{
-		wirteCommom3("Weight Index");
-		asmKernelStr.append("    s_and_b32        s[s_tmp1], s[gid_x0], 0x0 + MLO_N_OUT_GROUPS_DIV_MASK\n");
-		asmKernelStr.append("    s_lshr_b32       s[s_tmp1 + 1], s[gid_x0], 0x0 + MLO_N_OUT_GROUPS_LOG2\n");
-		asmKernelStr.append("    s_and_b32        s[s_tmp2], s[s_tmp1 + 1], 0x0 + MLO_N_IN_GROUPS_DIV_MASK\n");
-		asmKernelStr.append("    s_lshr_b32       s[s_tmp2 + 1], s[s_tmp1 + 1], 0x0 + MLO_N_IN_GROUPS_LOG2\n");
-		asmKernelStr.append("    s_mul_i32        s[s_tmp1], s[s_tmp1], 0x0 + MLO_N_LCL_OUT_MAPS\n");
-		asmKernelStr.append("    s_mul_i32        s[s_tmp1], s[s_tmp1], 0x0 + MLO_WEI_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    s_mul_i32        s[s_tmp2], s[s_tmp2], 0x0 + MLO_N_LCL_IN_MAPS\n");
-		asmKernelStr.append("    s_add_u32        s[s_tmp1], s[s_tmp1], s[s_tmp2]\n");
-		asmKernelStr.append("    s_lshl_b32       s[s_tmp1], s[s_tmp1], 2\n");
-		asmKernelStr.append("    s_add_u32        s[s_ptr_wei], s[s_ptr_wei], s[s_tmp1]\n");
-		asmKernelStr.append("    s_addc_u32       s[s_ptr_wei + 1], 0x0, s[s_ptr_wei + 1]\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeCalcuOutputIdx()
-	{
-		wirteCommom3("Output Index");
-		asmKernelStr.append("    s_and_b32        s[s_tmp1], s[gid_x0], 0x0 + MLO_N_OUT_GROUPS_DIV_MASK\n");
-		asmKernelStr.append("    s_lshr_b32       s[s_tmp2], s[gid_x0], 0x0 + MLO_N_OUT_GROUPS_LOG2\n");
-		asmKernelStr.append("    s_mov_b32        s[s_tmp3], 0x0 + MLO_N_IN_GROUPS\n");
-		asmKernelStr.append("    mv_div_u32       s[s_tmp2], s[s_tmp3], v[v_tmp1], v[v_tmp2]\n");
-		asmKernelStr.append("    v_lshl_add_u32   v[v_tmp3], v[v_tmp1], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[tid]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_tmp4], 0x0 + MLO_IN_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    mv_div_u32       v[v_tmp3], v[v_tmp4], v[v_tmp5], v[v_tmp6]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_tmp3], 0x0 + MLO_N_LCL_OUT_MAPS\n");
-		asmKernelStr.append("    v_mul_u32_u24    v[v_tmp3], s[s_tmp1], v[v_tmp3]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_tmp1], 0x0 + MLO_OUT_BATCH_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24    v[v_tmp1], v[v_tmp5], v[v_tmp1]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_tmp2], 0x0 + MLO_OUT_CHANNEL_STRIDE\n");
-		asmKernelStr.append("    v_mul_u32_u24    v[v_tmp2], v[v_tmp3], v[v_tmp2]\n");
-		asmKernelStr.append("    v_add3_u32       v[v_tmp1], v[v_tmp1], v[v_tmp2], v[v_tmp6]\n");
-		asmKernelStr.append("    v_lshlrev_b32    v[v_tmp1], 2, v[v_tmp1]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_addr_out], s[s_ptr_out]\n");
-		asmKernelStr.append("    v_mov_b32        v[v_addr_out + 1], s[s_ptr_out + 1]\n");
-		asmKernelStr.append("    v_add_co_u32     v[v_addr_out], vcc, v[v_tmp1], v[v_addr_out]\n");
-		asmKernelStr.append("    v_addc_co_u32    v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc\n");
-		asmKernelStr.append("\n");
-	}
-	
-	void writeCalcuLineIdx()
-	{
-		wirteCommom3("Debug Liner Index");
-		asmKernelStr.append("    s_lshl_b32		s[s_tmp1], s[gid_x0], .WAVE_SIZE_LOG2\n");
-		asmKernelStr.append("    s_mov_b32		s[s_tmp1 + 1], 0\n");
-		asmKernelStr.append("    s_lshl_b64		s[s_tmp1:s_tmp1 + 1], s[s_tmp1:s_tmp1 + 1], 2\n");
-		asmKernelStr.append("    s_add_u32		s[s_ptr_out], s[s_ptr_out], s[s_tmp1]\n");
-		asmKernelStr.append("    s_addc_u32 	s[s_ptr_out + 1], s[s_ptr_out + 1], s[s_tmp1 + 1]\n");
-		asmKernelStr.append("    v_lshlrev_b32 	v[v_tmp1], 2, v[tid]\n");
-		asmKernelStr.append("    v_mov_b32 		v[v_tmp2], s[s_ptr_out + 1]\n");
-		asmKernelStr.append("    v_add_co_u32 	v[v_addr_dbg], vcc, s[s_ptr_out], v[v_tmp1]\n");
-		asmKernelStr.append("    v_addc_co_u32 	v[v_addr_dbg + 1], vcc, 0, v[v_tmp2], vcc\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeConvProgram()
-	{
-		wirteCommom2("Conv Program");
-		writeLoopInit();
-		writeMainLoop();
-	}
-
-	void writeLoopInit()
-	{
-		wirteCommom3("Loop Init");
-		asmKernelStr.append("    v_sum = v_acc\n");
-		asmKernelStr.append("    .rept MLO_N_LCL_OUT_MAPS\n");
-		asmKernelStr.append("        v_mov_b32    v[v_sum], 0\n");
-		asmKernelStr.append("        v_sum = v_sum + 1\n");
-		asmKernelStr.append("    .endr\n");
-		asmKernelStr.append("    s_mov_b32 					s[s_loop_cnt], CLOOP0 - 1\n");
-		asmKernelStr.append("\n");
-	}
-
-	void writeMainLoop()
-	{
-		wirteCommom3("Main Loop");
-		asmKernelStr.append("    m_weight_pre_fatch\n");
-		asmKernelStr.append("    m_load_input               v_data\n");
-		asmKernelStr.append("    weight_offset = 0\n");
-		
-		asmKernelStr.append("LOOP_CONV:\n");
-		asmKernelStr.append("    m_load_input               v_datb\n");
-		asmKernelStr.append("    m_cacul_all_feature_ping   v_data, weight_offset\n");
-		asmKernelStr.append("    m_load_input               v_data\n");
-		asmKernelStr.append("    m_cacul_all_feature_pang   v_datb, weight_offset\n");
-
-		asmKernelStr.append("END_LOOP_CONV:\n");
-		asmKernelStr.append("    s_sub_u32                  s[s_loop_cnt], s[s_loop_cnt], 0x1\n");
-		asmKernelStr.append("    s_cmpk_eq_i32              s[s_loop_cnt], 0x0\n");
-		asmKernelStr.append("    s_cbranch_scc0             LOOP_CONV\n");
-
-		asmKernelStr.append("LAST_CYCLE:\n");
-		asmKernelStr.append("    m_load_input               v_datb\n");
-
-		//asmKernelStr.append("    v_lshlrev_b32 		v[v_io_offset0], 2, v[v_test]\n");
-		//asmKernelStr.append("    v_mov_b32			v[v_tmp1], 0x0+MLO_OUT_CHANNEL_STRIDE*2*4\n");
-		//
-		//asmKernelStr.append("    v_add_co_u32		v[v_io_offset1], vcc, v[v_io_offset0], v[v_tmp1]\n");
-		//asmKernelStr.append("    v_add_co_u32		v[v_io_offset2], vcc, v[v_io_offset1], v[v_tmp1]\n");
-		//asmKernelStr.append("    v_add_co_u32		v[v_io_offset3], vcc, v[v_io_offset2], v[v_tmp1]\n");
-		//asmKernelStr.append("    v_add_co_u32		v[v_io_offset4], vcc, v[v_io_offset3], v[v_tmp1]\n");
-		//asmKernelStr.append("    v_add_co_u32		v[v_io_offset5], vcc, v[v_io_offset4], v[v_tmp1]\n");
-		//asmKernelStr.append("    v_add_co_u32		v[v_io_offset6], vcc, v[v_io_offset5], v[v_tmp1]\n");
-		//asmKernelStr.append("    v_add_co_u32		v[v_io_offset7], vcc, v[v_io_offset6], v[v_tmp1]\n");
-
-		asmKernelStr.append("    m_cacul_all_feature_ping   v_data, weight_offset\n");
-		asmKernelStr.append("    m_cacul_all_feature_last   v_datb, weight_offset\n");
-		asmKernelStr.append("\n");
-		
-		asmKernelStr.append("    m_save_output\n");
-		asmKernelStr.append("\n");
+		KernelWriterBase * wr = new KernelWriterConv1x1();
+		wr->KernelName = solutionCfg->KernelName;
+		wr->KernelFile = solutionCfg->KernelFile;
+
+		wr->GenKernel();
+		wr->SaveKernelStr2File();
 	}
 };
  

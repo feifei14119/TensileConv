@@ -6,10 +6,21 @@
 #include "RuntimeControl.h"
 #include "ProblemControl.h"
 
+#include "IsaWriterGfx9.h"
+#include "KernelWriterConv1x1.h"
+
 int main(int argc, char *argv[])
 {
+	//KernelWriterBase * wr = new KernelWriterConv1x1();
+	//wr->KernelName = "ConvTest";
+	//wr->KernelFile = "aaaConvTest.cl";
+	//
+	//wr->GenKernel();
+	//wr->SaveKernelStr2File();
+
+
 	RuntimeCtrl::InitRuntime(argc, argv);
-		 
+	 
 	// ======================================================================
 	// ======================================================================
 	// ----------------------------------------------------------------------
@@ -52,6 +63,7 @@ int main(int argc, char *argv[])
 	RuntimeCtrl::CleanRuntime();
 
 	//getchar();
+	
 	return 0;
 }
  
