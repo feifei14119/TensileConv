@@ -129,11 +129,11 @@ struct Option
 /************************************************************************/
 /* 常量定义																*/
 /************************************************************************/
-#define	PI (3.1415926535897932384626)
-#define	TWO_PI (6.28318530717958647692528676655)
-#define	PI_SP (3.1415926535897932384626F)
-#define	TWO_PI_SP (6.28318530717958647692528676655F)
-#define FLT_MAX (3.402823466e+38f)
+#define	PI					(3.1415926535897932384626)
+#define	TWO_PI				(6.28318530717958647692528676655)
+#define	PI_SP				(3.1415926535897932384626F)
+#define	TWO_PI_SP			(6.28318530717958647692528676655F)
+#define FLT_MAX				(3.402823466e+38f)
 #define	MIN_FP32_ERR		(1e-6)
 
 /************************************************************************/
@@ -264,7 +264,6 @@ public:
 #endif
 #endif
 
-
 class UnixTimer
 {
 private:
@@ -346,64 +345,64 @@ public:
 	int ParamNum = 0;
 
 private:
-	std::vector<T_SearchParam> * searchParams;
-	int searchParamIdx = 0;
-	int searchValIdx = 0;
+	std::vector<T_SearchParam> * searchParams;	// 搜索参数数组列表
 
+	int searchParamIdx = 0;
+	bool moveCurrIdx = true;
 	int getParamIdx = 0;
 
 public:
-	E_ReturnState Search()
+	/************************************************************************/
+	/* 获取一组新的参数组合													*/
+	/************************************************************************/
+	E_ReturnState GetNexComb()
 	{
 		T_SearchParam * currParam;
 		currParam = &((*searchParams)[searchParamIdx]);
 		
-		if (searchValIdx >= currParam->ValueArray.size())
+		// 遍历完成: 如果已经指向最后一个参数且仍需调整指针,则搜索完成
+		if ((searchParamIdx >= ParamNum - 1) && (currParam->CurrIdx >= currParam->ValueNum - 1) && moveCurrIdx)
 		{
-			searchValIdx = 0;
-			searchParamIdx++;
-			currParam = &((*searchParams)[searchParamIdx]);
-
-			if (searchParamIdx >= searchParams->size())
+			moveCurrIdx = true;
+			searchParamIdx = 0;
+			return E_ReturnState::FAIL;
+		}
+		
+		// 调整当前数组指针
+		bool moveNextIdx;
+		if (moveCurrIdx)
+		{			
+			if(currParam->CurrIdx >= currParam->ValueNum - 1)
 			{
-				return E_ReturnState::FAIL;
+				currParam->CurrIdx = 0; 
+				moveNextIdx = true;
 			}
+			else
+			{
+				currParam->CurrIdx++;
+				moveNextIdx = false;
+			}
+
+			currParam->CurrValue = currParam->ValueArray[currParam->CurrIdx];
 		}
 
-		currParam->CurrIdx = searchValIdx;
-		currParam->CurrValue = currParam->ValueArray[searchValIdx];
-		searchValIdx++;
-
-		return E_ReturnState::SUCCESS;
-	}
-
-	int parValIdx0 = 0, parValIdx1 = 0;
-	E_ReturnState SearchTemp()
-	{
-		T_SearchParam * par0;
-		T_SearchParam * par1;
-		par0 = &((*searchParams)[0]);
-		par1 = &((*searchParams)[1]);
-
-		if (parValIdx1 >= par1->ValueArray.size())
+		// 搜索完一轮完成: 当前正在搜索最后一个参数
+		if (searchParamIdx >= ParamNum - 1)
 		{
-			parValIdx0++;
-			parValIdx1 = 0;
-			if (parValIdx0 >= par0->ValueArray.size())
-			{
-				return E_ReturnState::FAIL;
-			}
+			moveCurrIdx = true;
+			searchParamIdx = 0;
+			return E_ReturnState::SUCCESS;
 		}
-		par0->CurrIdx = parValIdx0;
-		par0->CurrValue = par0->ValueArray[parValIdx0];
-		par1->CurrIdx = parValIdx1;
-		par1->CurrValue = par1->ValueArray[parValIdx1];
 
-		parValIdx1++;
-
-		return E_ReturnState::SUCCESS;
+		// 搜索下一组参数
+		searchParamIdx++;
+		moveCurrIdx = moveNextIdx;
+		GetNexComb();
 	}
 
+	/************************************************************************/
+	/* 添加一组新的参数列表													*/
+	/************************************************************************/
 	E_ReturnState AddOneParam(T_SearchParam * param)
 	{
 		T_SearchParam *newParam = new T_SearchParam();
@@ -441,37 +440,25 @@ public:
 		return E_ReturnState::SUCCESS;
 	}
 
-	void StartGetParam()
-	{
-		getParamIdx = 0;
-	}
-
+	/************************************************************************/
+	/* 获取下一个参数															*/ 
+	/************************************************************************/
 	T_SearchParam * GetOneParam()
 	{
 		if (searchParams == NULL)
+		{
+			getParamIdx = 0;
 			return NULL;
+		}
 
 		if (getParamIdx >= searchParams->size())
 		{
+			getParamIdx = 0;
 			return NULL;
 		}
 
 		getParamIdx++;
 		return &(*searchParams)[getParamIdx - 1];
-	}
-
-	T_SearchParam * GetOneParam(int paramId)
-	{
-		if (searchParams == NULL)
-			return NULL;
-
-		if (paramId >= searchParams->size())
-		{
-			return NULL;
-		}
-
-		getParamIdx = paramId;
-		return &(*searchParams)[paramId];
 	}
 };
 

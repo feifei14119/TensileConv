@@ -117,19 +117,19 @@ public:
 			runtime = new RuntimeCtrl();
 
 			INFO("initialize device.");						InitDev();
-			INFO("search kernel parameters.");
-			if (solutionCfg->KernelSearchSpace.SearchTemp() == E_ReturnState::FAIL)
-			{
-				INFO("search kernel parameters finished.");
-				ReportProblemPerformence();
-				return E_ReturnState::SUCCESS;
-			}
 			INFO("generate source, compiler, worksize.");	GenerateSolution();
 			INFO("compiler kernel and program.");			SetupSolution();
 			INFO("set arg and launch kernel.");				LaunchSolution();
 			INFO("collect performence.");					GetPerformence();
 			INFO("copy result back to cpu.");				GetBackResult();
 			INFO("release device.");						ReleaseDev();
+			INFO("search kernel parameters.");
+			if (solutionCfg->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+			{
+				INFO("search kernel parameters finished.");
+				ReportProblemPerformence();
+				return E_ReturnState::SUCCESS;
+			}
 
 			delete runtime;
 		}
@@ -356,18 +356,19 @@ public:
 	{
 		while (true)
 		{
-			INFO("search problem parameters.");
-			if (problemCfg->ProblemSearchSpace.Search() == E_ReturnState::FAIL)
-			{
-				INFO("search problem parameters finished.");
-				break;
-			}
 			Solution->ProblemBestTime = -1;
 			INFO("initialize host.");			InitHost();
 			INFO("run host calculate.");		Host();
 			INFO("solve this problem.");		Solution->RunSolution(problemCfg);
 			INFO("verify device calculation.");	Verify();
 			INFO("release host.");				ReleaseHost();
+
+			INFO("search problem parameters.");
+			if (problemCfg->ProblemSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+			{
+				INFO("search problem parameters finished.");
+				break;
+			}
 		}
 	}
 

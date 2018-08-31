@@ -33,9 +33,8 @@ typedef struct ExtConvFwd1x1SolutionConfigTpye
 	int wei_pingpang_ins;	// 每轮循环中，进行weight读取时，pingpang操作的指令条数
 	int wei_load_num;		// 每次weight的s_load的数据个数
 
+
 	// 调整参数
-	// k_out_maps:			16:[8,16,32]
-	// int local_size:			64:[64,128,256]
 	// c_in_maps_once:		 8:[8,16]
 	// wei_pingpang_ins:	 1:[1,2,4,8]
 	// en_in_pingpang:		 1:[0,1]
@@ -79,13 +78,12 @@ class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:
 	T_KernelArgu d_in, d_wei, d_out, d_lds, d_isFetch, d_relu, d_signal;
+	uint *in_off_buff, *wei_off_buff, *out_off_buff;
 	T_KernelArgu d_in_off, d_wei_off, d_out_off;
+
 	std::string asmKernelStr;
 	int DoFetch, DoCalcu;
 	cl_float relu;
-	int *batch_id_buff;
-	int *wei_id_buff;
-	int *pos_id_buff;
 
 	RuntimeCtrl * preKernel;
 
@@ -100,6 +98,18 @@ private:
 	int GroupNumber;
 	int FIXED_WORKGROUP_SIZE = 64;
 
+#define	WAVE_SIZE	(64)
+#define	FIX_DIM_IN	(0)
+#define	FIX_DIM_K	(1)
+	int k_blk_size;
+	int k_blk_chunk;
+	int in_blk_chunk;
+	bool fix_dim;
+
+	int group_size;
+	int k_out_groups;
+	int in_pix_groups;
+
 public:
 	/************************************************************************/
 	/* 申请显存                                                            */
@@ -110,7 +120,7 @@ public:
 		T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
 		preKernel = new RuntimeCtrlOcl();
-
+		
 		DevMalloc((void**)&(d_in.ptr), exCfg->size_in * sizeof(float));
 		DevMalloc((void**)&(d_wei.ptr), exCfg->size_wei * sizeof(float));
 		DevMalloc((void**)&(d_out.ptr), exCfg->size_out * sizeof(float));
@@ -150,8 +160,22 @@ public:
 	E_ReturnState GetBackResult()
 	{
 		T_ExtConvFwd1x1ProblemConfig * exCfg = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
-		Copy2Hst(exCfg->h_out, (cl_mem)(d_out.ptr), exCfg->size_out * sizeof(float));
-		Copy2Hst(exCfg->h_signal, (cl_mem)(d_signal.ptr), exCfg->size_sig * sizeof(int));
+
+		if (solutionCfg->ConfigName == "SimuIndex")
+		{
+			//in_off_buff = (uint*)malloc(solutionCfg->g_wk0 * sizeof(uint));
+			//wei_off_buff = (uint*)malloc(solutionCfg->g_wk0 * sizeof(uint));
+			//out_off_buff = (uint*)malloc(solutionCfg->g_wk0 * sizeof(uint));
+			//
+			//Copy2Hst(in_off_buff, (cl_mem)(d_in_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+			//Copy2Hst(wei_off_buff, (cl_mem)(d_wei_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+			//Copy2Hst(out_off_buff, (cl_mem)(d_out_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+		}
+		else
+		{
+			Copy2Hst(exCfg->h_out, (cl_mem)(d_out.ptr), exCfg->size_out * sizeof(float));
+			Copy2Hst(exCfg->h_signal, (cl_mem)(d_signal.ptr), exCfg->size_sig * sizeof(int));
+		}
 	}
 
 	/************************************************************************/
@@ -314,12 +338,12 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		generateParameters();// 提取搜索参数		
-		generateCompilerOption();// 生成编译选项		
-		generateWorkLoad();// 生成worksize		
-		generateSource();// 获取/生成代码
+		generateParameters();		// 提取搜索参数		
+		generateCompilerOption();	// 生成编译选项		
+		generateWorkLoad();			// 生成worksize		
+		generateSource();			// 获取/生成代码
 
-		simulateIndex();
+		//simulateIndex();
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -418,7 +442,6 @@ public:
 		}
 		else if (solutionCfg->ConfigName == "TensileConv")
 		{
-			solutionCfg->KernelSearchSpace.StartGetParam();
 			while (true)
 			{
 				T_SearchParam * param;
@@ -628,7 +651,7 @@ public:
 	/************************************************************************/
 	/* 测试下标计算															*/
 	/************************************************************************/
-	void simulateIndex()
+	void simulateIndex0()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
@@ -751,6 +774,119 @@ public:
 		//printIndex(testPosId, "pos id");
 		printf("input groups: %d.\n", align * N_IN_GROUPS);
 		printf("output group: %d.\n", N_OUT_GROUPS);
+	}
+
+	void simulateIndex()
+	{
+		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+
+		k_blk_size = 16;
+		k_blk_chunk = 2;
+		in_blk_chunk = 8;
+		fix_dim = FIX_DIM_K;
+
+		group_size = WAVE_SIZE;
+		align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
+		in_pix_groups = align / group_size;
+		k_out_groups = (extProblem->K + k_blk_size - 1) / k_blk_size;
+
+		printf("in_pix_groups = %d\n", in_pix_groups);
+		printf("k_out_groups = %d\n", k_out_groups);
+
+
+		int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testPixBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testWeiBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+
+		uint W = extProblem->W;
+		uint H = extProblem->H;
+		uint C = extProblem->C;
+		uint K = extProblem->K;
+
+		uint IN_CHANNEL_STRIDE = W * H;
+		uint IN_BATCH_STRIDE = W * H * C;
+		uint WEI_CHANNEL_STRIDE = C;
+		uint OUT_CHANNEL_STRIDE = W * H;
+		uint OUT_BATCH_STRIDE = W * H * K;
+
+		uint GROUP_SIZE = 64;
+		uint PIX_MAPS = 64;
+		uint K_OUT_GROUPS = k_out_groups;
+
+		uint CHUNK_NUMBER = solutionCfg->b_wk0 / CU_NUM;
+		uint CHUNK_LEFT = CHUNK_NUMBER * CU_NUM;
+		uint Z_ROUND_NUM = solutionCfg->b_wk0 / (CU_NUM * K_OUT_GROUPS);
+		uint INBLOCK_LEFT = Z_ROUND_NUM * CU_NUM;
+
+		for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
+		{
+			uint local_id0 = 0;
+			uint group_id0 = grp;
+			uint pixBlkId, weiBlkId;
+
+			//// old organization
+			//weiBlkId = group_id0 % K_OUT_GROUPS;
+			//pixBlkId = group_id0 / K_OUT_GROUPS;
+
+			// new organization
+			uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
+			
+			pixBlkId = z_round * CU_NUM + group_id0 % CU_NUM;		// 即 grp_id0_faked
+			weiBlkId = group_id0 / CU_NUM % k_out_groups;		// 即 out_grp_block
+			
+			if (group_id0 >= CHUNK_LEFT)
+			{
+				uint leftGrpId = 0;
+				leftGrpId = group_id0 - CHUNK_LEFT;
+				pixBlkId = leftGrpId / 4 + INBLOCK_LEFT;
+				weiBlkId = leftGrpId % 4;
+			}
+
+			// same
+			uint pos = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) % IN_CHANNEL_STRIDE;
+			uint batch_id = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) / IN_CHANNEL_STRIDE;
+			uint out_id = weiBlkId * k_blk_size;
+
+			uint gbl_in_off = batch_id * IN_BATCH_STRIDE + pos;
+			uint wei_off = out_id * WEI_CHANNEL_STRIDE;
+			uint gbl_out_off = batch_id * OUT_BATCH_STRIDE + out_id * OUT_CHANNEL_STRIDE + pos;
+			
+			testGrpId[group_id0] = group_id0;
+			testPixBlkId[group_id0] = pixBlkId;
+			testWeiBlkId[group_id0] = weiBlkId;
+			testPosId[group_id0] = pos;
+			testBatchId[group_id0] = batch_id;
+			testOutId[group_id0] = out_id;
+		}
+
+		printIndex(testGrpId, "group id");
+		printIndex(testPixBlkId, "input block id");
+		printIndex(testWeiBlkId, "weight block id");
+		//printIndex(testBatchId, "batch id");
+		//printIndex(testOutId, "out id");
+		//printIndex(testPosId, "pos id");
+		printf("input groups: %d.\n", align * N_IN_GROUPS);
+		printf("output group: %d.\n", N_OUT_GROUPS);
+
+		//if (solutionCfg->ConfigName == "SimuIndex")
+		//{
+		//	DevMalloc((void**)&(d_in_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+		//	DevMalloc((void**)&(d_wei_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+		//	DevMalloc((void**)&(d_out_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+		//
+		//	d_in_off.size = sizeof(cl_mem);		d_in_off.isVal = false;
+		//	d_wei_off.size = sizeof(cl_mem);	d_wei_off.isVal = false;
+		//	d_out_off.size = sizeof(cl_mem);	d_out_off.isVal = false;
+		//
+		//	solutionCfg->KernelArgus = new std::list<T_KernelArgu>;
+		//	solutionCfg->KernelArgus->push_back(d_in_off);
+		//	solutionCfg->KernelArgus->push_back(d_wei_off);
+		//	solutionCfg->KernelArgus->push_back(d_out_off);
+		//}
 	}
 
 	/************************************************************************/
@@ -944,12 +1080,12 @@ public:
 
 		searchParam = new T_SearchParam();
 		searchParam->Name = "N";
-		//searchParam->ValueArray.push_back(1);
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(4);
-		//searchParam->ValueArray.push_back(8);
+		searchParam->ValueArray.push_back(1);
+		searchParam->ValueArray.push_back(2);
+		searchParam->ValueArray.push_back(4);
+		searchParam->ValueArray.push_back(8);
 		searchParam->ValueArray.push_back(16);
-		//searchParam->ValueArray.push_back(32);
+		searchParam->ValueArray.push_back(32);
 
 		// 单独测试
 		{
@@ -1196,7 +1332,6 @@ public:
 	{
 		T_ExtConvFwd1x1ProblemConfig * exCfg = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 
-		problemCfg->ProblemSearchSpace.StartGetParam();
 		while (true)
 		{
 			T_SearchParam * param;

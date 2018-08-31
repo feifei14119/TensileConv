@@ -201,5 +201,8 @@
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
+    <None Include="Kernels\SimuIndex.cl">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
   </ItemGroup>
 </Project>

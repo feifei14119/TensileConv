@@ -258,9 +258,9 @@ public:
 	{
 #ifdef RUNTIME_OCL
 		//complier = "/opt/rocm/bin/clang-ocl ";
-		//complier = "/opt/rocm/opencl/bin/x86_64/clang ";
+		complier = "/opt/rocm/opencl/bin/x86_64/clang ";
 		//complier = "llvm-mc ";
-		complier = "clang ";
+		//complier = "clang ";
 #else
 		complier = "/opt/rocm/opencl/bin/x86_64/clang ";
 #endif;

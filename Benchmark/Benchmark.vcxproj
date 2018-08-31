@@ -124,6 +124,7 @@
     <None Include="Kernels\ProducerConsumer.s" />
     <None Include="Kernels\PS_Consumer.s" />
     <None Include="Kernels\PS_Producer.s" />
+    <None Include="Kernels\SimuIndex.cl" />
     <None Include="Kernels\Test.cl" />
     <None Include="Kernels\VectorAdd.cl" />
     <None Include="Kernels\VectorAdd.s" />
