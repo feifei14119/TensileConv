@@ -126,6 +126,7 @@ public:
 			}
 
 			delete runtime;
+			sleep(1);
 		}
 	
 	}
@@ -235,12 +236,12 @@ public:
 		printf("best performence: %.1f (Gflops) = %.1f%%.\n", solutionCfg->BestScore.Flops * 1e-9, solutionCfg->BestScore.Performence * 100);
 		printf("average elapsed time: %.3f (us).\n", solutionCfg->AverageScore.ElapsedTime * 1e6);
 		printf("average performence: %.1f (Gflops) = %.1f%%.\n", solutionCfg->AverageScore.Flops * 1e-9, solutionCfg->AverageScore.Performence * 100);
-
-
+		
 		if ((ProblemBestTime < 0) || (ProblemBestTime > solutionCfg->AverageScore.ElapsedTime))
 		{
 			ProblemBestTime = solutionCfg->AverageScore.ElapsedTime;
 			ProblemBestPerformence = solutionCfg->AverageScore.Performence;
+			solutionCfg->KernelSearchSpace.RecordBestComb();
 		}
 	}
 
@@ -368,6 +369,7 @@ public:
 
 	E_ReturnState RunProblemOnce()
 	{
+		Solution->ProblemBestTime = -1;
 		INFO("initialize host.");				InitHost();
 		INFO("run host calculate.");			Host();
 		INFO("solve this problem.");			Solution->RunSolution(problemCfg);

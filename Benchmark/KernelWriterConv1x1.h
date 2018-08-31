@@ -13,6 +13,7 @@ public:
 	bool EnWeightOffset = 1;
 
 	int W = 28, H = 28, C = 192, K = 64, N = 16;
+	int K_OUT_MAPS = 16;
 
 protected:
 	int arg_in_ptr = 0;
@@ -48,7 +49,6 @@ protected:
 	int ENABLE = 1;
 	int DISABLE = 0;
 	int C_IN_MAPS_ONCE = 8;
-	int K_OUT_MAPS = 16;
 	int K_OUT_MAPS_LOG2 = log2(K_OUT_MAPS);
 	int K_OUT_GROUP = K / K_OUT_MAPS;
 	int K_OUT_GROUP_LOG2 = log2(K_OUT_GROUP);
@@ -79,7 +79,6 @@ protected:
 		ENABLE = 1;
 		DISABLE = 0;
 		C_IN_MAPS_ONCE = 8;
-		K_OUT_MAPS = 16;
 		K_OUT_MAPS_LOG2 = log2(K_OUT_MAPS);
 		K_OUT_GROUP = K / K_OUT_MAPS;
 		K_OUT_GROUP_LOG2 = log2(K_OUT_GROUP);
@@ -175,6 +174,10 @@ protected:
 	/************************************************************************************/
 	/* ¼ÆËãÏÂ±ê																			*/
 	/************************************************************************************/
+	void writeCalcuBlkIndex()
+	{
+	}
+
 	void writeCalcuIndex()
 	{
 		int offset;
@@ -216,10 +219,6 @@ protected:
 		// -------------------------------------------------------------------------------
 		isa->inst2("v_mov_b32", vgpr(v_tmp1), d2s(N), "");
 		isa->inst3("v_cmpx_lt_u32", "exec", vgpr(v_batchId), vgpr(v_tmp1), "");
-		
-		//isa->inst2("s_cmpk_ge_u32", sgpr(gid_x0), d2s(1), "");
-		//isa->inst1("s_cbranch_scc1", END_PROG, "");
-		//isa->inst2("s_mov_b64", "exec", d2s(1), "");
 
 		// -------------------------------------------------------------------------------
 		// gbl_in_off  = batch_id * MLO_IN_BATCH_STRIDE + pos;

@@ -298,7 +298,7 @@ public:
 			searchParam->ValueArray.push_back(8);
 			searchParam->ValueArray.push_back(16);
 			searchParam->ValueArray.push_back(32);
-			//solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			//--------------------------------
 			searchParam = new T_SearchParam();
 			searchParam->Name = "group_size";
@@ -321,7 +321,7 @@ public:
 			searchParam->ValueArray.push_back(64);
 			searchParam->ValueArray.push_back(128);
 			searchParam->ValueArray.push_back(256);
-			searchParam->ValueArray.push_back(512);
+			//searchParam->ValueArray.push_back(512);
 			//searchParam->ValueArray.push_back(1024);
 			//solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			// ----------------------------------------------------------------------
@@ -656,6 +656,7 @@ public:
 		kw->H = extProblem->H;
 		kw->W = extProblem->W;
 		kw->K = extProblem->K;
+		kw->K_OUT_MAPS = extSolution->k_out_maps;
 
 		kw->GenKernelString();
 		kw->SaveKernelStr2File();
@@ -820,10 +821,22 @@ public:
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", extProblem->H, extProblem->W, extProblem->C, extProblem->K, extProblem->N);
+		printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProblem->H, extProblem->W, extProblem->C, extProblem->K, extProblem->N);
 
 		printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
 		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
+
+		while (true)
+		{
+			T_SearchParam * param;
+			param = solutionCfg->KernelSearchSpace.GetOneParam();
+			if (param == NULL)
+			{
+				break;
+			}
+
+			printf("%s = %d\n", param->Name.c_str(), param->BestValue);
+		}
 	}
 	
 	/************************************************************************/
@@ -982,7 +995,7 @@ public:
 
 			extProblemConfig->W = 28;		extProblemConfig->H = 28;
 			extProblemConfig->C = 192;		extProblemConfig->K = 64;
-			//extProblemConfig->N = 1;
+			extProblemConfig->N = 16;
 
 			problemConfig = new T_ProblemConfig();
 			problemConfig->ConfigName = "Conv1x1 WHCK=[28*192*64]";

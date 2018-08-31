@@ -312,8 +312,10 @@ typedef struct SearchParamType
 {
 	std::string Name;
 	std::vector<int> ValueArray;
-	int CurrValue;
 	int CurrIdx;
+	int CurrValue;
+	int BestIdx;
+	int BestValue;
 	int MinValue;
 	int MaxValue;
 	int Step;
@@ -409,6 +411,18 @@ public:
 		searchParamIdx++;
 		moveCurrIdx = moveNextIdx;
 		GetNexComb();
+	}
+
+	/************************************************************************/
+	/* 记录当前参数组合														*/
+	/************************************************************************/
+	E_ReturnState RecordBestComb()
+	{
+		for (int i = 0; i < ParamNum; i++)
+		{
+			(*searchParams)[searchParamIdx].BestIdx = (*searchParams)[searchParamIdx].CurrIdx;
+			(*searchParams)[searchParamIdx].BestValue = (*searchParams)[searchParamIdx].CurrValue;
+		}
 	}
 
 	/************************************************************************/
