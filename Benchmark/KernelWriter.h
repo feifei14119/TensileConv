@@ -4,11 +4,7 @@
 
 class KernelWriterBase
 {
-public:
-
-#define	MAX_VGPR_COUNT		(256)
-#define	MAX_SGPR_COUNT		(800)
-
+public:	
 	KernelWriterBase()
 	{
 		variableMap = new std::map<std::string, int>();
@@ -24,10 +20,17 @@ public:
 		isa->kernelStr = &KernelStr;
 	}
 
-	void GenKernel()
+public:
+	std::string KernelName;
+	std::string KernelFile;
+	size_t l_wk0, l_wk1, l_wk2;
+	size_t g_wk0, g_wk1, g_wk2;
+
+	void GenKernelString()
 	{
 		KernelStr.clear();
 
+		generateParam();
 		writeSignature();
 		writeProgram();
 		writeMetadata();
@@ -45,11 +48,8 @@ public:
 		fout.close();
 	}
 
-	std::string KernelName;
-	std::string KernelFile;
-	std::string KernelStr;
-
 protected:
+	std::string KernelStr;
 	GasWriter *gas;
 	IsaWriterBase *isa;
 	
@@ -200,14 +200,12 @@ protected:
 		KernelStr.append("/* " + common + " */\n");
 		KernelStr.append("/************************************************************************************/\n");
 	}
-
 	void wirteCommom2(std::string common)
 	{
 		KernelStr.append("// ==================================================================================\n");
 		KernelStr.append("// " + common + " \n");
 		KernelStr.append("// ==================================================================================\n");
-	}
-	
+	}	
 	void wirteCommom3(std::string common)
 	{
 		KernelStr.append("// ----------------------------------------------------------------------------------\n");
@@ -225,7 +223,6 @@ protected:
 		}
 		return log2;
 	}
-
 	int modMask(int value)
 	{
 		return value - 1;
@@ -234,6 +231,7 @@ protected:
 	/************************************************************************/
 	/* kernel文件生成函数                                                    */
 	/************************************************************************/
+	virtual void generateParam() = 0;
 	void writeSignature()
 	{
 		KernelStr.append(".hsa_code_object_version 2, 1\n");
@@ -272,7 +270,7 @@ protected:
 		KernelStr.append("    - { Name: " + KernelName + ",\n");
 		KernelStr.append("        SymbolName: " + KernelName + ",\n");
 		KernelStr.append("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],\n");
-		KernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + d2s(64) + ", 1, 1 ] }\n");
+		KernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + d2s(l_wk0) + ", 1, 1 ] }\n");
 		KernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 256 }\n");
 		KernelStr.append("        Args:\n");
 		KernelStr.append("        - { Name: d_in  , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");

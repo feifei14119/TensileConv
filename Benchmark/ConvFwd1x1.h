@@ -33,7 +33,6 @@ typedef struct ExtConvFwd1x1SolutionConfigTpye
 	int wei_pingpang_ins;	// 每轮循环中，进行weight读取时，pingpang操作的指令条数
 	int wei_load_num;		// 每次weight的s_load的数据个数
 
-
 	// 调整参数
 	// c_in_maps_once:		 8:[8,16]
 	// wei_pingpang_ins:	 1:[1,2,4,8]
@@ -636,257 +635,30 @@ public:
 	}
 
 	/************************************************************************/
+	/* 自动生成kernel								                        */
 	/************************************************************************/
-	void ReportProblemPerformence()
+	void autoGenKernel()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+		
+		KernelWriterConv1x1 * kw = new KernelWriterConv1x1();
 
-		printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", extProblem->H, extProblem->W, extProblem->C, extProblem->K, extProblem->N);
+		// 此处应传递solution 和 problem 结构体
+		kw->KernelName = solutionCfg->KernelName;
+		kw->KernelFile = solutionCfg->KernelFile;
+		kw->l_wk0 = solutionCfg->l_wk0;
+		kw->l_wk1 = solutionCfg->l_wk1;
+		kw->l_wk2 = solutionCfg->l_wk2;
 
-		printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
-		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
-	}
+		kw->N = extProblem->N;
+		kw->C = extProblem->C;
+		kw->H = extProblem->H;
+		kw->W = extProblem->W;
+		kw->K = extProblem->K;
 
-	/************************************************************************/
-	/* 测试下标计算															*/
-	/************************************************************************/
-	void simulateIndex0()
-	{
-		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
-		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-
-		int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testInBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testWeiBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-
-		if (extSolution->group_size == 256)
-		{
-			uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
-			uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-			uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
-			uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
-			uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
-			uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
-			uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-
-			for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
-			{
-				uint local_id0 = 0;
-				uint grp_id0 = grp;
-
-				uint out_grp_block = (grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) % MLO_N_OUT_GROUPS;
-				uint grp_id0_faked = (uint)((grp_id0 * 4 + local_id0 / FIXED_WORKGROUP_SIZE) / MLO_N_OUT_GROUPS);
-
-				uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-				uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-				uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-
-				uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
-				uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
-				uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-
-				testGrpId[grp_id0] = grp_id0;
-				testInBlkId[grp_id0] = grp_id0_faked;
-				testWeiBlkId[grp_id0] = out_grp_block;
-				testPosId[grp_id0] = pos;
-				testBatchId[grp_id0] = batch_id;
-				testOutId[grp_id0] = out_id;
-			}
-		}
-
-		if (extSolution->group_size == 64)
-		{
-			uint MLO_IN_HEIGHT = extProblem->H;
-			uint MLO_IN_WIDTH = extProblem->W;
-			uint MLO_N_INPUTS = extProblem->C;
-			uint MLO_N_LCL_IN_MAPS = extProblem->C;
-			uint MLO_N_IN_GROUPS = ((MLO_N_INPUTS + MLO_N_LCL_IN_MAPS - 1) / MLO_N_LCL_IN_MAPS);
-			uint MLO_N_OUT_GROUPS = extSolution->k_out_group;
-			uint MLO_IN_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-			uint MLO_N_LCL_OUT_MAPS = extSolution->k_out_maps;
-			uint MLO_IN_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->C;
-			uint MLO_WEI_CHANNEL_STRIDE = extProblem->C;
-			uint MLO_OUT_BATCH_STRIDE = extProblem->W * extProblem->H * extProblem->K;
-			uint MLO_OUT_CHANNEL_STRIDE = extProblem->W * extProblem->H;
-
-			uint MLO_ROUND_NUMBER = solutionCfg->b_wk0 / CU_NUM;
-			uint MLO_ROUND_LEFT = MLO_ROUND_NUMBER * CU_NUM;
-			uint MLO_Z_ROUND_NUM = solutionCfg->b_wk0 / (CU_NUM * MLO_N_OUT_GROUPS);
-			uint MLO_INBLOCK_LEFT = MLO_Z_ROUND_NUM * CU_NUM;
-
-			for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
-			{
-				uint local_id0 = 0;
-				uint grp_id0 = grp;
-
-				// old organization
-				uint out_grp_block = grp_id0 % MLO_N_OUT_GROUPS;
-				uint grp_id0_faked = (uint)(grp_id0 / MLO_N_OUT_GROUPS) / MLO_N_IN_GROUPS;
-
-				uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-				uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-				uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-
-				uint gbl_in_off = batch_id * MLO_IN_BATCH_STRIDE + pos;
-				uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
-				uint gbl_out_off = batch_id * MLO_OUT_BATCH_STRIDE + out_id * MLO_OUT_CHANNEL_STRIDE + pos;
-
-				// new organization
-				//uint inBlkId, weiBlkId;
-				//uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);	// 第几轮Z格子
-				//
-				//inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;		// 即 grp_id0_faked
-				//weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;		// 即 out_grp_block
-				//
-				//if (grp_id0 >= MLO_ROUND_LEFT)
-				//{
-				//	uint leftGrpId = 0;
-				//	leftGrpId = grp_id0 - MLO_ROUND_LEFT;
-				//	inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;
-				//	weiBlkId = leftGrpId % 4;
-				//}
-				//
-				//uint out_grp_block = weiBlkId;
-				//uint grp_id0_faked = inBlkId;
-				//
-				//uint pos = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) % MLO_IN_CHANNEL_STRIDE;
-				//uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0 % FIXED_WORKGROUP_SIZE) / MLO_IN_CHANNEL_STRIDE;
-				//uint out_id = out_grp_block * MLO_N_LCL_OUT_MAPS;
-
-				testGrpId[grp_id0] = grp_id0;
-				testInBlkId[grp_id0] = grp_id0_faked;
-				testWeiBlkId[grp_id0] = out_grp_block;
-				testPosId[grp_id0] = pos;
-				testBatchId[grp_id0] = batch_id;
-				testOutId[grp_id0] = out_id;
-			}
-		}
-
-		//printIndex(testGrpId, "group id");
-		//printIndex(testInBlkId, "input block id");
-		printIndex(testWeiBlkId, "weight block id");
-		//printIndex(testBatchId, "batch id");
-		//printIndex(testOutId, "out id");
-		//printIndex(testPosId, "pos id");
-		printf("input groups: %d.\n", align * N_IN_GROUPS);
-		printf("output group: %d.\n", N_OUT_GROUPS);
-	}
-
-	void simulateIndex()
-	{
-		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
-		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
-
-		k_blk_size = 16;
-		k_blk_chunk = 2;
-		in_blk_chunk = 8;
-		fix_dim = FIX_DIM_K;
-
-		group_size = WAVE_SIZE;
-		align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
-		in_pix_groups = align / group_size;
-		k_out_groups = (extProblem->K + k_blk_size - 1) / k_blk_size;
-
-		printf("in_pix_groups = %d\n", in_pix_groups);
-		printf("k_out_groups = %d\n", k_out_groups);
-
-
-		int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testPixBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testWeiBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-		int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
-
-		uint W = extProblem->W;
-		uint H = extProblem->H;
-		uint C = extProblem->C;
-		uint K = extProblem->K;
-
-		uint IN_CHANNEL_STRIDE = W * H;
-		uint IN_BATCH_STRIDE = W * H * C;
-		uint WEI_CHANNEL_STRIDE = C;
-		uint OUT_CHANNEL_STRIDE = W * H;
-		uint OUT_BATCH_STRIDE = W * H * K;
-
-		uint GROUP_SIZE = 64;
-		uint PIX_MAPS = 64;
-		uint K_OUT_GROUPS = k_out_groups;
-
-		uint CHUNK_NUMBER = solutionCfg->b_wk0 / CU_NUM;
-		uint CHUNK_LEFT = CHUNK_NUMBER * CU_NUM;
-		uint Z_ROUND_NUM = solutionCfg->b_wk0 / (CU_NUM * K_OUT_GROUPS);
-		uint INBLOCK_LEFT = Z_ROUND_NUM * CU_NUM;
-
-		for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
-		{
-			uint local_id0 = 0;
-			uint group_id0 = grp;
-			uint pixBlkId, weiBlkId;
-
-			//// old organization
-			//weiBlkId = group_id0 % K_OUT_GROUPS;
-			//pixBlkId = group_id0 / K_OUT_GROUPS;
-
-			// new organization
-			uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
-			
-			pixBlkId = z_round * CU_NUM + group_id0 % CU_NUM;		// 即 grp_id0_faked
-			weiBlkId = group_id0 / CU_NUM % k_out_groups;		// 即 out_grp_block
-			
-			if (group_id0 >= CHUNK_LEFT)
-			{
-				uint leftGrpId = 0;
-				leftGrpId = group_id0 - CHUNK_LEFT;
-				pixBlkId = leftGrpId / 4 + INBLOCK_LEFT;
-				weiBlkId = leftGrpId % 4;
-			}
-
-			// same
-			uint pos = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) % IN_CHANNEL_STRIDE;
-			uint batch_id = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) / IN_CHANNEL_STRIDE;
-			uint out_id = weiBlkId * k_blk_size;
-
-			uint gbl_in_off = batch_id * IN_BATCH_STRIDE + pos;
-			uint wei_off = out_id * WEI_CHANNEL_STRIDE;
-			uint gbl_out_off = batch_id * OUT_BATCH_STRIDE + out_id * OUT_CHANNEL_STRIDE + pos;
-			
-			testGrpId[group_id0] = group_id0;
-			testPixBlkId[group_id0] = pixBlkId;
-			testWeiBlkId[group_id0] = weiBlkId;
-			testPosId[group_id0] = pos;
-			testBatchId[group_id0] = batch_id;
-			testOutId[group_id0] = out_id;
-		}
-
-		printIndex(testGrpId, "group id");
-		printIndex(testPixBlkId, "input block id");
-		printIndex(testWeiBlkId, "weight block id");
-		//printIndex(testBatchId, "batch id");
-		//printIndex(testOutId, "out id");
-		//printIndex(testPosId, "pos id");
-		printf("input groups: %d.\n", align * N_IN_GROUPS);
-		printf("output group: %d.\n", N_OUT_GROUPS);
-
-		//if (solutionCfg->ConfigName == "SimuIndex")
-		//{
-		//	DevMalloc((void**)&(d_in_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
-		//	DevMalloc((void**)&(d_wei_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
-		//	DevMalloc((void**)&(d_out_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
-		//
-		//	d_in_off.size = sizeof(cl_mem);		d_in_off.isVal = false;
-		//	d_wei_off.size = sizeof(cl_mem);	d_wei_off.isVal = false;
-		//	d_out_off.size = sizeof(cl_mem);	d_out_off.isVal = false;
-		//
-		//	solutionCfg->KernelArgus = new std::list<T_KernelArgu>;
-		//	solutionCfg->KernelArgus->push_back(d_in_off);
-		//	solutionCfg->KernelArgus->push_back(d_wei_off);
-		//	solutionCfg->KernelArgus->push_back(d_out_off);
-		//}
+		kw->GenKernelString();
+		kw->SaveKernelStr2File();
 	}
 
 	/************************************************************************/
@@ -1041,16 +813,133 @@ public:
 	}
 
 	/************************************************************************/
-	/* 自动生成kernel								                        */
+	/* 记录性能和配置															*/
 	/************************************************************************/
-	void autoGenKernel()
+	void ReportProblemPerformence()
 	{
-		KernelWriterBase * wr = new KernelWriterConv1x1();
-		wr->KernelName = solutionCfg->KernelName;
-		wr->KernelFile = solutionCfg->KernelFile;
+		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
 
-		wr->GenKernel();
-		wr->SaveKernelStr2File();
+		printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", extProblem->H, extProblem->W, extProblem->C, extProblem->K, extProblem->N);
+
+		printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
+		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
+	}
+	
+	/************************************************************************/
+	/* 测试下标计算															*/
+	/************************************************************************/
+	void simulateIndex()
+	{
+		T_ExtConvFwd1x1ProblemConfig * extProblem = (T_ExtConvFwd1x1ProblemConfig *)problemCfg->extConfig;
+		T_ExtConvFwd1x1SolutionConfig * extSolution = (T_ExtConvFwd1x1SolutionConfig *)solutionCfg->extConfig;
+
+		k_blk_size = 16;
+		k_blk_chunk = 2;
+		in_blk_chunk = 8;
+		fix_dim = FIX_DIM_K;
+
+		group_size = WAVE_SIZE;
+		align = ((extProblem->width_in * extProblem->heigh_in * extProblem->batch_size + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
+		in_pix_groups = align / group_size;
+		k_out_groups = (extProblem->K + k_blk_size - 1) / k_blk_size;
+
+		printf("in_pix_groups = %d\n", in_pix_groups);
+		printf("k_out_groups = %d\n", k_out_groups);
+
+
+		int *testGrpId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testPixBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testWeiBlkId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testPosId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testBatchId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+		int *testOutId = (int*)malloc(solutionCfg->b_wk0 * sizeof(int));
+
+		uint W = extProblem->W;
+		uint H = extProblem->H;
+		uint C = extProblem->C;
+		uint K = extProblem->K;
+
+		uint IN_CHANNEL_STRIDE = W * H;
+		uint IN_BATCH_STRIDE = W * H * C;
+		uint WEI_CHANNEL_STRIDE = C;
+		uint OUT_CHANNEL_STRIDE = W * H;
+		uint OUT_BATCH_STRIDE = W * H * K;
+
+		uint GROUP_SIZE = 64;
+		uint PIX_MAPS = 64;
+		uint K_OUT_GROUPS = k_out_groups;
+
+		uint CHUNK_NUMBER = solutionCfg->b_wk0 / CU_NUM;
+		uint CHUNK_LEFT = CHUNK_NUMBER * CU_NUM;
+		uint Z_ROUND_NUM = solutionCfg->b_wk0 / (CU_NUM * K_OUT_GROUPS);
+		uint INBLOCK_LEFT = Z_ROUND_NUM * CU_NUM;
+
+		for (int grp = 0; grp < solutionCfg->b_wk0; grp++)
+		{
+			uint local_id0 = 0;
+			uint group_id0 = grp;
+			uint pixBlkId, weiBlkId;
+
+			//// old organization
+			//weiBlkId = group_id0 % K_OUT_GROUPS;
+			//pixBlkId = group_id0 / K_OUT_GROUPS;
+
+			// new organization
+			uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
+
+			pixBlkId = z_round * CU_NUM + group_id0 % CU_NUM;		// 即 grp_id0_faked
+			weiBlkId = group_id0 / CU_NUM % k_out_groups;		// 即 out_grp_block
+
+			if (group_id0 >= CHUNK_LEFT)
+			{
+				uint leftGrpId = 0;
+				leftGrpId = group_id0 - CHUNK_LEFT;
+				pixBlkId = leftGrpId / 4 + INBLOCK_LEFT;
+				weiBlkId = leftGrpId % 4;
+			}
+
+			// same
+			uint pos = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) % IN_CHANNEL_STRIDE;
+			uint batch_id = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) / IN_CHANNEL_STRIDE;
+			uint out_id = weiBlkId * k_blk_size;
+
+			uint gbl_in_off = batch_id * IN_BATCH_STRIDE + pos;
+			uint wei_off = out_id * WEI_CHANNEL_STRIDE;
+			uint gbl_out_off = batch_id * OUT_BATCH_STRIDE + out_id * OUT_CHANNEL_STRIDE + pos;
+
+			testGrpId[group_id0] = group_id0;
+			testPixBlkId[group_id0] = pixBlkId;
+			testWeiBlkId[group_id0] = weiBlkId;
+			testPosId[group_id0] = pos;
+			testBatchId[group_id0] = batch_id;
+			testOutId[group_id0] = out_id;
+		}
+
+		printIndex(testGrpId, "group id");
+		printIndex(testPixBlkId, "input block id");
+		printIndex(testWeiBlkId, "weight block id");
+		//printIndex(testBatchId, "batch id");
+		//printIndex(testOutId, "out id");
+		//printIndex(testPosId, "pos id");
+		printf("input groups: %d.\n", align * N_IN_GROUPS);
+		printf("output group: %d.\n", N_OUT_GROUPS);
+
+		//if (solutionCfg->ConfigName == "SimuIndex")
+		//{
+		//	DevMalloc((void**)&(d_in_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+		//	DevMalloc((void**)&(d_wei_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+		//	DevMalloc((void**)&(d_out_off.ptr), solutionCfg->g_wk0 * sizeof(uint));
+		//
+		//	d_in_off.size = sizeof(cl_mem);		d_in_off.isVal = false;
+		//	d_wei_off.size = sizeof(cl_mem);	d_wei_off.isVal = false;
+		//	d_out_off.size = sizeof(cl_mem);	d_out_off.isVal = false;
+		//
+		//	solutionCfg->KernelArgus = new std::list<T_KernelArgu>;
+		//	solutionCfg->KernelArgus->push_back(d_in_off);
+		//	solutionCfg->KernelArgus->push_back(d_wei_off);
+		//	solutionCfg->KernelArgus->push_back(d_out_off);
+		//}
 	}
 };
  
@@ -1089,14 +978,11 @@ public:
 
 		// 单独测试
 		{
-			// ----------------------------------------------------------------------
-			// problem config 1：
 			extProblemConfig = new T_ExtConvFwd1x1ProblemConfig();
-			//extProblemConfig->W = 7;		extProblemConfig->H = 7;
-			//extProblemConfig->C = 1024;		extProblemConfig->K = 1024;
 
 			extProblemConfig->W = 28;		extProblemConfig->H = 28;
 			extProblemConfig->C = 192;		extProblemConfig->K = 64;
+			//extProblemConfig->N = 1;
 
 			problemConfig = new T_ProblemConfig();
 			problemConfig->ConfigName = "Conv1x1 WHCK=[28*192*64]";

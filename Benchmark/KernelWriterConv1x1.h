@@ -4,7 +4,6 @@
 
 class KernelWriterConv1x1 :public KernelWriterBase
 {
-
 public:
 	KernelWriterConv1x1():KernelWriterBase()
 	{
@@ -12,6 +11,8 @@ public:
 
 	bool EnInputOffset = 1;
 	bool EnWeightOffset = 1;
+
+	int W = 28, H = 28, C = 192, K = 64, N = 16;
 
 protected:
 	int arg_in_ptr = 0;
@@ -43,7 +44,6 @@ protected:
 	int v_accum;
 	int v_dbg;
 
-	int W = 28, H = 28, C = 192, K = 64, N = 16;
 
 	int ENABLE = 1;
 	int DISABLE = 0;
@@ -73,6 +73,28 @@ protected:
 	char * m_load_kernel_args = "m_load_kernel_args";
 
 	char * END_PROG = "END_PROG";
+
+	void generateParam()
+	{
+		ENABLE = 1;
+		DISABLE = 0;
+		C_IN_MAPS_ONCE = 8;
+		K_OUT_MAPS = 16;
+		K_OUT_MAPS_LOG2 = log2(K_OUT_MAPS);
+		K_OUT_GROUP = K / K_OUT_MAPS;
+		K_OUT_GROUP_LOG2 = log2(K_OUT_GROUP);
+		K_OUT_GROUP_MOD_MASK = modMask(K_OUT_GROUP);
+		PIX_PER_GROUP = 64;
+		PIX_PER_GROUP_LOG2 = log2(PIX_PER_GROUP);
+
+		IN_CHANNEL_STRIDE = W * H;
+		IN_BATCH_STRIDE = W * H * C;
+		OUT_CHANNEL_STRIDE = W * H;
+		OUT_BATCH_STRIDE = W * H * K;
+		WEI_CHANNEL_STRIDE = C;
+
+		LOOP = C / C_IN_MAPS_ONCE / 2;
+	}
 	
 	void startProgram()
 	{
@@ -189,6 +211,17 @@ protected:
 		isa->inst3("v_lshlrev_b32", vgpr(v_outId), d2s(K_OUT_MAPS_LOG2), vgpr(v_weiBlkId), "");
 
 		// -------------------------------------------------------------------------------
+		// if (batch_id >= BATCHSIZE)
+		//		return;
+		// -------------------------------------------------------------------------------
+		isa->inst2("v_mov_b32", vgpr(v_tmp1), d2s(N), "");
+		isa->inst3("v_cmpx_lt_u32", "exec", vgpr(v_batchId), vgpr(v_tmp1), "");
+		
+		//isa->inst2("s_cmpk_ge_u32", sgpr(gid_x0), d2s(1), "");
+		//isa->inst1("s_cbranch_scc1", END_PROG, "");
+		//isa->inst2("s_mov_b64", "exec", d2s(1), "");
+
+		// -------------------------------------------------------------------------------
 		// gbl_in_off  = batch_id * MLO_IN_BATCH_STRIDE + pos;
 		// -------------------------------------------------------------------------------
 		isa->inst2("v_mov_b32", vgpr(v_tmp1), d2s(IN_BATCH_STRIDE), "");
@@ -225,7 +258,6 @@ protected:
 		isa->inst2("v_mov_b32", vgpr_h(v_addr_out), sgpr_h(s_ptr_out), "");
 		isa->inst4("v_add_co_u32", vgpr(v_addr_out), "vcc", sgpr(s_ptr_out), vgpr(v_tmp3), "");
 		isa->inst5("v_addc_co_u32", vgpr_h(v_addr_out), "vcc", d2s(0), vgpr_h(v_addr_out), "vcc", "");
-
 		sline("");
 
 		delSgpr(&s_tmp1);
@@ -600,9 +632,6 @@ protected:
 	/************************************************************************************/
 	void writeSaveOutput()
 	{
-		char * accum = "param1";
-		char * r_accum = "\\param1";
-
 		char * t_acc = "tmp1";
 
 		int loop;

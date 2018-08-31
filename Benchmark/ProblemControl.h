@@ -7,12 +7,6 @@
 
 #include "unistd.h"
 
-
-#define	SE_NUM (4)
-#define	CU_PER_SE (16)
-#define CU_NUM (CU_PER_SE * SE_NUM)
-#define	WAVE_SIZE (64)
-#define CACHE_LINE (16)
 /************************************************************************/
 /* solutionµÃ·Ö                                                         */
 /************************************************************************/
