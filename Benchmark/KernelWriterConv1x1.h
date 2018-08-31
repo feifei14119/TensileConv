@@ -14,6 +14,7 @@ public:
 
 	int W = 28, H = 28, C = 192, K = 64, N = 16;
 	int K_OUT_MAPS = 16;
+	int PIX_BLK_PER_GROUP = 1;
 
 protected:
 	int arg_in_ptr = 0;
@@ -48,13 +49,17 @@ protected:
 
 	int ENABLE = 1;
 	int DISABLE = 0;
+
 	int C_IN_MAPS_ONCE = 8;
 	int K_OUT_MAPS_LOG2 = log2(K_OUT_MAPS);
 	int K_OUT_GROUP = K / K_OUT_MAPS;
 	int K_OUT_GROUP_LOG2 = log2(K_OUT_GROUP);
 	int K_OUT_GROUP_MOD_MASK = modMask(K_OUT_GROUP);
-	int PIX_PER_GROUP = 64;
-	int PIX_PER_GROUP_LOG2 = log2(PIX_PER_GROUP);
+	int PIX_BLK_SIZE = 64;
+	int PIX_BLK_SIZE_LOG2 = log2(PIX_BLK_SIZE);
+	int PIX_BLK_SIZE_MOD_MASK = modMask(PIX_BLK_SIZE);
+
+	int PIX_BLK_PER_GROUP_LOG2 = log2(PIX_BLK_PER_GROUP);
 
 	int IN_CHANNEL_STRIDE = W * H;
 	int IN_BATCH_STRIDE = W * H * C;
@@ -83,8 +88,13 @@ protected:
 		K_OUT_GROUP = K / K_OUT_MAPS;
 		K_OUT_GROUP_LOG2 = log2(K_OUT_GROUP);
 		K_OUT_GROUP_MOD_MASK = modMask(K_OUT_GROUP);
-		PIX_PER_GROUP = 64;
-		PIX_PER_GROUP_LOG2 = log2(PIX_PER_GROUP);
+
+		PIX_BLK_SIZE = 64;
+		PIX_BLK_SIZE_LOG2 = log2(PIX_BLK_SIZE);
+		PIX_BLK_SIZE_MOD_MASK = modMask(PIX_BLK_SIZE);
+
+		PIX_BLK_PER_GROUP = l_wk0 / PIX_BLK_SIZE;
+		PIX_BLK_PER_GROUP_LOG2 = log2(PIX_BLK_PER_GROUP);
 
 		IN_CHANNEL_STRIDE = W * H;
 		IN_BATCH_STRIDE = W * H * C;
@@ -174,41 +184,73 @@ protected:
 	/************************************************************************************/
 	/* ¼ÆËãÏÂ±ê																			*/
 	/************************************************************************************/
-	void writeCalcuBlkIndex()
-	{
-	}
-
+	int v_weiBlkId, v_pixBlkId, v_posId, v_batchId, v_outId;
 	void writeCalcuIndex()
 	{
-		int offset;
-		int v_tmp1, v_tmp2, v_tmp3, v_tmp4;
-		int s_tmp1, s_tmp2, s_tmp3, s_tmp4;
-		int v_weiBlkId, v_inBlkId, v_posId, v_batchId, v_outId;
-
-		newSgpr(&s_tmp1);
-
-		newVgpr(&v_tmp1);
-		newVgpr(&v_tmp2);
-		newVgpr(&v_tmp3);
 		newVgpr(&v_weiBlkId);
-		newVgpr(&v_inBlkId);
+		newVgpr(&v_pixBlkId);
 		newVgpr(&v_posId);
 		newVgpr(&v_batchId);
 		newVgpr(&v_outId);
 
+		writeCalcuBlkIndex();
+		writeCalcuPosIndex();
+		writeCalcuOffset();
+		sline("");
+
+		delVgpr(&v_outId);
+		delVgpr(&v_batchId);
+		delVgpr(&v_posId);
+		delVgpr(&v_pixBlkId);
+		delVgpr(&v_weiBlkId);
+	}
+	// ===================================================================================
+	// ===================================================================================
+	void writeCalcuBlkIndex64()
+	{
 		// -------------------------------------------------------------------------------
-		// out_grp_block = gid % MLO_N_OUT_GROUPS;
-		// grp_id0_faked = gid / MLO_N_OUT_GROUPS;
+		// weiBlkId = gid % MLO_N_OUT_GROUPS;
+		// pixBlkId = gid / MLO_N_OUT_GROUPS;
 		// -------------------------------------------------------------------------------
 		isa->inst3("v_and_b32", vgpr(v_weiBlkId), d2s(K_OUT_GROUP_MOD_MASK), sgpr(gid_x0), "");
-		isa->inst3("v_lshrrev_b32", vgpr(v_inBlkId), d2s(K_OUT_GROUP_LOG2), sgpr(gid_x0), "");
+		isa->inst3("v_lshrrev_b32", vgpr(v_pixBlkId), d2s(K_OUT_GROUP_LOG2), sgpr(gid_x0), "");
+	}
+	void writeCalcuBlkIndex()
+	{
+		int s_tmp1;
+		int v_tmp1;
+
+		newSgpr(&s_tmp1);
+		newVgpr(&v_tmp1);
 
 		// -------------------------------------------------------------------------------
-		// pos_id   = (grp_id0_faked * FIXED_WORKGROUP_SIZE + tid) % MLO_IN_CHANNEL_STRIDE;
-		// batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + tid) / MLO_IN_CHANNEL_STRIDE;
-		// out_id   = out_grp_block * MLO_N_LCL_OUT_MAPS;
+		// weiBlkId = (gid * PIX_BLK_PER_GROUP + tid / PIX_BLK_SIZE) % MLO_N_OUT_GROUPS;
+		// pixBlkId = (gid * PIX_BLK_PER_GROUP + tid / PIX_BLK_SIZE) / MLO_N_OUT_GROUPS;
 		// -------------------------------------------------------------------------------
-		isa->inst4("v_lshl_add_u32", vgpr(v_tmp1), vgpr(v_inBlkId), d2s(PIX_PER_GROUP_LOG2), vgpr(tid_x0), "");
+		isa->inst3("s_lshl_b32", sgpr(s_tmp1), sgpr(gid_x0), d2s(PIX_BLK_PER_GROUP_LOG2), "");
+		isa->inst3("v_lshrrev_b32", vgpr(v_tmp1), d2s(PIX_BLK_SIZE_LOG2), vgpr(tid_x0), "");
+		//isa->inst2("v_readfirstlane_b32", s[s_block_id], vgpr(v_tmp1), "");
+		isa->inst4("v_add_co_u32", vgpr(v_tmp1), "vcc", vgpr(v_tmp1), sgpr(s_tmp1), "");
+		isa->inst3("v_and_b32", vgpr(v_weiBlkId), d2s(K_OUT_GROUP_MOD_MASK), vgpr(v_tmp1), "");
+		isa->inst3("v_lshrrev_b32", vgpr(v_pixBlkId), d2s(K_OUT_GROUP_LOG2), vgpr(v_tmp1), "");
+
+		delSgpr(&s_tmp1);
+		delVgpr(&v_tmp1);
+	}
+	// ===================================================================================
+	// ===================================================================================
+	void writeCalcuPosIndex64()
+	{
+		int v_tmp1, v_tmp2;
+		newVgpr(&v_tmp1);
+		newVgpr(&v_tmp2);
+
+		// -------------------------------------------------------------------------------
+		// pos_id   = (pixBlkId * FIXED_WORKGROUP_SIZE + tid) % MLO_IN_CHANNEL_STRIDE;
+		// batch_id = (pixBlkId * FIXED_WORKGROUP_SIZE + tid) / MLO_IN_CHANNEL_STRIDE;
+		// out_id   = weiBlkId * MLO_N_LCL_OUT_MAPS;
+		// -------------------------------------------------------------------------------
+		isa->inst4("v_lshl_add_u32", vgpr(v_tmp1), vgpr(v_pixBlkId), d2s(PIX_BLK_SIZE_LOG2), vgpr(tid_x0), "");
 		isa->inst2("v_mov_b32", vgpr(v_tmp2), d2s(IN_CHANNEL_STRIDE), "");
 		gas->FUNC("mv_div_u32", 4, s2c(vgpr(v_tmp1)), s2c(vgpr(v_tmp2)), s2c(vgpr(v_batchId)), s2c(vgpr(v_posId)));
 		isa->inst3("v_lshlrev_b32", vgpr(v_outId), d2s(K_OUT_MAPS_LOG2), vgpr(v_weiBlkId), "");
@@ -219,6 +261,50 @@ protected:
 		// -------------------------------------------------------------------------------
 		isa->inst2("v_mov_b32", vgpr(v_tmp1), d2s(N), "");
 		isa->inst3("v_cmpx_lt_u32", "exec", vgpr(v_batchId), vgpr(v_tmp1), "");
+
+		delVgpr(&v_tmp2);
+		delVgpr(&v_tmp1);
+	}
+	void writeCalcuPosIndex()
+	{
+		int v_tmp1, v_tmp2;
+		newVgpr(&v_tmp1);
+		newVgpr(&v_tmp2);
+
+		// -------------------------------------------------------------------------------
+		// pos_id   = (pixBlkId * PIX_BLK_SIZE + tid % PIX_BLK_SIZE) % MLO_IN_CHANNEL_STRIDE;
+		// batch_id = (pixBlkId * PIX_BLK_SIZE + tid % PIX_BLK_SIZE) / MLO_IN_CHANNEL_STRIDE;
+		// out_id   = weiBlkId * MLO_N_LCL_OUT_MAPS;
+		// -------------------------------------------------------------------------------
+		isa->inst3("v_lshlrev_b32", vgpr(v_tmp1), d2s(PIX_BLK_SIZE_LOG2), vgpr(v_pixBlkId), "");
+		isa->inst3("v_and_b32", vgpr(v_tmp2), d2s(PIX_BLK_SIZE_MOD_MASK), vgpr(tid_x0), "");
+		isa->inst4("v_add_co_u32", vgpr(v_tmp1),"vcc", vgpr(v_tmp2), vgpr(v_tmp1), "");
+		isa->inst2("v_mov_b32", vgpr(v_tmp2), d2s(IN_CHANNEL_STRIDE), "");
+		gas->FUNC("mv_div_u32", 4, s2c(vgpr(v_tmp1)), s2c(vgpr(v_tmp2)), s2c(vgpr(v_batchId)), s2c(vgpr(v_posId)));
+		isa->inst3("v_lshlrev_b32", vgpr(v_outId), d2s(K_OUT_MAPS_LOG2), vgpr(v_weiBlkId), "");
+		
+		// -------------------------------------------------------------------------------
+		// if (batch_id >= BATCHSIZE)
+		//		return;
+		// -------------------------------------------------------------------------------
+		isa->inst2("v_mov_b32", vgpr(v_tmp1), d2s(N), "");
+		isa->inst3("v_cmpx_lt_u32", "exec", vgpr(v_batchId), vgpr(v_tmp1), "");
+
+		delVgpr(&v_tmp2);
+		delVgpr(&v_tmp1);
+	}
+	// ===================================================================================
+	// ===================================================================================
+	void writeCalcuOffset()
+	{
+		int offset;
+		int s_tmp1;
+		int v_tmp1, v_tmp2, v_tmp3;
+
+		newSgpr(&s_tmp1);
+		newVgpr(&v_tmp1);
+		newVgpr(&v_tmp2);
+		newVgpr(&v_tmp3);
 
 		// -------------------------------------------------------------------------------
 		// gbl_in_off  = batch_id * MLO_IN_BATCH_STRIDE + pos;
@@ -257,15 +343,8 @@ protected:
 		isa->inst2("v_mov_b32", vgpr_h(v_addr_out), sgpr_h(s_ptr_out), "");
 		isa->inst4("v_add_co_u32", vgpr(v_addr_out), "vcc", sgpr(s_ptr_out), vgpr(v_tmp3), "");
 		isa->inst5("v_addc_co_u32", vgpr_h(v_addr_out), "vcc", d2s(0), vgpr_h(v_addr_out), "vcc", "");
-		sline("");
 
 		delSgpr(&s_tmp1);
-
-		delVgpr(&v_outId);
-		delVgpr(&v_batchId);
-		delVgpr(&v_posId);
-		delVgpr(&v_inBlkId);
-		delVgpr(&v_weiBlkId);
 		delVgpr(&v_tmp3);
 		delVgpr(&v_tmp2);
 		delVgpr(&v_tmp1);

@@ -323,7 +323,7 @@ public:
 			searchParam->ValueArray.push_back(256);
 			//searchParam->ValueArray.push_back(512);
 			//searchParam->ValueArray.push_back(1024);
-			//solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			// ----------------------------------------------------------------------
 			// Ìí¼Ósolution
 			SolutionConfigList->push_back(solutionConfig);
