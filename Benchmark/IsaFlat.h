@@ -32,16 +32,16 @@ public:
 	/************************************************************************/
 	E_ReturnState InitDev()
 	{
-		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)ProblemConfig->extConfig;
 
 		DevMalloc((void**)&(d_a.ptr), exCfg->vectorSize * sizeof(float));
 		DevMalloc((void**)&(d_b.ptr), exCfg->vectorSize * sizeof(float));
 		DevMalloc((void**)&(d_c.ptr), exCfg->vectorSize * sizeof(float));
 
-		solutionCfg->KernelArgus = new std::list<T_KernelArgu>;
-		d_a.size = sizeof(cl_mem);	d_a.isVal = false;	solutionCfg->KernelArgus->push_back(d_a);
-		d_b.size = sizeof(cl_mem);	d_b.isVal = false;	solutionCfg->KernelArgus->push_back(d_b);
-		d_c.size = sizeof(cl_mem);	d_c.isVal = false;	solutionCfg->KernelArgus->push_back(d_c);
+		SolutionConfig->KernelArgus = new std::list<T_KernelArgu>;
+		d_a.size = sizeof(cl_mem);	d_a.isVal = false;	SolutionConfig->KernelArgus->push_back(d_a);
+		d_b.size = sizeof(cl_mem);	d_b.isVal = false;	SolutionConfig->KernelArgus->push_back(d_b);
+		d_c.size = sizeof(cl_mem);	d_c.isVal = false;	SolutionConfig->KernelArgus->push_back(d_c);
 
 		Copy2Dev((cl_mem)(d_a.ptr), exCfg->h_a, exCfg->vectorSize * sizeof(float));
 		Copy2Dev((cl_mem)(d_b.ptr), exCfg->h_b, exCfg->vectorSize * sizeof(float));
@@ -54,7 +54,7 @@ public:
 	/************************************************************************/
 	E_ReturnState GetBackResult()
 	{
-		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)ProblemConfig->extConfig;
 		Copy2Hst(exCfg->h_c, (cl_mem)(d_c.ptr), exCfg->vectorSize * sizeof(float));
 	}
 
@@ -83,7 +83,6 @@ public:
 
 		solutionConfig = new T_SolutionConfig();
 		solutionConfig->ConfigName = "AsmSolution";
-		solutionConfig->RepeatTime = 5;
 		solutionConfig->extConfig = extSolutionConfig;
 
 		// ----------------------------------------------------------------------
@@ -98,27 +97,27 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		T_ExtFlatProblemConfig * extProblem = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
-		T_ExtFlatSolutionConfig * extSolution = (T_ExtFlatSolutionConfig *)solutionCfg->extConfig;
+		T_ExtFlatProblemConfig * extProblem = (T_ExtFlatProblemConfig *)ProblemConfig->extConfig;
+		T_ExtFlatSolutionConfig * extSolution = (T_ExtFlatSolutionConfig *)SolutionConfig->extConfig;
 		
 		// ======================================================================
 		// 生成代码
 		// ======================================================================
-		if (solutionCfg->ConfigName == "AsmSolution")
+		if (SolutionConfig->ConfigName == "AsmSolution")
 		{
-			solutionCfg->KernelName = "IsaFlat";
-			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+			SolutionConfig->KernelName = "IsaFlat";
+			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 
 		// ======================================================================
 		// 生成worksize
 		// ======================================================================
-		solutionCfg->l_wk0 = FIX_WORKGROUP_SIZE;
-		solutionCfg->l_wk1 = 1;
-		solutionCfg->l_wk2 = 1;
-		solutionCfg->g_wk0 = extProblem->vectorSize;
-		solutionCfg->g_wk1 = 1;
-		solutionCfg->g_wk2 = 1;
+		SolutionConfig->l_wk0 = FIX_WORKGROUP_SIZE;
+		SolutionConfig->l_wk1 = 1;
+		SolutionConfig->l_wk2 = 1;
+		SolutionConfig->g_wk0 = extProblem->vectorSize;
+		SolutionConfig->g_wk1 = 1;
+		SolutionConfig->g_wk2 = 1;
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -163,13 +162,13 @@ public:
 	/************************************************************************/
 	E_ReturnState InitHost()
 	{
-		std::cout << "Flat Instruction init" << problemCfg->ConfigName << std::endl;
-		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
+		std::cout << "Flat Instruction init" << ProblemConfig->ConfigName << std::endl;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)ProblemConfig->extConfig;
 
-		problemCfg->Calculation = exCfg->vectorSize; 
-		problemCfg->TheoryElapsedTime = problemCfg->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
-		printf("Calculation = %.3f G\n", problemCfg->Calculation * 1e-9);
-		printf("TheoryElapsedTime = %.3f us \n", problemCfg->TheoryElapsedTime * 1e6);
+		ProblemConfig->Calculation = exCfg->vectorSize; 
+		ProblemConfig->TheoryElapsedTime = ProblemConfig->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
+		printf("Calculation = %.3f G\n", ProblemConfig->Calculation * 1e-9);
+		printf("TheoryElapsedTime = %.3f us \n", ProblemConfig->TheoryElapsedTime * 1e6);
 
 		exCfg->h_a = (float*)HstMalloc(exCfg->vectorSize * sizeof(float));
 		exCfg->h_b = (float*)HstMalloc(exCfg->vectorSize * sizeof(float));
@@ -192,7 +191,7 @@ public:
 	E_ReturnState Host()
 	{
 		printf("flat instruction host.\n");
-		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)ProblemConfig->extConfig;
 
 		for (int i = 0; i < exCfg->vectorSize; i++)
 		{
@@ -207,7 +206,7 @@ public:
 	E_ReturnState Verify()
 	{
 		printf("flat instruction verify.\n");
-		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)ProblemConfig->extConfig;
 		
 		float diff = 0;
 		for (int i = 0; i < exCfg->vectorSize; i++)
@@ -233,7 +232,7 @@ public:
 	void ReleaseHost()
 	{
 		printf("flat instruction destroy.\n");
-		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)problemCfg->extConfig;
+		T_ExtFlatProblemConfig * exCfg = (T_ExtFlatProblemConfig *)ProblemConfig->extConfig;
 
 		HstFree(exCfg->h_a);
 		HstFree(exCfg->h_b);

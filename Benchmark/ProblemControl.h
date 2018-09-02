@@ -18,29 +18,27 @@ typedef struct ScoreTypde
 }T_Score;
 
 /************************************************************************/
-/* solution 配置				                                             */
+/* solution 配置				                                            */
+/* 保存需要传递给 KernelWriterBase 的通用参数								*/
 /************************************************************************/
 typedef struct SolutionConfigTpye
 {
-	std::string ConfigName;
+	std::string ConfigName;				// 解决方案名称
+	SearchSpace KernelSearchSpace;		// 解决方案参数搜索空间
+	void * extConfig;
+
 	std::string KernelName;			// kernel function name, will used to find source file
 	std::string KernelFile;			// 可以指定文件名，不使用KernelName推导.需要后缀
 	std::string KernelString;
 	E_KernleType KernelSrcType;
 	std::string extCompilerOpt;
-	int RepeatTime;
-	std::list<double> ElapsedTimes;
-	T_Score BestScore;
-	T_Score AverageScore;
 
 	size_t l_wk0, l_wk1, l_wk2;
 	size_t g_wk0, g_wk1, g_wk2;
 	size_t b_wk0, b_wk1, b_wk2;
-	
-	std::list<T_KernelArgu> * KernelArgus;
-	SearchSpace KernelSearchSpace;
 
-	void * extConfig;
+	std::list<T_KernelArgu> * KernelArgus;
+
 }T_SolutionConfig;
 
 /************************************************************************/
@@ -48,12 +46,12 @@ typedef struct SolutionConfigTpye
 /************************************************************************/
 typedef struct ProblemConfigType
 {
-	std::string ConfigName;
-	double Calculation;
-	double TheoryElapsedTime;
-
+	std::string ConfigName;				// 问题配置名称
+	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
 	void * extConfig;
-	SearchSpace ProblemSearchSpace;
+
+	double Calculation;					// 计算量
+	double TheoryElapsedTime;			// 理论执行时间
 }T_ProblemConfig;
 
 /************************************************************************/
@@ -64,12 +62,13 @@ class SolutionCtrlBase
 public:
 	SolutionCtrlBase()
 	{
+		RepeatTime = 100;
 		SolutionConfigList = new std::list<T_SolutionConfig*>;
 	}
 
 	void RunSolution(T_ProblemConfig *problem)
 	{
-		problemCfg = problem;
+		ProblemConfig = problem;
 
 		// ======================================================================
 		// 生成解决方案空间
@@ -86,13 +85,13 @@ public:
 			solutionCfgIt != SolutionConfigList->end();
 			solutionCfgIt++)
 		{
-			solutionCfg = *solutionCfgIt;
+			SolutionConfig = *solutionCfgIt;
 
 			printf("======================================================================\n");
-			printf("Solution Name: %s.\n", solutionCfg->ConfigName.c_str());
+			printf("Solution Name: %s.\n", SolutionConfig->ConfigName.c_str());
 			printf("======================================================================\n");
 			
-			if (solutionCfg->KernelSearchSpace.ParamNum > 0)
+			if (SolutionConfig->KernelSearchSpace.ParamNum > 0)
 			{
 				RunOneSolutionConfig();
 			}
@@ -105,20 +104,19 @@ public:
 
 	E_ReturnState RunOneSolutionConfig()
 	{
-
 		while (true)
 		{
-			runtime = new RuntimeCtrl();
+			runtime = new RuntimeCtrl(false);
 
 			INFO("initialize device.");						InitDev();
 			INFO("generate source, compiler, worksize.");	GenerateSolution();
 			INFO("compiler kernel and program.");			SetupSolution();
-			INFO("set arg and launch kernel.");				LaunchSolution();
+			INFO("set arg and launch kernel.");				LaunchSolution(false);
 			INFO("collect performence.");					GetPerformence();
 			INFO("copy result back to cpu.");				GetBackResult();
 			INFO("release device.");						ReleaseDev();
 			INFO("search kernel parameters.");
-			if (solutionCfg->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+			if (SolutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search kernel parameters finished.");
 				ReportProblemPerformence();
@@ -127,8 +125,7 @@ public:
 
 			delete runtime;
 			sleep(1);
-		}
-	
+		}	
 	}
 
 	E_ReturnState RunSolutionOnce()
@@ -137,20 +134,21 @@ public:
 		INFO("initialize device.");						InitDev();
 		INFO("generate source, compiler, worksize.");	GenerateSolution();
 		INFO("compiler kernel and program.");			SetupSolution();
-		INFO("set arg and launch kernel.");				LaunchSolution();
+		INFO("set arg and launch kernel.");				LaunchSolution(false);
 		INFO("collect performence.");					GetPerformence();
 		INFO("copy result back to cpu.");				GetBackResult();
 		INFO("release device.");						ReleaseDev();
 		delete runtime;
 	}
 
-	virtual E_ReturnState LaunchSolution()
+	virtual E_ReturnState LaunchSolution(bool isWarmup)
 	{
 		std::list<T_KernelArgu>::iterator args;
 
+		INFO("setup arguments.");
 		int i = 0;
-		for (args = solutionCfg->KernelArgus->begin();
-			args != solutionCfg->KernelArgus->end(); args++)
+		for (args = SolutionConfig->KernelArgus->begin();
+			args != SolutionConfig->KernelArgus->end(); args++)
 		{
 			if ((*args).isVal == true)
 			{
@@ -170,12 +168,20 @@ public:
 			i++;
 		}
 
-		solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
-		for (int i = 0; i < solutionCfg->RepeatTime; i++)
+		INFO("launch kernel.");
+		if (isWarmup)
 		{
 			runtime->LanchKernel();
-			solutionCfg->ElapsedTimes.push_back(runtime->ElapsedTime);
 			usleep(1);
+		}
+		else
+		{
+			for (int i = 0; i < RepeatTime; i++)
+			{
+				runtime->LanchKernel();
+				ElapsedTimes.push_back(runtime->ElapsedTime);
+				usleep(1);
+			}
 		}
 
 		return E_ReturnState::SUCCESS;
@@ -183,29 +189,30 @@ public:
 
 	virtual E_ReturnState SetupSolution()
 	{
-		runtime->KernelName = solutionCfg->KernelName;
-		runtime->KernelSrcType = solutionCfg->KernelSrcType;
-		runtime->extCompilerOpt = solutionCfg->extCompilerOpt;
-		solutionCfg->b_wk0 = solutionCfg->g_wk0 / solutionCfg->l_wk0;
-		solutionCfg->b_wk1 = solutionCfg->g_wk1 / solutionCfg->l_wk1;
-		solutionCfg->b_wk2 = solutionCfg->g_wk2 / solutionCfg->l_wk2;
-		runtime->SetBlockSize(dim3(solutionCfg->l_wk0, solutionCfg->l_wk1, solutionCfg->l_wk2));
-		runtime->SetGridSize(dim3(solutionCfg->b_wk0, solutionCfg->b_wk1, solutionCfg->b_wk2));
+		runtime->KernelName = SolutionConfig->KernelName;
+		runtime->KernelSrcType = SolutionConfig->KernelSrcType;
+		runtime->extCompilerOpt = SolutionConfig->extCompilerOpt;
+		SolutionConfig->b_wk0 = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
+		SolutionConfig->b_wk1 = SolutionConfig->g_wk1 / SolutionConfig->l_wk1;
+		SolutionConfig->b_wk2 = SolutionConfig->g_wk2 / SolutionConfig->l_wk2;
+		runtime->SetBlockSize(dim3(SolutionConfig->l_wk0, SolutionConfig->l_wk1, SolutionConfig->l_wk2));
+		runtime->SetGridSize(dim3(SolutionConfig->b_wk0, SolutionConfig->b_wk1, SolutionConfig->b_wk2));
 		
-		printf("l_wk=(%d, %d, %d)\n", solutionCfg->l_wk0, solutionCfg->l_wk1, solutionCfg->l_wk2);
-		printf("b_wk=(%d, %d, %d)\n", solutionCfg->b_wk0, solutionCfg->b_wk1, solutionCfg->b_wk2);
-		printf("g_wk=(%d, %d, %d)\n", solutionCfg->g_wk0, solutionCfg->g_wk1, solutionCfg->g_wk2);
-		std::cout << "compile options=" << solutionCfg->extCompilerOpt << std::endl;
+		printf("l_wk=(%d, %d, %d)\n", SolutionConfig->l_wk0, SolutionConfig->l_wk1, SolutionConfig->l_wk2);
+		printf("b_wk=(%d, %d, %d)\n", SolutionConfig->b_wk0, SolutionConfig->b_wk1, SolutionConfig->b_wk2);
+		printf("g_wk=(%d, %d, %d)\n", SolutionConfig->g_wk0, SolutionConfig->g_wk1, SolutionConfig->g_wk2);
+		std::cout << "compile options=" << SolutionConfig->extCompilerOpt << std::endl;
 
 		// build source file
-		runtime->GetFilesName(solutionCfg->KernelFile);
-		runtime->KernelString = solutionCfg->KernelString;
+		runtime->GetFilesName(SolutionConfig->KernelFile);
+		runtime->KernelString = SolutionConfig->KernelString;
 		runtime->CreatSolution();
 
 		// warm up
-		LaunchSolution();
+		INFO("warm up.");
+		LaunchSolution(true);
 
-		solutionCfg->ElapsedTimes.clear();
+		ElapsedTimes.clear();
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -214,48 +221,48 @@ public:
 	{
 		// 平均时间
 		std::list<double>::iterator elp;
-		solutionCfg->AverageScore.ElapsedTime = 0;
-		for (elp = solutionCfg->ElapsedTimes.begin(); elp != solutionCfg->ElapsedTimes.end(); elp++)
+		AverageScore.ElapsedTime = 0;
+		for (elp = ElapsedTimes.begin(); elp != ElapsedTimes.end(); elp++)
 		{
 			//printf("elapsed time %.3f us\n",*elp * 1e6);
-			solutionCfg->AverageScore.ElapsedTime += *elp;
+			AverageScore.ElapsedTime += *elp;
 		}
-		solutionCfg->AverageScore.ElapsedTime /= solutionCfg->ElapsedTimes.size();
+		AverageScore.ElapsedTime /= ElapsedTimes.size();
 
 		// 最短时间
-		solutionCfg->ElapsedTimes.sort();
-		solutionCfg->BestScore.ElapsedTime = solutionCfg->ElapsedTimes.front();
+		ElapsedTimes.sort();
+		BestScore.ElapsedTime = ElapsedTimes.front();
 
 		// 性能换算
-		solutionCfg->AverageScore.Flops = problemCfg->Calculation / solutionCfg->AverageScore.ElapsedTime;
-		solutionCfg->AverageScore.Performence = problemCfg->TheoryElapsedTime / solutionCfg->AverageScore.ElapsedTime;
-		solutionCfg->BestScore.Flops = problemCfg->Calculation / solutionCfg->BestScore.ElapsedTime;
-		solutionCfg->BestScore.Performence = problemCfg->TheoryElapsedTime / solutionCfg->BestScore.ElapsedTime;
+		AverageScore.Flops = ProblemConfig->Calculation / AverageScore.ElapsedTime;
+		AverageScore.Performence = ProblemConfig->TheoryElapsedTime / AverageScore.ElapsedTime;
+		BestScore.Flops = ProblemConfig->Calculation / BestScore.ElapsedTime;
+		BestScore.Performence = ProblemConfig->TheoryElapsedTime / BestScore.ElapsedTime;
 
-		printf("best elapsed time: %.3f (us).\n", solutionCfg->BestScore.ElapsedTime * 1e6);
-		printf("best performence: %.1f (Gflops) = %.1f%%.\n", solutionCfg->BestScore.Flops * 1e-9, solutionCfg->BestScore.Performence * 100);
-		printf("average elapsed time: %.3f (us).\n", solutionCfg->AverageScore.ElapsedTime * 1e6);
-		printf("average performence: %.1f (Gflops) = %.1f%%.\n", solutionCfg->AverageScore.Flops * 1e-9, solutionCfg->AverageScore.Performence * 100);
+		printf("best elapsed time: %.3f (us).\n", BestScore.ElapsedTime * 1e6);
+		printf("best performence: %.1f (Gflops) = %.1f%%.\n", BestScore.Flops * 1e-9, BestScore.Performence * 100);
+		printf("average elapsed time: %.3f (us).\n", AverageScore.ElapsedTime * 1e6);
+		printf("average performence: %.1f (Gflops) = %.1f%%.\n", AverageScore.Flops * 1e-9, AverageScore.Performence * 100);
 		
-		if ((ProblemBestTime < 0) || (ProblemBestTime > solutionCfg->AverageScore.ElapsedTime))
+		if ((ProblemBestTime < 0) || (ProblemBestTime > AverageScore.ElapsedTime))
 		{
-			ProblemBestTime = solutionCfg->AverageScore.ElapsedTime;
-			ProblemBestPerformence = solutionCfg->AverageScore.Performence;
-			solutionCfg->KernelSearchSpace.RecordBestComb();
+			ProblemBestTime = AverageScore.ElapsedTime;
+			ProblemBestPerformence = AverageScore.Performence;
+			SolutionConfig->KernelSearchSpace.RecordBestComb();
 		}
 	}
 
 	void printIndex(int *index, char* name)
 	{
-		int groupNum = solutionCfg->g_wk0 / solutionCfg->l_wk0;
+		int groupNum = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
 		int grpNumPerCU = (groupNum + CU_NUM - 1) / CU_NUM;
-		int waveNumPerCU = grpNumPerCU * (solutionCfg->l_wk0 / WAVE_SIZE);
+		int waveNumPerCU = grpNumPerCU * (SolutionConfig->l_wk0 / WAVE_SIZE);
 		int simuGrpIdx = 0;
 		int grpIdxBase;
 
 		printf("\t|---------------------------------------------------------\n");
 		printf("\t| index name = %s\n", name);
-		printf("\t| group size = %d\n", solutionCfg->l_wk0);
+		printf("\t| group size = %d\n", SolutionConfig->l_wk0);
 		printf("\t| group number = %d\n", groupNum);
 		printf("\t| group number per cu = %d\n", grpNumPerCU);
 		printf("\t| wave number per cu = %d\n", waveNumPerCU);
@@ -292,15 +299,17 @@ public:
 		printf("please report best perfomence.\n");
 	}
 
-	RuntimeCtrl * runtime;
+	T_ProblemConfig * ProblemConfig;					// 当前正在处理的问题配置
+	T_SolutionConfig * SolutionConfig;					// 当前正在处理的解决方案配置
+	std::list<T_SolutionConfig*> *SolutionConfigList;	// 所有解决方案配置
 
-	T_ProblemConfig * problemCfg;
-	T_SolutionConfig * solutionCfg;
-	std::list<T_SolutionConfig*> *SolutionConfigList;
-
-public:
-	double ProblemBestTime;
-	double ProblemBestPerformence;
+	int RepeatTime;
+	RuntimeCtrl * runtime;			
+	std::list<double> ElapsedTimes;		// 每次运行的耗时
+	T_Score BestScore;					// 当前解决方案配置的最佳性能
+	T_Score AverageScore;				// 当前解决方案配置的平均性能
+	double ProblemBestTime;				// 当前问题配置的最佳运行时间
+	double ProblemBestPerformence;		// 当前问题配置的最佳性能
 };
 
 /************************************************************************/
@@ -309,6 +318,11 @@ public:
 class ProblemCtrlBase
 {
 public:
+	ProblemCtrlBase()
+	{
+		ProblemConfigList = new std::list<T_ProblemConfig*>;
+	}
+
 	void RunProblem()
 	{
 		printf("************************************************************************\n");
@@ -319,6 +333,7 @@ public:
 		// 生成问题空间
 		// ======================================================================
 		INFO("generate problem config list.");
+		ProblemConfigList->clear();
 		GenerateProblemConfigs();
 
 		// ======================================================================
@@ -329,14 +344,14 @@ public:
 			problemCfgIt != ProblemConfigList->end(); 
 			problemCfgIt++)
 		{
-			problemCfg = *problemCfgIt;
+			ProblemConfig = *problemCfgIt;
 
 			printf("************************************************************************\n");
 			printf("* Problem Name: %s.\n", ProblemName.c_str());
-			printf("* Problem Config: %s.\n", problemCfg->ConfigName.c_str());
+			printf("* Problem Config: %s.\n", ProblemConfig->ConfigName.c_str());
 			printf("************************************************************************\n");
 
-			if (problemCfg->ProblemSearchSpace.ParamNum > 0)
+			if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
 			{
 				RunOneProblemConfig();
 			}
@@ -354,12 +369,12 @@ public:
 			Solution->ProblemBestTime = -1;
 			INFO("initialize host.");			InitHost();
 			INFO("run host calculate.");		Host();
-			INFO("solve this problem.");		Solution->RunSolution(problemCfg);
+			INFO("solve this problem.");		Solution->RunSolution(ProblemConfig);
 			INFO("verify device calculation.");	Verify();
 			INFO("release host.");				ReleaseHost();
 
 			INFO("search problem parameters.");
-			if (problemCfg->ProblemSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+			if (ProblemConfig->ProblemParamSpace.GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search problem parameters finished.");
 				break;
@@ -372,7 +387,7 @@ public:
 		Solution->ProblemBestTime = -1;
 		INFO("initialize host.");				InitHost();
 		INFO("run host calculate.");			Host();
-		INFO("solve this problem.");			Solution->RunSolution(problemCfg);
+		INFO("solve this problem.");			Solution->RunSolution(ProblemConfig);
 		INFO("verify device calculation.");		Verify();
 		INFO("release host.");					ReleaseHost();
 
@@ -385,10 +400,10 @@ public:
 	virtual E_ReturnState Verify() = 0;
 	virtual void ReleaseHost() = 0;
 
-	SolutionCtrlBase * Solution;
-	T_ProblemConfig *problemCfg;
 	std::string ProblemName;
-	std::list<T_ProblemConfig*> *ProblemConfigList;
+	std::list<T_ProblemConfig*> *ProblemConfigList;	// 所有问题配置
+	T_ProblemConfig *ProblemConfig;					// 当前正在处理的问题配置
+	SolutionCtrlBase * Solution;
 };
 
 #include "TestProblem.h"

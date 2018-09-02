@@ -6,9 +6,6 @@
 #include "RuntimeControl.h"
 #include "ProblemControl.h"
 
-#include "IsaWriterGfx9.h"
-#include "KernelWriterConv1x1.h"
-
 int main(int argc, char *argv[])
 {
 	RuntimeCtrl::InitRuntime(argc, argv);

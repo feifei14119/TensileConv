@@ -36,8 +36,8 @@ public:
 	/************************************************************************/
 	E_ReturnState InitDev()
 	{
-		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)problemCfg->extConfig;
-		T_ExtProducerConsumerSolutionConfig * extSol = (T_ExtProducerConsumerSolutionConfig *)solutionCfg->extConfig;
+		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)ProblemConfig->extConfig;
+		T_ExtProducerConsumerSolutionConfig * extSol = (T_ExtProducerConsumerSolutionConfig *)SolutionConfig->extConfig;
 
 		preKernel = new RuntimeCtrlOcl();
 
@@ -51,11 +51,11 @@ public:
 		d_c.size = sizeof(cl_mem);	d_c.isVal = false;
 		d_sig.size = sizeof(cl_mem); d_sig.isVal = false;
 
-		solutionCfg->KernelArgus = new std::list<T_KernelArgu>;
-		solutionCfg->KernelArgus->push_back(d_a);
-		solutionCfg->KernelArgus->push_back(d_b);
-		solutionCfg->KernelArgus->push_back(d_c);
-		solutionCfg->KernelArgus->push_back(d_sig);
+		SolutionConfig->KernelArgus = new std::list<T_KernelArgu>;
+		SolutionConfig->KernelArgus->push_back(d_a);
+		SolutionConfig->KernelArgus->push_back(d_b);
+		SolutionConfig->KernelArgus->push_back(d_c);
+		SolutionConfig->KernelArgus->push_back(d_sig);
 
 		extSol->preArgus = new std::list<T_KernelArgu>;
 		extSol->preArgus->push_back(d_a);
@@ -74,7 +74,7 @@ public:
 	/************************************************************************/
 	E_ReturnState GetBackResult()
 	{
-		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)problemCfg->extConfig;
+		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)ProblemConfig->extConfig;
 		Copy2Hst(exCfg->h_c, (cl_mem)(d_c.ptr), exCfg->vectorSize * sizeof(float));
 		Copy2Hst(exCfg->h_sig, (cl_mem)(d_sig.ptr), cu_num * sizeof(int));
 	}
@@ -106,7 +106,6 @@ public:
 
 		solutionConfig = new T_SolutionConfig();
 		solutionConfig->ConfigName = "AsmSolution";
-		solutionConfig->RepeatTime = 1;
 		solutionConfig->extConfig = extSolutionConfig;
 
 		// ----------------------------------------------------------------------
@@ -121,28 +120,28 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		T_ExtProducerConsumerProblemConfig * extProblem = (T_ExtProducerConsumerProblemConfig *)problemCfg->extConfig;
-		T_ExtProducerConsumerSolutionConfig * extSolution = (T_ExtProducerConsumerSolutionConfig *)solutionCfg->extConfig;
+		T_ExtProducerConsumerProblemConfig * extProblem = (T_ExtProducerConsumerProblemConfig *)ProblemConfig->extConfig;
+		T_ExtProducerConsumerSolutionConfig * extSolution = (T_ExtProducerConsumerSolutionConfig *)SolutionConfig->extConfig;
 		
 		// ======================================================================
 		// 生成代码
 		// ======================================================================
-		if (solutionCfg->ConfigName == "AsmSolution")
+		if (SolutionConfig->ConfigName == "AsmSolution")
 		{
-			solutionCfg->KernelName = "Consumer";
-			solutionCfg->KernelFile = "PS_Consumer.s";
-			solutionCfg->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+			SolutionConfig->KernelName = "Consumer";
+			SolutionConfig->KernelFile = "PS_Consumer.s";
+			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 
 		// ======================================================================
 		// 生成worksize
 		// ======================================================================
-		solutionCfg->l_wk0 = 128;
-		solutionCfg->l_wk1 = 1;
-		solutionCfg->l_wk2 = 1;
-		solutionCfg->g_wk0 = extProblem->vectorSize;
-		solutionCfg->g_wk1 = 1;
-		solutionCfg->g_wk2 = 1;
+		SolutionConfig->l_wk0 = 128;
+		SolutionConfig->l_wk1 = 1;
+		SolutionConfig->l_wk2 = 1;
+		SolutionConfig->g_wk0 = extProblem->vectorSize;
+		SolutionConfig->g_wk1 = 1;
+		SolutionConfig->g_wk2 = 1;
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -158,7 +157,7 @@ public:
 		setupConsumer();
 
 		// warm up
-		LaunchSolution();
+		LaunchSolution(true);
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -179,7 +178,7 @@ public:
 
 		// build source file
 		preKernel->GetFilesName(preKernel->KernelFile);
-		preKernel->KernelString = solutionCfg->KernelString;
+		preKernel->KernelString = SolutionConfig->KernelString;
 		preKernel->CreatSolution();
 
 		return E_ReturnState::SUCCESS;
@@ -189,26 +188,26 @@ public:
 	{
 		printf("setup consumer solution.\n");
 
-		runtime->KernelName = solutionCfg->KernelName;
-		runtime->KernelSrcType = solutionCfg->KernelSrcType;
-		runtime->extCompilerOpt = solutionCfg->extCompilerOpt;
-		solutionCfg->b_wk0 = solutionCfg->g_wk0 / solutionCfg->l_wk0;
-		solutionCfg->b_wk1 = solutionCfg->g_wk1 / solutionCfg->l_wk1;
-		solutionCfg->b_wk2 = solutionCfg->g_wk2 / solutionCfg->l_wk2;
-		runtime->SetBlockSize(dim3(solutionCfg->l_wk0, solutionCfg->l_wk1, solutionCfg->l_wk2));
-		runtime->SetGridSize(dim3(solutionCfg->b_wk0, solutionCfg->b_wk1, solutionCfg->b_wk2));
+		runtime->KernelName = SolutionConfig->KernelName;
+		runtime->KernelSrcType = SolutionConfig->KernelSrcType;
+		runtime->extCompilerOpt = SolutionConfig->extCompilerOpt;
+		SolutionConfig->b_wk0 = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
+		SolutionConfig->b_wk1 = SolutionConfig->g_wk1 / SolutionConfig->l_wk1;
+		SolutionConfig->b_wk2 = SolutionConfig->g_wk2 / SolutionConfig->l_wk2;
+		runtime->SetBlockSize(dim3(SolutionConfig->l_wk0, SolutionConfig->l_wk1, SolutionConfig->l_wk2));
+		runtime->SetGridSize(dim3(SolutionConfig->b_wk0, SolutionConfig->b_wk1, SolutionConfig->b_wk2));
 
-		printf("l_wk=(%d, %d, %d)\n", solutionCfg->l_wk0, solutionCfg->l_wk1, solutionCfg->l_wk2);
-		printf("b_wk=(%d, %d, %d)\n", solutionCfg->b_wk0, solutionCfg->b_wk1, solutionCfg->b_wk2);
-		printf("g_wk=(%d, %d, %d)\n", solutionCfg->g_wk0, solutionCfg->g_wk1, solutionCfg->g_wk2);
-		std::cout << "compile options:\n" << solutionCfg->extCompilerOpt << std::endl;
+		printf("l_wk=(%d, %d, %d)\n", SolutionConfig->l_wk0, SolutionConfig->l_wk1, SolutionConfig->l_wk2);
+		printf("b_wk=(%d, %d, %d)\n", SolutionConfig->b_wk0, SolutionConfig->b_wk1, SolutionConfig->b_wk2);
+		printf("g_wk=(%d, %d, %d)\n", SolutionConfig->g_wk0, SolutionConfig->g_wk1, SolutionConfig->g_wk2);
+		std::cout << "compile options:\n" << SolutionConfig->extCompilerOpt << std::endl;
 
 		// build source file
-		runtime->GetFilesName(solutionCfg->KernelFile);
-		runtime->KernelString = solutionCfg->KernelString;
+		runtime->GetFilesName(SolutionConfig->KernelFile);
+		runtime->KernelString = SolutionConfig->KernelString;
 		runtime->CreatSolution();
 
-		solutionCfg->ElapsedTimes.clear();
+		ElapsedTimes.clear();
 	}
 
 	/************************************************************************/
@@ -219,8 +218,7 @@ public:
 		printf("set argue.\n");
 		UnixTimer tmr;
 
-		solutionCfg->RepeatTime = solutionCfg->RepeatTime == 0 ? 1 : solutionCfg->RepeatTime;
-		for (int i = 0; i < solutionCfg->RepeatTime; i++)
+		for (int i = 0; i < RepeatTime; i++)
 		{
 			setArgusProducer();
 			setArgusConsumer();
@@ -237,7 +235,7 @@ public:
 	{
 		printf("set producer argue.\n");
 		std::list<T_KernelArgu>::iterator args;
-		T_ExtProducerConsumerSolutionConfig * extSolu = (T_ExtProducerConsumerSolutionConfig *)solutionCfg->extConfig;
+		T_ExtProducerConsumerSolutionConfig * extSolu = (T_ExtProducerConsumerSolutionConfig *)SolutionConfig->extConfig;
 
 		int i = 0;
 		for (args = extSolu->preArgus->begin(); args != extSolu->preArgus->end(); args++)
@@ -255,7 +253,7 @@ public:
 		std::list<T_KernelArgu>::iterator args;
 
 		int i = 0;
-		for (args = solutionCfg->KernelArgus->begin(); args != solutionCfg->KernelArgus->end(); args++)
+		for (args = SolutionConfig->KernelArgus->begin(); args != SolutionConfig->KernelArgus->end(); args++)
 		{
 			DevCheckFunc(clSetKernelArg(runtime->kernel, i, (*args).size, &(*args).ptr));
 			i++;
@@ -305,8 +303,8 @@ public:
 	/************************************************************************/
 	E_ReturnState InitHost()
 	{
-		std::cout << "ProducerConsumer init" << problemCfg->ConfigName << std::endl;
-		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)problemCfg->extConfig;
+		std::cout << "ProducerConsumer init" << ProblemConfig->ConfigName << std::endl;
+		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)ProblemConfig->extConfig;
 
 		printf("************************************************************************\n");
 		printf("* VectorSize = %d\n", exCfg->vectorSize);
@@ -338,7 +336,7 @@ public:
 	E_ReturnState Host()
 	{
 		printf("ProducerConsumer host.\n");
-		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)problemCfg->extConfig;
+		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)ProblemConfig->extConfig;
 
 		for (int i = 0; i < exCfg->vectorSize; i++)
 		{
@@ -353,7 +351,7 @@ public:
 	E_ReturnState Verify()
 	{
 		printf("ProducerConsumer verify.\n");
-		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)problemCfg->extConfig;
+		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)ProblemConfig->extConfig;
 		
 		float diff = 0;
 		for (int i = 0; i < exCfg->vectorSize; i++)
@@ -379,7 +377,7 @@ public:
 	void ReleaseHost()
 	{
 		printf("ProducerConsumer destroy.\n");
-		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)problemCfg->extConfig;
+		T_ExtProducerConsumerProblemConfig * exCfg = (T_ExtProducerConsumerProblemConfig *)ProblemConfig->extConfig;
 
 		HstFree(exCfg->h_a);
 		HstFree(exCfg->h_b);

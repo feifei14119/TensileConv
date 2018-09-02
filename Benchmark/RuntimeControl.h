@@ -258,9 +258,9 @@ public:
 	{
 #ifdef RUNTIME_OCL
 		//complier = "/opt/rocm/bin/clang-ocl ";
-		complier = "/opt/rocm/opencl/bin/x86_64/clang ";
+		//complier = "/opt/rocm/opencl/bin/x86_64/clang ";
 		//complier = "llvm-mc ";
-		//complier = "clang ";
+		complier = "clang ";
 #else
 		complier = "/opt/rocm/opencl/bin/x86_64/clang ";
 #endif;
@@ -930,6 +930,7 @@ public:
 #if GPU_TIMER
 		DevCheckFunc(clEnqueueNDRangeKernel(stream, kernel, 3, NULL, cl_gridSize, cl_blockSize, 0, NULL, &exeEvent));
 		clFinish(stream);
+
 		//clGetEventProfilingInfo(exeEvent, CL_PROFILING_COMMAND_SUBMIT, sizeof(cl_ulong), &startTime, NULL);
 		clGetEventProfilingInfo(exeEvent, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &startTime, NULL);
 		clGetEventProfilingInfo(exeEvent, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &endTime, NULL);

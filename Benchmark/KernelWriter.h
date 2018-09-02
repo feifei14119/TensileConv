@@ -1,11 +1,15 @@
 #pragma once
-#include "BasicClass.h" 
+
+#include "BasicClass.h"
+#include "ProblemControl.h"
+
+#include "GasWriter.h"
 #include "IsaWriter.h"
 
 class KernelWriterBase
 {
 public:	
-	KernelWriterBase()
+	KernelWriterBase(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg)
 	{
 		variableMap = new std::map<std::string, int>();
 		sgprCount = 0;
@@ -18,13 +22,16 @@ public:
 		isa = new IsaWriterBase();
 		isa->tableCnt = &tableCnt;
 		isa->kernelStr = &KernelStr;
+
+		problemConfig = probCfg;
+		solutionConfig = solCfg;
+
+		kernelName = solutionConfig->KernelName;
+		kernelFile = solutionConfig->KernelFile;
+		group_size = solutionConfig->l_wk0;
 	}
 
 public:
-	std::string KernelName;
-	std::string KernelFile;
-	size_t l_wk0, l_wk1, l_wk2;
-	size_t g_wk0, g_wk1, g_wk2;
 
 	void GenKernelString()
 	{
@@ -32,13 +39,13 @@ public:
 
 		generateParam();
 		writeSignature();
-		writeProgram();
+		writeContent();
 		writeMetadata();
 	}
 
 	void SaveKernelStr2File()
 	{
-		std::string SrcFileName = "../../../Kernels/" + KernelFile;
+		std::string SrcFileName = "../../../Kernels/" + kernelFile;
 		std::ofstream fout(SrcFileName, std::ios::out);
 		if (!fout.is_open())
 		{
@@ -52,11 +59,15 @@ protected:
 	std::string KernelStr;
 	GasWriter *gas;
 	IsaWriterBase *isa;
+	T_ProblemConfig * problemConfig;	// 当前正在处理的问题配置
+	T_SolutionConfig * solutionConfig;	// 当前正在处理的解决方案配置
+	std::string kernelName;
+	std::string kernelFile;
 	
 	/************************************************************************/
 	/* sgpr操作		                                                        */
 	/************************************************************************/
-	int sgprCount, sgprCountMax;
+	int sgprCount = 0, sgprCountMax = 0;
 	void newSgpr(int *gpr, int num = 1, int align = 1)
 	{
 		while (true)
@@ -104,7 +115,7 @@ protected:
 	/************************************************************************/
 	/* vgpr操作		                                                        */
 	/************************************************************************/
-	int vgprCount, vgprCountMax;
+	int vgprCount = 0, vgprCountMax = 0;
 	void newVgpr(int *gpr, int num = 1, int align = 1)
 	{
 		while (true)
@@ -238,10 +249,10 @@ protected:
 		KernelStr.append(".hsa_code_object_isa 9, 0, 0, \"AMD\", \"AMDGPU\"\n");
 		KernelStr.append("\n");
 		KernelStr.append(".text\n");
-		KernelStr.append(".globl " + KernelName + "\n");
+		KernelStr.append(".globl " + kernelName + "\n");
 		KernelStr.append(".p2align 8\n");
-		KernelStr.append(".type " + KernelName + ",@function\n");
-		KernelStr.append(".amdgpu_hsa_kernel " + KernelName + "\n");
+		KernelStr.append(".type " + kernelName + ",@function\n");
+		KernelStr.append(".amdgpu_hsa_kernel " + kernelName + "\n");
 		KernelStr.append("\n");
 		KernelStr.append(".include \"gpr_alloc.inc\"\n");
 		KernelStr.append(".include \"common.inc\"\n");
@@ -249,12 +260,12 @@ protected:
 		KernelStr.append("\n");
 	}
 
-	void writeProgram()
+	void writeContent0()
 	{
 		int objPos;
 		startProgram();
 		objPos = KernelStr.length();
-		writeKernel();
+		writeProgram();
 		endProgram();
 
 		std::string objStr = "";
@@ -262,15 +273,24 @@ protected:
 		KernelStr.insert(objPos, s2c(objStr));
 	}
 
+	void writeContent()
+	{
+		startProgram();
+		generateCodeObj();
+		writeProgram();
+		endProgram();
+	}
+
+	int group_size;
 	void writeMetadata()
 	{
 		KernelStr.append(".amd_amdgpu_hsa_metadata\n");
 		KernelStr.append("{ Version: [1, 0],\n");
 		KernelStr.append("  Kernels :\n");
-		KernelStr.append("    - { Name: " + KernelName + ",\n");
-		KernelStr.append("        SymbolName: " + KernelName + ",\n");
+		KernelStr.append("    - { Name: " + kernelName + ",\n");
+		KernelStr.append("        SymbolName: " + kernelName + ",\n");
 		KernelStr.append("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],\n");
-		KernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + d2s(l_wk0) + ", 1, 1 ] }\n");
+		KernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + d2s(group_size) + ", 1, 1 ] }\n");
 		KernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 256 }\n");
 		KernelStr.append("        Args:\n");
 		KernelStr.append("        - { Name: d_in  , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
@@ -285,8 +305,71 @@ protected:
 	/************************************************************************/
 	/* kernel 函数内容生成函数                                                */
 	/************************************************************************/
-	virtual void startProgram() = 0;
-	virtual void generateCodeObj(std::string * objStr) = 0;
-	virtual void writeKernel() = 0;
-	virtual void endProgram() = 0;
+	char * END_PROG = "END_PROG";
+	void startProgram()
+	{
+		tableCnt = 0;
+		sline(kernelName + ":");
+		tableCnt = 1;
+	}
+	void generateCodeObj(std::string * objString)
+	{
+		tableCnt = 1;
+		std::string tmpStr = sblk();
+		sline(&tmpStr, ".amd_kernel_code_t");
+		tableCnt++;
+		sline(&tmpStr, "enable_sgpr_private_segment_buffer = 1");
+		sline(&tmpStr, "enable_sgpr_kernarg_segment_ptr = 1");
+		sline(&tmpStr, "enable_sgpr_workgroup_id_x = 1");
+		sline(&tmpStr, "enable_sgpr_workgroup_id_y = 1");
+		sline(&tmpStr, "enable_sgpr_workgroup_id_z = 1");
+		sline(&tmpStr, "enable_vgpr_workitem_id = 0");
+		sline(&tmpStr, "is_ptr64 = 1");
+		sline(&tmpStr, "float_mode = 240");
+		sline(&tmpStr, "granulated_wavefront_sgpr_count = " + d2s((sgprCountMax - 1) / 8));
+		sline(&tmpStr, "granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
+		sline(&tmpStr, "user_sgpr_count = 6");
+		sline(&tmpStr, "wavefront_sgpr_count = " + d2s(sgprCountMax));
+		sline(&tmpStr, "workitem_vgpr_count = " + d2s(vgprCountMax));
+		sline(&tmpStr, "kernarg_segment_byte_size = 56");
+		sline(&tmpStr, "workgroup_group_segment_byte_size = 0");
+		tableCnt--;
+		sline(&tmpStr, ".end_amd_kernel_code_t");
+		sline(&tmpStr, "");
+
+		objString->append(tmpStr);
+	}
+	void generateCodeObj()
+	{
+		tableCnt = 1;
+		sline(".amd_kernel_code_t");
+		tableCnt++;
+		sline("enable_sgpr_private_segment_buffer = 1");
+		sline("enable_sgpr_kernarg_segment_ptr = 1");
+		sline("enable_sgpr_workgroup_id_x = 1");
+		sline("enable_sgpr_workgroup_id_y = 1");
+		sline("enable_sgpr_workgroup_id_z = 1");
+		sline("enable_vgpr_workitem_id = 0");
+		sline("is_ptr64 = 1");
+		sline("float_mode = 240");
+		sline("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax - 1) / 8));
+		sline("granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
+		sline("user_sgpr_count = 6");
+		sline("wavefront_sgpr_count = " + d2s(sgprCountMax));
+		sline("workitem_vgpr_count = " + d2s(vgprCountMax));
+		sline("kernarg_segment_byte_size = 56");
+		sline("workgroup_group_segment_byte_size = 0");
+		tableCnt--;
+		sline(".end_amd_kernel_code_t");
+		sline("");
+	}
+	virtual void writeProgram() = 0;
+	void endProgram()
+	{
+		tableCnt = 0;
+		sline(c2s(END_PROG) + ":");
+		tableCnt = 1;
+		sline("s_endpgm\n");
+		tableCnt = 0;
+	}
 };

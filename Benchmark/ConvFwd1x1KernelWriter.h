@@ -1,13 +1,27 @@
 #pragma once
-#include "KernelWriter.h" 
-#include "IsaWriter.h"
+
+#include "ConvFwd1x1Config.h"
+#include "KernelWriter.h"
 
 class KernelWriterConv1x1 :public KernelWriterBase
 {
 public:
-	KernelWriterConv1x1():KernelWriterBase()
+	KernelWriterConv1x1(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg):KernelWriterBase(probCfg, solCfg)
 	{
+		extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
+		extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
+
+		W = extProbCfg->W;
+		H = extProbCfg->H;
+		C = extProbCfg->C;
+		K = extProbCfg->K;
+		N = extProbCfg->N;
+
+		K_OUT_MAPS = extSolCfg->k_out_maps;
 	}
+
+	T_ExtConvFwd1x1ProblemConfig * extProbCfg;	// 当前正在处理的问题扩展配置
+	T_ExtConvFwd1x1SolutionConfig * extSolCfg;	// 当前正在处理的解决方案扩展配置
 
 	bool EnInputOffset = 1;
 	bool EnWeightOffset = 1;
@@ -77,8 +91,6 @@ protected:
 	char * m_weight_pre_fatch = "m_weight_pre_fatch";
 	char * m_load_kernel_args = "m_load_kernel_args";
 
-	char * END_PROG = "END_PROG";
-
 	void generateParam()
 	{
 		ENABLE = 1;
@@ -93,7 +105,7 @@ protected:
 		PIX_BLK_SIZE_LOG2 = log2(PIX_BLK_SIZE);
 		PIX_BLK_SIZE_MOD_MASK = modMask(PIX_BLK_SIZE);
 
-		PIX_BLK_PER_GROUP = l_wk0 / PIX_BLK_SIZE;
+		PIX_BLK_PER_GROUP = solutionConfig->l_wk0 / PIX_BLK_SIZE;
 		PIX_BLK_PER_GROUP_LOG2 = log2(PIX_BLK_PER_GROUP);
 
 		IN_CHANNEL_STRIDE = W * H;
@@ -103,60 +115,24 @@ protected:
 		WEI_CHANNEL_STRIDE = C;
 
 		LOOP = C / C_IN_MAPS_ONCE / 2;
+		
+		// !!!!!!!!!!!!!!!!!!
+		if (W > 28)
+		{
+			EnInputOffset = 0;
+		}
+		sSimuAlloc();
+		eSimuAlloc();
 	}
 	
-	void startProgram()
+	void writeProgram()
 	{
-		tableCnt = 0;
-		sline(KernelName + ":");
-		tableCnt = 1;
-	}
-
-	void generateCodeObj(std::string * objString)
-	{
-		tableCnt = 1;
-		std::string tmpStr = sblk();
-		sline(&tmpStr, ".amd_kernel_code_t");
-		tableCnt++;
-		sline(&tmpStr, "enable_sgpr_private_segment_buffer = 1");
-		sline(&tmpStr, "enable_sgpr_kernarg_segment_ptr = 1");
-		sline(&tmpStr, "enable_sgpr_workgroup_id_x = 1");
-		sline(&tmpStr, "enable_sgpr_workgroup_id_y = 1");
-		sline(&tmpStr, "enable_sgpr_workgroup_id_z = 1");
-		sline(&tmpStr, "enable_vgpr_workitem_id = 0");
-		sline(&tmpStr, "is_ptr64 = 1");
-		sline(&tmpStr, "float_mode = 240");
-		sline(&tmpStr, "granulated_wavefront_sgpr_count = " + d2s((sgprCountMax - 1) / 8));
-		sline(&tmpStr, "granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
-		sline(&tmpStr, "user_sgpr_count = 6");
-		sline(&tmpStr, "wavefront_sgpr_count = " + d2s(sgprCountMax));
-		sline(&tmpStr, "workitem_vgpr_count = " + d2s(vgprCountMax));
-		sline(&tmpStr, "kernarg_segment_byte_size = 56");
-		sline(&tmpStr, "workgroup_group_segment_byte_size = 0");
-		tableCnt--;
-		sline(&tmpStr, ".end_amd_kernel_code_t");
-		sline(&tmpStr, "");
-
-		objString->append(tmpStr);
-	}
-
-	void writeKernel()
-	{
-		sSimuAlloc();
+//		sSimuAlloc();
 		writeSubFunc();
-		eSimuAlloc();
+//		eSimuAlloc();
 		writeLoadArgs();
 		writeCalcuIndex();
 		writeMainConv();
-	}
-
-	void endProgram()
-	{
-		tableCnt = 0;
-		sline(c2s(END_PROG) + ":");
-		tableCnt = 1;
-		sline("s_endpgm\n");
-		tableCnt = 0;
 	}
 
 	void writeSubFunc()
