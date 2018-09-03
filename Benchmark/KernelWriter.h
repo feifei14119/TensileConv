@@ -291,7 +291,7 @@ protected:
 		KernelStr.append("        SymbolName: " + kernelName + ",\n");
 		KernelStr.append("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],\n");
 		KernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + d2s(group_size) + ", 1, 1 ] }\n");
-		KernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 256 }\n");
+		KernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 512 }\n");
 		KernelStr.append("        Args:\n");
 		KernelStr.append("        - { Name: d_in  , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
 		KernelStr.append("        - { Name: d_wei , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");

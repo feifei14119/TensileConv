@@ -12,6 +12,7 @@
 #include <list>
 #include <algorithm>
 #include <math.h>
+#include <stdarg.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -39,6 +40,12 @@
 } while(0)
 #define INFO(msg) std::cout << "[INFO] " << msg << std::endl;
 
+extern std::ofstream *performance_log_file;
+extern char log_char_buffer[1024];
+extern void init_log_file();
+extern void write_string_to_file(std::string log_str);
+extern void write_format_to_file(const char * format,...);
+#define	LOG(fmt,...)	write_format_to_file(fmt,##__VA_ARGS__)
 /************************************************************************/
 /* 返回类型定义															*/
 /************************************************************************/
@@ -420,8 +427,8 @@ public:
 	{
 		for (int i = 0; i < ParamNum; i++)
 		{
-			(*searchParams)[searchParamIdx].BestIdx = (*searchParams)[searchParamIdx].CurrIdx;
-			(*searchParams)[searchParamIdx].BestValue = (*searchParams)[searchParamIdx].CurrValue;
+			(*searchParams)[i].BestIdx = (*searchParams)[i].CurrIdx;
+			(*searchParams)[i].BestValue = (*searchParams)[i].CurrValue;
 		}
 	}
 

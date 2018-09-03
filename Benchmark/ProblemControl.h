@@ -124,7 +124,7 @@ public:
 			}
 
 			delete runtime;
-			sleep(1);
+			//sleep(1);
 		}	
 	}
 
@@ -239,9 +239,9 @@ public:
 		BestScore.Flops = ProblemConfig->Calculation / BestScore.ElapsedTime;
 		BestScore.Performence = ProblemConfig->TheoryElapsedTime / BestScore.ElapsedTime;
 
-		printf("best elapsed time: %.3f (us).\n", BestScore.ElapsedTime * 1e6);
+		printf("best elapsed time: %.3f (us).\t", BestScore.ElapsedTime * 1e6);
 		printf("best performence: %.1f (Gflops) = %.1f%%.\n", BestScore.Flops * 1e-9, BestScore.Performence * 100);
-		printf("average elapsed time: %.3f (us).\n", AverageScore.ElapsedTime * 1e6);
+		printf("average elapsed time: %.3f (us).\t", AverageScore.ElapsedTime * 1e6);
 		printf("average performence: %.1f (Gflops) = %.1f%%.\n", AverageScore.Flops * 1e-9, AverageScore.Performence * 100);
 		
 		if ((ProblemBestTime < 0) || (ProblemBestTime > AverageScore.ElapsedTime))
@@ -405,6 +405,7 @@ public:
 	T_ProblemConfig *ProblemConfig;					// 当前正在处理的问题配置
 	SolutionCtrlBase * Solution;
 };
+
 
 #include "TestProblem.h"
 

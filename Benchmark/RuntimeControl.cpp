@@ -27,4 +27,37 @@ SDKDeviceInfo RuntimeCtrl::deviceInfo;
 std::vector<cl_command_queue> * RuntimeCtrl::streams;
 #endif
 
+std::ofstream *performance_log_file;
+char log_char_buffer[1024];
 
+void init_log_file()
+{
+	std::string SrcFileName = "./performence log.log";
+	performance_log_file = new std::ofstream(SrcFileName, std::ios::out);
+	if (!performance_log_file->is_open())
+	{
+		FATAL("can't open log file");
+	}
+}
+void DeLog()
+{
+	performance_log_file->close();
+}
+void write_string_to_file(std::string log_str)
+{
+	if (performance_log_file == nullptr)
+	{
+		init_log_file();
+	}
+	performance_log_file->write(log_str.c_str(), log_str.length());
+	performance_log_file->flush();
+}
+void write_format_to_file(const char * format,...)
+{
+	va_list args;
+	va_start(args, format);
+	memset(log_char_buffer, 0, 1024);
+	vsprintf(log_char_buffer, format, args);
+	write_string_to_file(std::string(log_char_buffer));
+	va_end(args);
+}

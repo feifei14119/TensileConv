@@ -138,19 +138,19 @@ public:
 			// 生成搜索空间
 			searchParam = new T_SearchParam();
 			searchParam->Name = "k_out_maps";
-			//searchParam->ValueArray.push_back(2);
-			//searchParam->ValueArray.push_back(4);
-			//searchParam->ValueArray.push_back(8);
+			searchParam->ValueArray.push_back(2);
+			searchParam->ValueArray.push_back(4);
+			searchParam->ValueArray.push_back(8);
 			searchParam->ValueArray.push_back(16);
-			//searchParam->ValueArray.push_back(32);
+			searchParam->ValueArray.push_back(32);
 			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			//--------------------------------
 			searchParam = new T_SearchParam();
 			searchParam->Name = "group_size";
 			searchParam->ValueArray.push_back(64);
-			//searchParam->ValueArray.push_back(128);
-			//searchParam->ValueArray.push_back(256);
-			//searchParam->ValueArray.push_back(512);
+			searchParam->ValueArray.push_back(128);
+			searchParam->ValueArray.push_back(256);
+			searchParam->ValueArray.push_back(512);
 			//searchParam->ValueArray.push_back(1024);
 			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			// ----------------------------------------------------------------------
@@ -716,10 +716,11 @@ public:
 		T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
-		printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
+		LOG("------------------------------------------------\n");
+		LOG("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
 
-		printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
-		printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
+		LOG("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
+		LOG("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
 
 		while (true)
 		{
@@ -730,7 +731,7 @@ public:
 				break;
 			}
 
-			printf("%s = %d\n", param->Name.c_str(), param->BestValue);
+			LOG("%s = %d\n", param->Name.c_str(), param->BestValue);
 		}
 	}
 	
@@ -872,21 +873,12 @@ public:
 
 		searchParam = new T_SearchParam();
 		searchParam->Name = "N";
-		//searchParam->ValueArray.push_back(1);
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(4);
-		//searchParam->ValueArray.push_back(8);
-		//searchParam->ValueArray.push_back(16);
-		//searchParam->ValueArray.push_back(32);
-
+		searchParam->ValueArray.push_back(1);
 		searchParam->ValueArray.push_back(2);
-		searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(2);
-		//searchParam->ValueArray.push_back(2);
+		searchParam->ValueArray.push_back(4);
+		searchParam->ValueArray.push_back(8);
+		searchParam->ValueArray.push_back(16);
+		searchParam->ValueArray.push_back(32);
 #if	SingleProblem		
 		// 单独测试
 		{
@@ -1348,4 +1340,5 @@ public:
 		}
 	}
 };
- 
+
+
