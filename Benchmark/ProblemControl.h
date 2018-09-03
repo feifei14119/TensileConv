@@ -39,6 +39,13 @@ typedef struct SolutionConfigTpye
 
 	std::list<T_KernelArgu> * KernelArgus;
 
+	SolutionConfigTpye(std::string name)
+	{
+		ConfigName = name;
+	}
+	SolutionConfigTpye()
+	{
+	}
 }T_SolutionConfig;
 
 /************************************************************************/
@@ -52,6 +59,14 @@ typedef struct ProblemConfigType
 
 	double Calculation;					// 计算量
 	double TheoryElapsedTime;			// 理论执行时间
+
+	ProblemConfigType(std::string name)
+	{
+		ConfigName = name;
+	}
+	ProblemConfigType()
+	{
+	}
 }T_ProblemConfig;
 
 /************************************************************************/
@@ -109,13 +124,14 @@ public:
 			runtime = new RuntimeCtrl(false);
 
 			INFO("initialize device.");						InitDev();
-			INFO("generate source, compiler, worksize.");	GenerateSolution();
+			INFO("generate source, compiler, worksize.");	if (GenerateSolution() != E_ReturnState::SUCCESS)	goto CONTINUE_SEARCH;
 			INFO("compiler kernel and program.");			SetupSolution();
 			INFO("set arg and launch kernel.");				LaunchSolution(false);
 			INFO("collect performence.");					GetPerformence();
 			INFO("copy result back to cpu.");				GetBackResult();
 			INFO("release device.");						ReleaseDev();
 			INFO("search kernel parameters.");
+		CONTINUE_SEARCH:
 			if (SolutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search kernel parameters finished.");
@@ -125,7 +141,7 @@ public:
 
 			delete runtime;
 			//sleep(1);
-		}	
+		}
 	}
 
 	E_ReturnState RunSolutionOnce()

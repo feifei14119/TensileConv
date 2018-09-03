@@ -55,8 +55,7 @@ public:
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "MIOpenOcl";
+			solutionConfig = new T_SolutionConfig("MIOpenOcl");
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
@@ -70,8 +69,7 @@ public:
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "MIOpenAsm";
+			solutionConfig = new T_SolutionConfig("MIOpenAsm");
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
@@ -85,8 +83,7 @@ public:
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "SQC";
+			solutionConfig = new T_SolutionConfig("SQC");
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
@@ -100,8 +97,7 @@ public:
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "PreFetch_Single";
+			solutionConfig = new T_SolutionConfig("PreFetch_Single");
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
@@ -115,8 +111,7 @@ public:
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "PreFetch_Mult";
+			solutionConfig = new T_SolutionConfig("PreFetch_Mult");
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
@@ -130,14 +125,12 @@ public:
 		{
 			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-			solutionConfig = new T_SolutionConfig();
-			solutionConfig->ConfigName = "TensileConv";
+			solutionConfig = new T_SolutionConfig("TensileConv");
 			solutionConfig->extConfig = extSolutionConfig;
 
 			// ----------------------------------------------------------------------
 			// 生成搜索空间
-			searchParam = new T_SearchParam();
-			searchParam->Name = "k_out_maps";
+			searchParam = new T_SearchParam("k_out_maps");
 			searchParam->ValueArray.push_back(2);
 			searchParam->ValueArray.push_back(4);
 			searchParam->ValueArray.push_back(8);
@@ -145,8 +138,7 @@ public:
 			searchParam->ValueArray.push_back(32);
 			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 			//--------------------------------
-			searchParam = new T_SearchParam();
-			searchParam->Name = "group_size";
+			searchParam = new T_SearchParam("group_size");
 			searchParam->ValueArray.push_back(64);
 			searchParam->ValueArray.push_back(128);
 			searchParam->ValueArray.push_back(256);
@@ -239,10 +231,18 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		generateParameters();		// 提取搜索参数		
-		generateCompilerOption();	// 生成编译选项		
-		generateWorkLoad();			// 生成worksize		
-		generateSource();			// 获取/生成代码
+		// 提取搜索参数
+		if (generateParameters() != E_ReturnState::SUCCESS)
+			return E_ReturnState::FAIL;
+		// 生成编译选项
+		if (generateCompilerOption() != E_ReturnState::SUCCESS)
+			return E_ReturnState::FAIL;
+		// 生成worksize
+		if (generateWorkLoad() != E_ReturnState::SUCCESS)
+			return E_ReturnState::FAIL;
+		// 获取/生成代码
+		if (generateSource() != E_ReturnState::SUCCESS)
+			return E_ReturnState::FAIL;
 
 		//simulateIndex();
 
@@ -255,7 +255,7 @@ public:
 	int	N_OUT_GROUPS;
 	int CLOOP0;
 	int CLOOP2;
-	void generateParameters()
+	E_ReturnState generateParameters()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
@@ -392,9 +392,11 @@ public:
 			loop = c_in_maps / c_in_maps_once;
 			align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
 		}
+
+		return E_ReturnState::SUCCESS;
 	}
 
-	void generateCompilerOption()
+	E_ReturnState generateCompilerOption()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
@@ -429,9 +431,10 @@ public:
 			//SolutionConfig->extCompilerOpt = 
 			//	std::string(" -Wa, -defsym, $name=$val ");
 		}
+		return E_ReturnState::SUCCESS;
 	}
 
-	void generateWorkLoad()
+	E_ReturnState generateWorkLoad()
 	{
 		T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 		T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
@@ -501,9 +504,14 @@ public:
 		SolutionConfig->b_wk0 = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
 		SolutionConfig->b_wk1 = SolutionConfig->g_wk1 / SolutionConfig->l_wk1;
 		SolutionConfig->b_wk2 = SolutionConfig->g_wk2 / SolutionConfig->l_wk2;
+
+		if (SolutionConfig->b_wk0 == 0)
+			return E_ReturnState::FAIL;
+
+		return E_ReturnState::SUCCESS;
 	}
 
-	void generateSource()
+	E_ReturnState generateSource()
 	{
 		SolutionConfig->KernelName = "ConvFwd1x1";
 		if (SolutionConfig->ConfigName == "MIOpenOcl")
@@ -537,6 +545,8 @@ public:
 			autoGenKernel();
 			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
+
+		return E_ReturnState::SUCCESS;
 	}
 
 	/************************************************************************/
@@ -871,251 +881,56 @@ public:
 
 		T_SearchParam * searchParam;
 
-		searchParam = new T_SearchParam();
-		searchParam->Name = "N";
+#if	SingleProblem	
+		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
+		probCfg = new T_ProblemConfig("convolution 1x1");
+		probCfg->extConfig = exProbCfg;
+
+		exProbCfg->W = 28;		exProbCfg->H = 28;
+		exProbCfg->C = 192;		exProbCfg->K = 64;
+		exProbCfg->N = 16;
+
+		exProbCfg->W = 7;		exProbCfg->H = 7;
+		exProbCfg->C = 832;		exProbCfg->K = 256;
+		exProbCfg->N = 2;
+
+		ProblemConfigList->push_back(probCfg);
+#else
+		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
+		probCfg = new T_ProblemConfig("convolution 1x1");
+		probCfg->extConfig = exProbCfg;
+
+		searchParam = new T_SearchParam("N");
 		searchParam->ValueArray.push_back(1);
 		searchParam->ValueArray.push_back(2);
 		searchParam->ValueArray.push_back(4);
 		searchParam->ValueArray.push_back(8);
 		searchParam->ValueArray.push_back(16);
 		searchParam->ValueArray.push_back(32);
-#if	SingleProblem		
-		// 单独测试
-		{
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
+		probCfg->ProblemParamSpace.AddOneParam(searchParam);
+		searchParam = new T_SearchParam("C");
+		searchParam->ValueArray.push_back(64);
+		searchParam->ValueArray.push_back(128);
+		searchParam->ValueArray.push_back(256);
+		searchParam->ValueArray.push_back(1024);
+		searchParam->ValueArray.push_back(2048);
+		probCfg->ProblemParamSpace.AddOneParam(searchParam);
+		searchParam = new T_SearchParam("K");
+		searchParam->ValueArray.push_back(64);
+		searchParam->ValueArray.push_back(128);
+		searchParam->ValueArray.push_back(256);
+		searchParam->ValueArray.push_back(1024);
+		searchParam->ValueArray.push_back(2048);
+		probCfg->ProblemParamSpace.AddOneParam(searchParam);
+		searchParam = new T_SearchParam("WH");
+		searchParam->ValueArray.push_back(7);
+		searchParam->ValueArray.push_back(14);
+		searchParam->ValueArray.push_back(28);
+		searchParam->ValueArray.push_back(56);
+		searchParam->ValueArray.push_back(112);
+		probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
-			exProbCfg->W = 28;		exProbCfg->H = 28;
-			exProbCfg->C = 192;		exProbCfg->K = 64;
-			exProbCfg->N = 16;
-
-			exProbCfg->W = 7;		exProbCfg->H = 7;
-			exProbCfg->C = 832;		exProbCfg->K = 256;
-			exProbCfg->N = 2;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[28*192*64]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-		}
-#else
-		// 7*7
-		{
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 7;		exProbCfg->H = 7;
-			exProbCfg->C = 832;		exProbCfg->K = 256;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[7*832*256]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 7;		exProbCfg->H = 7;
-			exProbCfg->C = 512;		exProbCfg->K = 512;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[7*512*512]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 7;		exProbCfg->H = 7;
-			exProbCfg->C = 512;		exProbCfg->K = 2048;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[7*512*2048]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 7;		exProbCfg->H = 7;
-			exProbCfg->C = 2048;		exProbCfg->K = 512;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[7*2048*512]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-		} // 7*7 
-		
-		// 14*14
-		{
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 14;		exProbCfg->H = 14;
-			exProbCfg->C = 512;		exProbCfg->K = 192;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[14*512*192]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			//ProblemConfigList->push_back(probCfg);
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 14;		exProbCfg->H = 14;
-			exProbCfg->C = 256;		exProbCfg->K = 256;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[14*256*256]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 14;		exProbCfg->H = 14;
-			exProbCfg->C = 256;		exProbCfg->K = 1024;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[14*256*1024]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 14;		exProbCfg->H = 14;
-			exProbCfg->C = 1024;		exProbCfg->K = 256;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[14*1024*256]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-		} // 14*14
-
-		// 28*28
-		{
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 28;		exProbCfg->H = 28;
-			exProbCfg->C = 192;		exProbCfg->K = 64;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[28*192*64]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-
-			// ----------------------------------------------------------------------
-			// problem config 2：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 28;		exProbCfg->H = 28;
-			exProbCfg->C = 128;		exProbCfg->K = 512;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[28*128*512]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-
-			// ----------------------------------------------------------------------
-			// problem config 3：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 28;		exProbCfg->H = 28;
-			exProbCfg->C = 512;		exProbCfg->K = 128;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[28*512*128]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-
-			// ----------------------------------------------------------------------
-			// problem config 4：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 28;		exProbCfg->H = 28;
-			exProbCfg->C = 512;		exProbCfg->K = 256;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[28*512*256]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-
-			// ----------------------------------------------------------------------
-			// problem config 5：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 28;		exProbCfg->H = 28;
-			exProbCfg->C = 512;		exProbCfg->K = 1024;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[28*512*1024]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg); 
-		}		
-
-		// 56*56
-		{
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 56;		exProbCfg->H = 56;
-			exProbCfg->C = 64;		exProbCfg->K = 256;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[56*64*256]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 56;		exProbCfg->H = 56;
-			exProbCfg->C = 256;		exProbCfg->K = 64;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[56*256*64]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-		}
-
-		// 112*112
-		{
-			// ----------------------------------------------------------------------
-			// problem config 1：
-			exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-			exProbCfg->W = 112;		exProbCfg->H = 112;
-			exProbCfg->C = 64;		exProbCfg->K = 64;
-
-			probCfg = new T_ProblemConfig();
-			probCfg->ConfigName = "Conv1x1 WHCK=[112*64*64]";
-			probCfg->extConfig = exProbCfg;
-			probCfg->ProblemParamSpace.AddOneParam(searchParam);
-
-			ProblemConfigList->push_back(probCfg);
-		}
+		ProblemConfigList->push_back(probCfg);
 #endif
 	} 
 	
@@ -1139,6 +954,19 @@ public:
 			{
 				exProbCfg->N = param->CurrValue;
 			}
+			if (param->Name == "C")
+			{
+				exProbCfg->C = param->CurrValue;
+			}
+			if (param->Name == "K")
+			{
+				exProbCfg->K = param->CurrValue;
+			}
+			if (param->Name == "WH")
+			{
+				exProbCfg->W = param->CurrValue;
+				exProbCfg->H = param->CurrValue;
+			}
 		}
 
 		exProbCfg->X = 1;		exProbCfg->Y = 1;
@@ -1146,7 +974,7 @@ public:
 		exProbCfg->U = 1;		exProbCfg->V = 1;
 
 		printf("************************************************************************\n");
-		printf("* WHCK=[%d,%d,%d,%d] N=[%d]\n", exProbCfg->W, exProbCfg->H, exProbCfg->C, exProbCfg->K, exProbCfg->N);
+		printf("* WHCKN=[%d * %d, %d, %d, %d]\n", exProbCfg->W, exProbCfg->H, exProbCfg->C, exProbCfg->K, exProbCfg->N);
 		printf("************************************************************************\n");
 
 		exProbCfg->OutW = exProbCfg->W + exProbCfg->R * 2 - exProbCfg->X + 1;

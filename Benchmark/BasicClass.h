@@ -317,6 +317,14 @@ public:
 /************************************************************************/
 typedef struct SearchParamType
 {
+	SearchParamType(std::string name)
+	{
+		Name = name;
+	}
+	SearchParamType()
+	{
+	}
+
 	std::string Name;
 	std::vector<int> ValueArray;
 	int CurrIdx;
