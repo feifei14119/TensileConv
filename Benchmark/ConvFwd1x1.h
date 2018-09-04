@@ -6,6 +6,9 @@
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
+#define		MultSolution	(1)
+#define		EnSimuIndex		(0)
+#define		EnSaveSource	(1)
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:
@@ -127,7 +130,7 @@ public:
 
 			solutionConfig = new T_SolutionConfig("TensileConv");
 			solutionConfig->extConfig = extSolutionConfig;
-
+#if MultSolution
 			// ----------------------------------------------------------------------
 			// 生成搜索空间
 			searchParam = new T_SearchParam("k_out_maps");
@@ -145,6 +148,7 @@ public:
 			searchParam->ValueArray.push_back(512);
 			//searchParam->ValueArray.push_back(1024);
 			solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+#endif
 			// ----------------------------------------------------------------------
 			// 添加solution
 			SolutionConfigList->push_back(solutionConfig);
@@ -244,8 +248,9 @@ public:
 		if (generateSource() != E_ReturnState::SUCCESS)
 			return E_ReturnState::FAIL;
 
-		//simulateIndex();
-
+#if EnSimuIndex
+		simulateIndex();
+#endif
 		return E_ReturnState::SUCCESS;
 	}
 
@@ -556,7 +561,9 @@ public:
 	{		
 		KernelWriterBase * kw = new KernelWriterConv1x1(ProblemConfig,SolutionConfig);		
 		kw->GenKernelString();
+#if EnSaveSource
 		kw->SaveKernelStr2File();
+#endif
 	}
 
 	/************************************************************************/
@@ -761,8 +768,8 @@ public:
 		printf("in_pix_groups = %d\n", in_pix_groups);
 		printf("k_out_groups = %d\n", k_out_groups);
 
-
 		int *testGrpId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
+		int *testId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 		int *testPixBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 		int *testWeiBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 		int *testPosId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
@@ -789,29 +796,41 @@ public:
 		uint Z_ROUND_NUM = SolutionConfig->b_wk0 / (CU_NUM * K_OUT_GROUPS);
 		uint INBLOCK_LEFT = Z_ROUND_NUM * CU_NUM;
 
+		int pix_z_size = 8;
+		int wei_z_size = 4;
+		int pix_z_group = in_pix_groups / pix_z_size;
+		int wei_z_group = k_out_groups / wei_z_size;
+
 		for (int grp = 0; grp < SolutionConfig->b_wk0; grp++)
 		{
 			uint local_id0 = 0;
 			uint group_id0 = grp;
 			uint pixBlkId, weiBlkId;
 
-			//// old organization
+			// old organization
 			//weiBlkId = group_id0 % K_OUT_GROUPS;
 			//pixBlkId = group_id0 / K_OUT_GROUPS;
 
-			// new organization
-			uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
+			// tensile fix input 
+			//uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
+			//
+			//pixBlkId = z_round * CU_NUM + group_id0 % CU_NUM;		// 即 grp_id0_faked
+			//weiBlkId = group_id0 / CU_NUM % k_out_groups;		// 即 out_grp_block
+			//
+			//if (group_id0 >= CHUNK_LEFT)
+			//{
+			//	uint leftGrpId = 0;
+			//	leftGrpId = group_id0 - CHUNK_LEFT;
+			//	pixBlkId = leftGrpId / 4 + INBLOCK_LEFT;
+			//	weiBlkId = leftGrpId % 4;
+			//}
 
-			pixBlkId = z_round * CU_NUM + group_id0 % CU_NUM;		// 即 grp_id0_faked
-			weiBlkId = group_id0 / CU_NUM % k_out_groups;		// 即 out_grp_block
 
-			if (group_id0 >= CHUNK_LEFT)
-			{
-				uint leftGrpId = 0;
-				leftGrpId = group_id0 - CHUNK_LEFT;
-				pixBlkId = leftGrpId / 4 + INBLOCK_LEFT;
-				weiBlkId = leftGrpId % 4;
-			}
+			// tensile fix weight
+			uint z_round = group_id0 / (CU_NUM * pix_z_size / 2);	// 第几轮Z格子
+			weiBlkId = z_round * CU_NUM + group_id0 % CU_NUM;
+			//weiBlkId = group_id0 / CU_NUM % k_out_groups;
+
 
 			// same
 			uint pos = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) % IN_CHANNEL_STRIDE;
@@ -822,6 +841,7 @@ public:
 			uint wei_off = out_id * WEI_CHANNEL_STRIDE;
 			uint gbl_out_off = batch_id * OUT_BATCH_STRIDE + out_id * OUT_CHANNEL_STRIDE + pos;
 
+			testId[group_id0] = z_round;
 			testGrpId[group_id0] = group_id0;
 			testPixBlkId[group_id0] = pixBlkId;
 			testWeiBlkId[group_id0] = weiBlkId;
@@ -831,29 +851,20 @@ public:
 		}
 
 		printIndex(testGrpId, "group id");
-		printIndex(testPixBlkId, "input block id");
+		printIndex(testId, "test temp id");
+		//printIndex(testPixBlkId, "input block id");
 		printIndex(testWeiBlkId, "weight block id");
 		//printIndex(testBatchId, "batch id");
 		//printIndex(testOutId, "out id");
 		//printIndex(testPosId, "pos id");
-		printf("input groups: %d.\n", align * N_IN_GROUPS);
-		printf("output group: %d.\n", N_OUT_GROUPS);
 
-		//if (SolutionConfig->ConfigName == "SimuIndex")
-		//{
-		//	DevMalloc((void**)&(d_in_off.ptr), SolutionConfig->g_wk0 * sizeof(uint));
-		//	DevMalloc((void**)&(d_wei_off.ptr), SolutionConfig->g_wk0 * sizeof(uint));
-		//	DevMalloc((void**)&(d_out_off.ptr), SolutionConfig->g_wk0 * sizeof(uint));
-		//
-		//	d_in_off.size = sizeof(cl_mem);		d_in_off.isVal = false;
-		//	d_wei_off.size = sizeof(cl_mem);	d_wei_off.isVal = false;
-		//	d_out_off.size = sizeof(cl_mem);	d_out_off.isVal = false;
-		//
-		//	SolutionConfig->KernelArgus = new std::list<T_KernelArgu>;
-		//	SolutionConfig->KernelArgus->push_back(d_in_off);
-		//	SolutionConfig->KernelArgus->push_back(d_wei_off);
-		//	SolutionConfig->KernelArgus->push_back(d_out_off);
-		//}
+		free(testGrpId);
+		free(testId);
+		free(testPixBlkId);
+		free(testWeiBlkId);
+		free(testPosId);
+		free(testBatchId);
+		free(testOutId);
 	}
 };
 
@@ -887,31 +898,21 @@ public:
 		probCfg->extConfig = exProbCfg;
 
 		exProbCfg->W = 28;		exProbCfg->H = 28;
-		exProbCfg->C = 192;		exProbCfg->K = 64;
-		exProbCfg->N = 16;
+		exProbCfg->C = 128;		exProbCfg->K = 128;
+		exProbCfg->N = 8;
 
-		exProbCfg->W = 7;		exProbCfg->H = 7;
-		exProbCfg->C = 832;		exProbCfg->K = 256;
-		exProbCfg->N = 2;
-
+		exProbCfg->W = 56;		exProbCfg->H = 56;
 		ProblemConfigList->push_back(probCfg);
 #else
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		probCfg = new T_ProblemConfig("convolution 1x1");
 		probCfg->extConfig = exProbCfg;
 
-		searchParam = new T_SearchParam("N");
-		searchParam->ValueArray.push_back(1);
-		searchParam->ValueArray.push_back(2);
-		searchParam->ValueArray.push_back(4);
-		searchParam->ValueArray.push_back(8);
-		searchParam->ValueArray.push_back(16);
-		searchParam->ValueArray.push_back(32);
-		probCfg->ProblemParamSpace.AddOneParam(searchParam);
 		searchParam = new T_SearchParam("C");
 		searchParam->ValueArray.push_back(64);
 		searchParam->ValueArray.push_back(128);
 		searchParam->ValueArray.push_back(256);
+		searchParam->ValueArray.push_back(512);
 		searchParam->ValueArray.push_back(1024);
 		searchParam->ValueArray.push_back(2048);
 		probCfg->ProblemParamSpace.AddOneParam(searchParam);
@@ -919,8 +920,17 @@ public:
 		searchParam->ValueArray.push_back(64);
 		searchParam->ValueArray.push_back(128);
 		searchParam->ValueArray.push_back(256);
+		searchParam->ValueArray.push_back(512);
 		searchParam->ValueArray.push_back(1024);
 		searchParam->ValueArray.push_back(2048);
+		probCfg->ProblemParamSpace.AddOneParam(searchParam);
+		searchParam = new T_SearchParam("N");
+		searchParam->ValueArray.push_back(1);
+		searchParam->ValueArray.push_back(2);
+		searchParam->ValueArray.push_back(4);
+		searchParam->ValueArray.push_back(8);
+		searchParam->ValueArray.push_back(16);
+		searchParam->ValueArray.push_back(32);
 		probCfg->ProblemParamSpace.AddOneParam(searchParam);
 		searchParam = new T_SearchParam("WH");
 		searchParam->ValueArray.push_back(7);

@@ -56,6 +56,7 @@ void write_format_to_file(const char * format,...)
 {
 	va_list args;
 	va_start(args, format);
+	printf(format, args);
 	memset(log_char_buffer, 0, 1024);
 	vsprintf(log_char_buffer, format, args);
 	write_string_to_file(std::string(log_char_buffer));

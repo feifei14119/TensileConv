@@ -289,13 +289,23 @@ protected:
 		isa->inst3("v_mul_u32_u24", vgpr(v_tmp2), vgpr(v_batchId), vgpr(v_tmp1), "");
 		isa->inst4("v_add_co_u32", vgpr(v_tmp3), "vcc", vgpr(v_tmp2), vgpr(v_posId), "");
 		isa->inst3("v_lshlrev_b32", vgpr(v_tmp3), d2s(2), vgpr(v_tmp3), "");					// gbl_in_off
-		offset = IN_CHANNEL_STRIDE * 2 * 4;
-		isa->inst2("v_mov_b32", vgpr(v_tmp1), d2hs(offset), "");
-		isa->inst2("v_mov_b32", vgpr(v_offset0), vgpr(v_tmp3), "");
-		isa->inst4("v_add_co_u32", vgpr(v_offset1), "vcc", vgpr(v_offset0), vgpr(v_tmp1), "");
-		isa->inst4("v_add_co_u32", vgpr(v_offset2), "vcc", vgpr(v_offset1), vgpr(v_tmp1), "");
-		isa->inst4("v_add_co_u32", vgpr(v_offset3), "vcc", vgpr(v_offset2), vgpr(v_tmp1), "");
 
+		if (EnInputOffset)
+		{
+			offset = IN_CHANNEL_STRIDE * 2 * 4;
+			isa->inst2("v_mov_b32", vgpr(v_tmp1), d2hs(offset), "");
+			isa->inst2("v_mov_b32", vgpr(v_offset0), vgpr(v_tmp3), "");
+			isa->inst4("v_add_co_u32", vgpr(v_offset1), "vcc", vgpr(v_offset0), vgpr(v_tmp1), "");
+			isa->inst4("v_add_co_u32", vgpr(v_offset2), "vcc", vgpr(v_offset1), vgpr(v_tmp1), "");
+			isa->inst4("v_add_co_u32", vgpr(v_offset3), "vcc", vgpr(v_offset2), vgpr(v_tmp1), "");
+		}
+		else
+		{
+			isa->s_waitcnt("lgkmcnt", 0);
+			isa->inst2("v_mov_b32", vgpr_h(v_addr_in), sgpr_h(s_ptr_in), "");
+			isa->inst4("v_add_co_u32", vgpr(v_addr_in), "vcc", sgpr(s_ptr_in), vgpr(v_tmp3), "");
+			isa->inst5("v_addc_co_u32", vgpr_h(v_addr_in), "vcc", d2s(0), vgpr_h(v_addr_in), "vcc", "");
+		}
 		// -------------------------------------------------------------------------------
 		// wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
 		// -------------------------------------------------------------------------------
@@ -424,10 +434,13 @@ protected:
 		newVgpr(&tid_x0);
 		newVgpr(&v_addr_in, 2, 2);
 		newVgpr(&v_addr_out, 2, 2);
-		newVgpr(&v_offset0, 2, 2);
-		newVgpr(&v_offset1, 2, 2);
-		newVgpr(&v_offset2, 2, 2);
-		newVgpr(&v_offset3, 2, 2);
+		if (EnInputOffset)
+		{
+			newVgpr(&v_offset0, 2, 2);
+			newVgpr(&v_offset1, 2, 2);
+			newVgpr(&v_offset2, 2, 2);
+			newVgpr(&v_offset3, 2, 2);
+		}
 		newVgpr(&v_accum, K_OUT_MAPS);
 		newVgpr(&v_in_a, C_IN_MAPS_ONCE);
 		newVgpr(&v_in_b, C_IN_MAPS_ONCE);
