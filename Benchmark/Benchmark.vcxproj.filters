@@ -207,5 +207,8 @@
     <None Include="Kernels\IsaVMBuf.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -63,7 +63,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -105,7 +105,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -433,8 +433,25 @@ public:
 		}
 		else
 		{
-			//SolutionConfig->extCompilerOpt = 
-			//	std::string(" -Wa, -defsym, $name=$val ");
+			int in_pix_groups = align / extSol->group_size;
+			int k_out_groups = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
+			int groupNum = in_pix_groups * k_out_groups;
+			int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
+			int grpNumPerCUMin = groupNum / CU_NUM;
+			int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
+			int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
+			int grpNumPerSe = groupNum / SE_NUM;
+
+			SolutionConfig->extCompilerOpt =
+				std::string(" -Wa,-defsym,W=") + std::to_string(extProb->W) +
+				std::string(" -Wa,-defsym,H=") + std::to_string(extProb->H) +
+				std::string(" -Wa,-defsym,C=") + std::to_string(extProb->C) +
+				std::string(" -Wa,-defsym,K=") + std::to_string(extProb->K) +
+				std::string(" -Wa,-defsym,N=") + std::to_string(extProb->N) +
+				std::string(" -Wa,-defsym,GRP_NUM_SE=") + std::to_string(grpNumPerSe) +
+				std::string(" -Wa,-defsym,GRP_NUM_CU_MIN=") + std::to_string(grpNumPerCUMin) +
+				std::string(" -Wa,-defsym,MAX_GRP_CU_NUM=") + std::to_string(maxGrpCUNum) +
+				std::string(" -Wa,-defsym,PIX_GRP_NUM=") + std::to_string(in_pix_groups);
 		}
 		return E_ReturnState::SUCCESS;
 	}
@@ -479,7 +496,7 @@ public:
 			//SolutionConfig->l_wk0 = 64;		// 需要注释掉循环控制的exec
 			//SolutionConfig->g_wk0 = (64 * SolutionConfig->l_wk0);
 
-			SolutionConfig->g_wk0 += (64 * SolutionConfig->l_wk0);
+			//SolutionConfig->g_wk0 += (64 * SolutionConfig->l_wk0);
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Mult")
 		{
@@ -535,8 +552,9 @@ public:
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Single")
 		{
-			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
+			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
 			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
+			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s";
 			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Mult")
@@ -917,9 +935,9 @@ public:
 		probCfg = new T_ProblemConfig("convolution 1x1");
 
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-		exProbCfg->W = 28;		exProbCfg->H = 28;
-		exProbCfg->C = 128;		exProbCfg->K = 128;
-		exProbCfg->N = 8;
+		exProbCfg->W = 56;		exProbCfg->H = 56;
+		exProbCfg->C = 2048;	exProbCfg->K = 128;
+		exProbCfg->N = 16;
 		probCfg->extConfig = exProbCfg;
 
 		ProblemConfigList->push_back(probCfg);
@@ -1035,16 +1053,16 @@ public:
 
 		for (int i = 0; i < exProbCfg->size_in; i++)
 		{
-			//exProbCfg->h_in[i] = 1;
+			exProbCfg->h_in[i] = 1;
 			//exProbCfg->h_in[i] = (float)(i % 7) + 1.0f;
-			exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
+			//exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
 			//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exProbCfg->size_wei; i++)
 		{
-			//exProbCfg->h_wei[i] = 1;
+			exProbCfg->h_wei[i] = 1;
 			//exProbCfg->h_wei[i] = (float)(i % 13) + 1.0f;
-			exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
+			//exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
 			//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exProbCfg->size_out; i++)

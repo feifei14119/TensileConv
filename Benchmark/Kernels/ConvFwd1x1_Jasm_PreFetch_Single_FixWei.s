@@ -19,11 +19,11 @@
 // ==================================================================================
 .set enable,						1
 .set disable,						0
-.set W,								28
-.set H,								28
-.set C,								192
-.set K,								64
-.set N,								16
+//.set W,								28
+//.set H,								28
+//.set C,								192
+//.set K,								64
+//.set N,								16
 	
 .set MLO_IN_CHANNEL_STRIDE,			(W * H)
 .set MLO_IN_BATCH_STRIDE,			(H * W * C)
@@ -48,7 +48,7 @@
 .set MLO_N_IN_GROUPS_LOG2,			0				// 乘除法时的移位
 .set MLO_N_IN_GROUPS_DIV_MASK,		0x0				// 求余时的mask
 	
-.set MLO_N_LCL_IN_MAPS,				192				// 每个CU负责计算的输入通道个数
+.set MLO_N_LCL_IN_MAPS,				C				// 每个CU负责计算的输入通道个数
 .set MLO_N_LCL_IN_MAPS_ONCE,		8				// 每次循环（不展开）负责计算的输入通道个数
 .set MLO_N_LCL_OUT_MAPS,			16				// 每个CU负责计算的输出特征数
 .set MLO_N_LCL_OUT_MAPS_LOG2,		4
@@ -58,6 +58,7 @@
 	
 .set SE_NUM,						4				// shader engin 个数
 .set SE_NUM_LOG2,					2
+.set SE_NUM_MOD_MASK,				3
 .set FIXED_WORKGROUP_SIZE,			64				// 每个CU的线程数
 .set FIXED_WORKGROUP_SIZE_LOG2,		6
 .set GROUPS_PER_OUT_BATCH,			(W * H / FIXED_WORKGROUP_SIZE * MLO_N_OUT_GROUPS)	// 48
@@ -581,7 +582,9 @@ FETCH_WAIT:
 	s_load_dwordx2 				s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off
 	s_load_dwordx2 				s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off
 	s_load_dwordx2 				s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
-		
+	
+	s_branch					CALCU_ENTRENCE
+	
 	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(grp_id0 < CU_NUM) goto noraml_index
 	s_cbranch_scc0				CALCU_GROUP
 	
@@ -655,37 +658,51 @@ INSTR_FETCH_GROUP:
 
 CALCU_GROUP:
 	s_sub_u32					s[gid_x0], s[gid_x0], 0x0 + CU_NUM
-	// -------------------------------------------------------------------------------
-	// uint z_round = grp_id0 / (CU_NUM * MLO_N_OUT_GROUPS);								// 第几轮Z格子
-	// uint inBlkId = z_round * CU_NUM + grp_id0 % CU_NUM;									// 即 grp_id0_faked
-	// uint weiBlkId = grp_id0 / CU_NUM % MLO_N_OUT_GROUPS;									// 即 out_grp_block
-	// -------------------------------------------------------------------------------
-	s_lshr_b32 					s[s_tmp1], s[gid_x0], 0x0 + Z_BLOCK_GRP_NUM_LOG2			// s_tmp1 = z_round
-	s_lshl_b32					s[s_tmp1], s[s_tmp1], 0x0 + CU_NUM_LOG2						// s_tmp1 = z_round * CU_NUM
-	s_and_b32 					s[s_tmp2], s[gid_x0], 0x0 + CU_NUM_MOD_MASK					// s_tmp2 = grp_id0 % CU_NUM
-	s_add_u32 					s[s_tmp1], s[s_tmp1], s[s_tmp2]								// s_tmp1 = inBlkId = grp_id0_faked
-	s_lshr_b32 					s[s_tmp2], s[gid_x0], 0x0 + CU_NUM_LOG2
-	s_and_b32 					s[s_tmp2], s[s_tmp2], 0x0 + MLO_N_OUT_GROUPS_MOD_MASK		// s_tmp2 = weiBlkId = out_grp_block
-
-	// -------------------------------------------------------------------------------
-	// if (grp_id0 >= MLO_ROUND_LEFT)
-	// {
-	// 	   uint leftGrpId = grp_id0 - MLO_ROUND_LEFT;
-	// 	   weiBlkId = leftGrpId % 4;
-	// 	   inBlkId = leftGrpId / 4 + MLO_INBLOCK_LEFT;										// 4 = MLO_N_OUT_GROUPS
-	// }
-	// -------------------------------------------------------------------------------
-	s_cmp_ge_u32				s[gid_x0], 0x0+MLO_ROUND_LEFT
-	s_cbranch_scc0				NORMAL_GROUP												// if(!(grp_id0 >= MLO_ROUND_LEFT)) goto normal_group
-	s_sub_u32					s[s_tmp1], s[gid_x0], 0x0 + MLO_ROUND_LEFT					// s_tmp1 = leftGrpId
-	s_and_b32					s[s_tmp2], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_MOD_MASK		// s_tmp2 = weiBlkId = out_grp_block
-	s_lshr_b32					s[s_tmp1], s[s_tmp1], 0x0 + MLO_N_OUT_GROUPS_LOG2	
-	s_add_u32					s[s_tmp1], s[s_tmp1], 0x0 + MLO_INBLOCK_LEFT				// s_tmp1 = inBlkId = grp_id0_faked
 	
-NORMAL_GROUP:	
-	v_mov_b32					v[v_acc12], s[s_tmp2]										// v_acc12 = out_grp_block = weiBlkId
-	v_mov_b32					v[v_acc13], s[s_tmp1]										// v_acc13 = grp_id0_faked = inBlkId
+CALCU_ENTRENCE:
+	// -------------------------------------------------------------------------------
+	// int se_id = group_id0 % SE_NUM;														// SE编号
+	// int cu_id = (group_id0 % CU_NUM) / SE_NUM;											// 一个SE内的CU编号
+	// int cu_id2 = cu_id / 2 * 2;
+	// int col_id = group_id0 / CU_NUM;
+	// int raw_id = se_id * CU_PER_SE + cu_id;
+	// -------------------------------------------------------------------------------
+	s_and_b32 					s[s_tmp3], s[gid_x0], 0x0 + SE_NUM_MOD_MASK					// s_tmp3 = se_id
+	s_and_b32 					s[s_tmp1], s[gid_x0], 0x0 + CU_NUM_MOD_MASK					// s_tmp1 = group_id0 % CU_NUM	
+	s_lshr_b32 					s[s_tmp1], s[s_tmp1], 0x0 + SE_NUM_LOG2						// s_tmp1 = cu_id
+	s_and_b32 					s[s_tmp1+1], s[s_tmp1], 0xFFFFFFFE							// s_tmp1+1 = cu_id2	
+	s_lshr_b32					s[s_tmp2], s[gid_x0], CU_NUM_LOG2							// s_tmp2 = col_id
+	s_lshl4_add_u32				s[s_tmp2+1], s[s_tmp3], s[s_tmp1]							// s_tmp2+1 = raw_id
 	
+	// -------------------------------------------------------------------------------
+	// int sr_id = MAX_GRP_CU_NUM;
+	// sr_id += GRP_NUM_SE * se_id;															// 前继SE上所有wave
+	// sr_id += GRP_NUM_CU_MIN * cu_id2;													// 前继CU上所有wave
+	// if (cu_id < MAX_GRP_CU_NUM)
+	// 		sr_id -= (MAX_GRP_CU_NUM - cu_id2);
+	// sr_id = col_id * 2 + cu_id % 2 + sr_id;
+	// -------------------------------------------------------------------------------
+	v_mov_b32					v[v_acc0], 0x0 + MAX_GRP_CU_NUM								// v_acc0 = MAX_GRP_CU_NUM
+	v_mov_b32					v[v_acc1], 0x0 + GRP_NUM_SE
+	v_mad_u32_u24				v[v_acc0], v[v_acc1], s[s_tmp3], v[v_acc0]					// v_acc0 += GRP_NUM_SE * se_id
+	v_mov_b32					v[v_acc1], 0x0 + GRP_NUM_CU_MIN
+	v_mad_u32_u24				v[v_acc0], v[v_acc1], s[s_tmp1+1], v[v_acc0]				// v_acc0 += GRP_NUM_CU_MIN * cu_id2
+	v_cmpx_lt_u32				vcc, s[s_tmp1], 0x0 + MAX_GRP_CU_NUM						// if (cu_id < MAX_GRP_CU_NUM)
+	v_mov_b32					v[v_acc1], 0x0 - MAX_GRP_CU_NUM								// 		v_acc1 = -MAX_GRP_CU_NUM
+	v_add3_u32					v[v_acc0], v[v_acc1], s[s_tmp1+1], v[v_acc0]				// 		v_acc0 = v_acc0 + (-MAX_GRP_CU_NUM) + cu_id2
+	s_mov_b64					exec, 0xFFFFFFFFFFFFFFFF
+	v_lshlrev_b32				v[v_acc1], 1, s[s_tmp2]
+	v_and_b32					v[v_acc2], s[s_tmp1], 1
+	v_add3_u32					v[v_acc0], v[v_acc0], v[v_acc1], v[v_acc2]					// v_acc0 = sr_id
+	
+	// -------------------------------------------------------------------------------
+	// pixBlkId = sr_id % in_pix_groups;
+	// weiBlkId = sr_id / in_pix_groups;
+	// -------------------------------------------------------------------------------
+	v_mov_b32					v[v_acc1], 0x0 + PIX_GRP_NUM
+	mv_div_u32					v[v_acc0], v[v_acc1], v[v_acc12], v[v_acc13]				// v_acc12 = weiBlkId
+																							// v_acc13 = pixBlkId
+		
 	// -------------------------------------------------------------------------------
     // uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) / MLO_IN_CHANNEL_STRIDE;
     // uint pos      = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) % MLO_IN_CHANNEL_STRIDE;
@@ -790,7 +807,7 @@ LOOP_CONV:
 	//m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature		 	v_data0, weight_offset, 8, disable, disable	
-	m_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt	
+	//m_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt	
 	m_load_input 				v_data0, enable
 	m_cacul_all_feature		 	v_datb0, weight_offset, 8, enable, enable
 	
@@ -828,12 +845,12 @@ END_PROG:
   Kernels: 
     - { Name: ConvFwd1x1, SymbolName: 'ConvFwd1x1', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 64, 1, 1 ] }
-        CodeProps: { KernargSegmentSize: 32, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 256 }
+        CodeProps: { KernargSegmentSize: 32, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 64 }
         Args:
         - { Name: d_in  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }
         - { Name: d_wei , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }
         - { Name: d_out , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }
-        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: U32, TypeName: 'float*', AddrSpaceQual: Global  }
+//        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: U32, TypeName: 'float*', AddrSpaceQual: Global  }
       }
 }
 .end_amd_amdgpu_hsa_metadata
