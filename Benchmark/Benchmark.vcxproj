@@ -120,7 +120,7 @@
     <None Include="Kernels\gpr_alloc.inc" />
     <None Include="Kernels\inst_wrappers.inc" />
     <None Include="Kernels\IsaDs.s" />
-    <None Include="Kernels\IsaMubuf.s" />
+    <None Include="Kernels\IsaVMBuf.s" />
     <None Include="Kernels\IsaSleep.s" />
     <None Include="Kernels\ProducerConsumer.s" />
     <None Include="Kernels\PS_Consumer.s" />

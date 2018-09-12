@@ -15,10 +15,10 @@
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
 
 .text
-.globl IsaMubuf
+.globl IsaVMBuf
 .p2align 8
-.type IsaMubuf,@function
-.amdgpu_hsa_kernel IsaMubuf
+.type IsaVMBuf,@function
+.amdgpu_hsa_kernel IsaVMBuf
 
 /************************************************************************************/
 /* 预定义																			*/
@@ -65,14 +65,15 @@ v_c_addr = 6
 v_temp1 = 8
 v_temp2 = 10
 v_temp3 = 12
-v_index = 13
-v_offset = 14
+v_index = 14
+v_offset = 15
+v_input = 16
 
 
 /************************************************************************************/
 /* 主程序																			*/
 /************************************************************************************/
-IsaMubuf:
+IsaVMBuf:
 	// ===============================================================================
 	// ===============================================================================
 	.amd_kernel_code_t
@@ -98,11 +99,15 @@ IsaMubuf:
 	
 	// ===============================================================================
 	// ===============================================================================
-// Disassembly:        
+START_PROG:        
 	s_load_dwordx2 s[s_a_ptr:s_a_ptr+1], s[s_arg:s_arg+1], 0x0+a_ptr_off   
 	s_load_dwordx2 s[s_b_ptr:s_b_ptr+1], s[s_arg:s_arg+1], 0x0+b_ptr_off
 	s_load_dwordx2 s[s_c_ptr:s_c_ptr+1], s[s_arg:s_arg+1], 0x0+c_ptr_off
 	s_waitcnt lgkmcnt(0)
+	
+	s_cmpk_gt_u32		s[s_gidx], 0
+	s_cbranch_scc1		END_PROG
+	v_cmpx_lt_u32		vcc, v[v_tid0], 16
 	
 	// -------------------------------------------------------------------------------
 	// 计算输入a下标: 
@@ -114,6 +119,17 @@ IsaMubuf:
 	v_mov_b32			v[v_temp2], s[s_a_ptr+1]
 	v_add_co_u32 		v[v_a_addr], vcc, s[s_a_ptr], v[v_temp1]
 	v_addc_co_u32 		v[v_a_addr+1], vcc, 0, v[v_temp2], vcc
+
+	// -------------------------------------------------------------------------------
+	// 计算输出下标: 
+	// b_addr = b_ptr + (gid_x * local_size) + tid_x
+	// -------------------------------------------------------------------------------
+	v_lshlrev_b32 		v[v_temp1], 0x0 + LOCAL_SIZE_LOG2, s[s_gidx]
+	v_add_lshl_u32 		v[v_temp1], v[v_temp1], v[v_tid0], 2
+
+	v_mov_b32			v[v_temp2], s[s_b_ptr + 1]
+	v_add_co_u32 		v[v_b_addr], vcc, s[s_b_ptr], v[v_temp1]
+	v_addc_co_u32 		v[v_b_addr + 1], vcc, 0, v[v_temp2], vcc
 		
 	// -------------------------------------------------------------------------------
 	// 计算输出下标: 
@@ -126,26 +142,66 @@ IsaMubuf:
 	v_add_co_u32 		v[v_c_addr], vcc, s[s_c_ptr], v[v_temp1]
 	v_addc_co_u32 		v[v_c_addr+1], vcc, 0, v[v_temp2], vcc
   
-	// -------------------------------------------------------------------------------
-	// 计算1
-	// -------------------------------------------------------------------------------
-	//global_load_dword	v[v_temp1], v[v_a_addr:v_a_addr+1], off
+	//// -------------------------------------------------------------------------------
+	//// 计算1
+	//// -------------------------------------------------------------------------------
+	//stride = (64*4) << 16												// ;记录长度(BYTE)
+	//s_mov_b64			s[s_desc0:s_desc1], s[s_a_ptr:s_a_ptr+1]
+	//s_or_b32			s[s_desc1], s[s_desc1], 0x0 + stride
+	//s_mov_b32			s[s_desc2], 16									// ;记录条数
+	//s_mov_b32			s[s_desc3], 0x00027000
+	//
+	//s_mov_b32			s[s_base_offset], 0x0 
+	//v_mov_b32			v[v_index],	 v[v_tid0]
+	//v_mov_b32			v[v_offset], 4*1								// (BYTE)
+	//
+	//buffer_load_dwordx4	v[v_input:v_input+3], v[v_index:v_offset], s[s_desc0:s_desc3] s[s_base_offset] idxen offen
+	//s_waitcnt			vmcnt(0)
+	//
+	//v_mov_b32			v[v_temp1], v[v_input+3]
+	//global_store_dword	v[v_c_addr:v_c_addr+1], v[v_temp1], off
+    
+	//// -------------------------------------------------------------------------------
+	//// 计算2
+	//// -------------------------------------------------------------------------------
+	//stride = (64*4) << 16												// ;记录长度(BYTE)
+	//s_mov_b64			s[s_desc0:s_desc1], s[s_a_ptr:s_a_ptr+1]
+	//s_or_b32			s[s_desc1], s[s_desc1], 0x0 + stride
+	//s_mov_b32			s[s_desc2], 16									// ;记录条数
+	//s_mov_b32			s[s_desc3], 0x00807000							// add_tid_en = 1, ; dat_fmt存储stride[17:15]
+	//
+	//s_mov_b32			s[s_base_offset], 0x0 
+	//v_mov_b32			v[v_index],	 0
+	//v_mov_b32			v[v_offset], v[v_tid0]
+	//
+	//buffer_load_dwordx4	v[v_input:v_input+3], off, s[s_desc0:s_desc3], s[s_base_offset]
+	//s_waitcnt			vmcnt(0)
+	//
+	//v_mov_b32			v[v_temp1], v[v_input+3]
+	//global_store_dword	v[v_c_addr:v_c_addr+1], v[v_temp1], off
 	
-	buffer_size = VECTOR_SIZE * 4	//(BYTE)
+    
+	// -------------------------------------------------------------------------------
+	// 计算3
+	// -------------------------------------------------------------------------------
+	stride = (64*4) << 16												// ;记录长度(BYTE)
 	s_mov_b64			s[s_desc0:s_desc1], s[s_a_ptr:s_a_ptr+1]
-	s_or_b32			s[s_desc1], s[s_desc1], 0x00040000
-	s_mov_b32			s[s_desc2], 0x0 + buffer_size
-    s_mov_b32 			s[s_desc3], 0x00027000
+	s_or_b32			s[s_desc1], s[s_desc1], (0x0 + stride) | 0x80000000 // swizzle_enable
+	s_mov_b32			s[s_desc2], 16									// ;记录条数
+	s_mov_b32			s[s_desc3], 0x00027000
 	
-	v_mov_b32			v[v_index],	 0x1
-	v_mov_b32			v[v_offset], 0x0
+	s_mov_b32			s[s_base_offset], 0x0
+	v_mov_b32			v[v_index],	 0
+	v_mov_b32			v[v_offset], v[v_tid0]
+	v_lshlrev_b32 		v[v_offset], 2, v[v_offset]
 	
-	s_mov_b32			s[s_base_offset], 0x0 
-	
-	buffer_load_dword	v[v_temp1], v[v_index], s[s_desc0:s_desc3] s[s_base_offset] offen offset:0x0
+	buffer_load_dwordx2	v[v_input+2:v_input+3], v[v_index:v_offset], s[s_desc0:s_desc3], s[s_base_offset] idxen offen	
 	s_waitcnt			vmcnt(0)
+	
+	v_mov_b32			v[v_temp1], v[v_input+3]
 	global_store_dword	v[v_c_addr:v_c_addr+1], v[v_temp1], off
-
+	
+END_PROG:
 	s_endpgm                              
 	
 /************************************************************************************/
@@ -154,7 +210,7 @@ IsaMubuf:
 .amd_amdgpu_hsa_metadata
 { Version: [ 1, 0 ],
   Kernels: 
-    - { Name: IsaMubuf, SymbolName: 'IsaMubuf', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
+    - { Name: IsaVMBuf, SymbolName: 'IsaVMBuf', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 64, 1, 1 ] }
         CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 512 }
         Args:

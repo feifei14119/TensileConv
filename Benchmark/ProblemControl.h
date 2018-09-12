@@ -271,8 +271,13 @@ public:
 	void printIndex(int *index, char* name)
 	{
 		int groupNum = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
-		int grpNumPerCU = (groupNum + CU_NUM - 1) / CU_NUM;
-		int waveNumPerCU = grpNumPerCU * (SolutionConfig->l_wk0 / WAVE_SIZE);
+		int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
+		int grpNumPerCUMin = groupNum / CU_NUM;
+		int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
+		int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
+
+		int waveNumPerCUMax = grpNumPerCUMax * (SolutionConfig->l_wk0 / WAVE_SIZE);
+		int waveNumPerCUMin = grpNumPerCUMin * (SolutionConfig->l_wk0 / WAVE_SIZE);
 		int simuGrpIdx = 0;
 		int grpIdxBase;
 
@@ -280,8 +285,10 @@ public:
 		printf("\t| index name = %s\n", name);
 		printf("\t| group size = %d\n", SolutionConfig->l_wk0);
 		printf("\t| group number = %d\n", groupNum);
-		printf("\t| group number per cu = %d\n", grpNumPerCU);
-		printf("\t| wave number per cu = %d\n", waveNumPerCU);
+		printf("\t| group number per cu = (%d * %d) + (%d * %d)\n",
+			grpNumPerCUMax, maxGrpCUNum, grpNumPerCUMin, minGrpCUNum);
+		printf("\t| wave number per cu = (%d * %d) + (%d * %d)\n",
+			waveNumPerCUMax, maxGrpCUNum, waveNumPerCUMin, minGrpCUNum);
 		printf("\t|---------------------------------------------------------\n");
 		for (int se = 0; se < SE_NUM; se++)
 		{
@@ -336,6 +343,11 @@ class ProblemCtrlBase
 public:
 	ProblemCtrlBase()
 	{
+		ProblemConfigList = new std::list<T_ProblemConfig*>;
+	}
+	ProblemCtrlBase(std::string name)
+	{
+		ProblemName = name;
 		ProblemConfigList = new std::list<T_ProblemConfig*>;
 	}
 

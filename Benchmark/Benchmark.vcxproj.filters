@@ -165,9 +165,6 @@
     <None Include="Kernels\IsaGlobal.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
-    <None Include="Kernels\IsaMubuf.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
     <None Include="Kernels\IsaSleep.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
@@ -206,6 +203,9 @@
     </None>
     <None Include="Kernels\SimuIndex.cl">
       <Filter>problems\tensile\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaVMBuf.s">
+      <Filter>problems\sample\kernels</Filter>
     </None>
   </ItemGroup>
 </Project>

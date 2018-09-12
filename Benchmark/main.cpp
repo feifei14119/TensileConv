@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 	//global->RunProblem();
 	//ProblemCtrlBase *lds = new DsProblem();
 	//lds->RunProblem();
-	//ProblemCtrlBase *mubuf = new MubufProblem();
+	//ProblemCtrlBase *mubuf = new VMBufProblem("VM Buffer Instruction");
 	//mubuf->RunProblem();
 	//ProblemCtrlBase *slp = new SleepProblem();
 	//slp->RunProblem();

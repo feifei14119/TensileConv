@@ -6,9 +6,9 @@
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
-#define		MultSolution	(1)
-#define		EnSimuIndex		(0)
-#define		EnSaveSource	(1)
+#define		MultSolution	(0)
+#define		EnSimuIndex		(1)
+#define		EnSaveSource	(0)
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:
@@ -63,7 +63,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -151,7 +151,7 @@ public:
 #endif
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		return E_ReturnState::SUCCESS;
@@ -801,16 +801,25 @@ public:
 		int pix_z_group = in_pix_groups / pix_z_size;
 		int wei_z_group = k_out_groups / wei_z_size;
 
+		int groupNum = in_pix_groups * k_out_groups;
+		int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
+		int grpNumPerCUMin = groupNum / CU_NUM;
+		int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
+		int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
+		int grpNumPerSe = groupNum / SE_NUM;
+
 		for (int grp = 0; grp < SolutionConfig->b_wk0; grp++)
 		{
 			uint local_id0 = 0;
 			uint group_id0 = grp;
 			uint pixBlkId, weiBlkId;
 
+			// =====================================================================
 			// old organization
 			//weiBlkId = group_id0 % K_OUT_GROUPS;
 			//pixBlkId = group_id0 / K_OUT_GROUPS;
 
+			// --------------------------------------------------------------------
 			// tensile fix input 
 			//uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
 			//
@@ -825,13 +834,25 @@ public:
 			//	weiBlkId = leftGrpId % 4;
 			//}
 
-
+			// --------------------------------------------------------------------
 			// tensile fix weight
-			uint z_round = group_id0 / (CU_NUM * pix_z_size / 2);	// 第几轮Z格子
-			weiBlkId = z_round * CU_NUM + group_id0 % CU_NUM;
-			//weiBlkId = group_id0 / CU_NUM % k_out_groups;
+			uint col_id = group_id0 / CU_NUM;
+			uint se_id = group_id0 % SE_NUM;				// SE编号
+			uint cu_id = (group_id0 % CU_NUM) / SE_NUM;		// 一个SE内的CU编号
+			uint raw_id = CU_PER_SE * se_id + cu_id;
 
+			int cu_id2 = cu_id / 2 * 2;
+			uint sr_id = grpNumPerSe * se_id;	// 前继SE上所有wave
+			sr_id += grpNumPerCUMin * cu_id2;		// 前继CU上所有wave
+			sr_id += maxGrpCUNum;
+			if (cu_id < maxGrpCUNum)
+				sr_id -= (maxGrpCUNum - cu_id2);
 
+			sr_id = col_id * 2 + cu_id % 2 + sr_id;
+			pixBlkId = sr_id % in_pix_groups;
+			weiBlkId = sr_id / in_pix_groups;
+
+			// =====================================================================
 			// same
 			uint pos = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) % IN_CHANNEL_STRIDE;
 			uint batch_id = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) / IN_CHANNEL_STRIDE;
@@ -841,7 +862,7 @@ public:
 			uint wei_off = out_id * WEI_CHANNEL_STRIDE;
 			uint gbl_out_off = batch_id * OUT_BATCH_STRIDE + out_id * OUT_CHANNEL_STRIDE + pos;
 
-			testId[group_id0] = z_round;
+			testId[group_id0] = 0;
 			testGrpId[group_id0] = group_id0;
 			testPixBlkId[group_id0] = pixBlkId;
 			testWeiBlkId[group_id0] = weiBlkId;
@@ -850,9 +871,9 @@ public:
 			testOutId[group_id0] = out_id;
 		}
 
-		printIndex(testGrpId, "group id");
-		printIndex(testId, "test temp id");
-		//printIndex(testPixBlkId, "input block id");
+		//printIndex(testGrpId, "group id");
+		//printIndex(testId, "test temp id");
+		printIndex(testPixBlkId, "input block id");
 		printIndex(testWeiBlkId, "weight block id");
 		//printIndex(testBatchId, "batch id");
 		//printIndex(testOutId, "out id");
@@ -868,7 +889,7 @@ public:
 	}
 };
 
-#define		SingleProblem	(0)
+#define		SingleProblem	(1)
 #define		SkipHost		(1)
 /************************************************************************/
 /* 问题控制                                                             */
@@ -893,19 +914,18 @@ public:
 		T_SearchParam * searchParam;
 
 #if	SingleProblem	
-		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		probCfg = new T_ProblemConfig("convolution 1x1");
-		probCfg->extConfig = exProbCfg;
 
+		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		exProbCfg->W = 28;		exProbCfg->H = 28;
 		exProbCfg->C = 128;		exProbCfg->K = 128;
 		exProbCfg->N = 8;
+		probCfg->extConfig = exProbCfg;
 
-		exProbCfg->W = 56;		exProbCfg->H = 56;
 		ProblemConfigList->push_back(probCfg);
 #else
-		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		probCfg = new T_ProblemConfig("convolution 1x1");
+		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		probCfg->extConfig = exProbCfg;
 
 		searchParam = new T_SearchParam("C");
