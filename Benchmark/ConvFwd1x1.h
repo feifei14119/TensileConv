@@ -207,10 +207,13 @@ public:
 		DevFree((cl_mem)(d_wei.ptr));
 		DevFree((cl_mem)(d_out.ptr));
 
-		if (SolutionConfig->ConfigName == "PreFetch_Mult" || SolutionConfig->ConfigName == "PreFetch_Single")
+		if (SolutionConfig->ConfigName == "PreFetch_Single")
 		{
 			DevFree((cl_mem)(d_signal.ptr));
-			delete preKernel;
+			if (SolutionConfig->ConfigName == "PreFetch_Mult")
+			{
+				delete preKernel;
+			}
 		}
 	}
 

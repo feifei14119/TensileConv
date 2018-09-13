@@ -498,7 +498,7 @@ FETCH_WAIT:
 .endm
 
 /************************************************************************************/
-/* 预读取n个输出通道k_out															*/
+/* 预读取n个输出feature block, 即n个k_out_maps										*/
 /************************************************************************************/
 .macro m_fetch_k_out_blk		k_out_block_num
 	s_mov_b64					s[s_ptr_save:s_ptr_save+1], s[s_ptr_wei:s_ptr_wei+1]
@@ -587,26 +587,90 @@ FETCH_WAIT:
 	s_cbranch_scc0				CALCU_GROUP
 	
 	s_branch					END_PROG
-// ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-		
+// ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
 	// -------------------------------------------------------------------------------
-	// PING_PANG_FETCH
+	// int se_id = group_id0 % SE_NUM;														// SE编号
+	// int cu_id = (group_id0 % CU_NUM) / SE_NUM;											// 一个SE内的CU编号
+	// int cu_id2 = cu_id / 2 * 2;
+	// int col_id = group_id0 / CU_NUM;
+	// int raw_id = se_id * CU_PER_SE + cu_id;
 	// -------------------------------------------------------------------------------
-	s_lshr_b32					s[s_flag], s[gid_x0], 0x02
-	s_and_b32					s[s_flag], s[s_flag], 0x01
-	s_cmp_eq_u32				s[s_flag], 0x0	
-	s_cbranch_scc1				FETCH_GROUP_PING
+	s_and_b32 					s[s_tmp3], s[gid_x0], 0x0 + SE_NUM_MOD_MASK					// s_tmp3 = se_id
+	s_and_b32 					s[s_tmp1], s[gid_x0], 0x0 + CU_NUM_MOD_MASK					// s_tmp1 = group_id0 % CU_NUM	
+	s_lshr_b32 					s[s_tmp1], s[s_tmp1], 0x0 + SE_NUM_LOG2						// s_tmp1 = cu_id
+	s_and_b32 					s[s_tmp1+1], s[s_tmp1], 0xFFFFFFFE							// s_tmp1+1 = cu_id2	
+	s_lshr_b32					s[s_tmp2], s[gid_x0], CU_NUM_LOG2							// s_tmp2 = col_id
+	s_lshl4_add_u32				s[s_tmp2+1], s[s_tmp3], s[s_tmp1]							// s_tmp2+1 = raw_id
+	
+	// -------------------------------------------------------------------------------
+	// int sr_id = MAX_GRP_CU_NUM;
+	// sr_id += GRP_NUM_SE * se_id;															// 前继SE上所有wave
+	// sr_id += GRP_NUM_CU_MIN * cu_id2;													// 前继CU上所有wave
+	// if (cu_id < MAX_GRP_CU_NUM)
+	// 		sr_id -= (MAX_GRP_CU_NUM - cu_id2);
+	// sr_id = col_id * 2 + cu_id % 2 + sr_id;
+	// -------------------------------------------------------------------------------
+	v_mov_b32					v[v_acc0], 0x0 + MAX_GRP_CU_NUM								// v_acc0 = MAX_GRP_CU_NUM
+	v_mov_b32					v[v_acc1], 0x0 + GRP_NUM_SE
+	v_mad_u32_u24				v[v_acc0], v[v_acc1], s[s_tmp3], v[v_acc0]					// v_acc0 += GRP_NUM_SE * se_id
+	v_mov_b32					v[v_acc1], 0x0 + GRP_NUM_CU_MIN
+	v_mad_u32_u24				v[v_acc0], v[v_acc1], s[s_tmp1+1], v[v_acc0]				// v_acc0 += GRP_NUM_CU_MIN * cu_id2
+	v_cmpx_lt_u32				vcc, s[s_tmp1], 0x0 + MAX_GRP_CU_NUM						// if (cu_id < MAX_GRP_CU_NUM)
+	v_mov_b32					v[v_acc1], 0x0 - MAX_GRP_CU_NUM								// 		v_acc1 = -MAX_GRP_CU_NUM
+	v_add3_u32					v[v_acc0], v[v_acc1], s[s_tmp1+1], v[v_acc0]				// 		v_acc0 = v_acc0 + (-MAX_GRP_CU_NUM) + cu_id2
+	s_mov_b64					exec, 0xFFFFFFFFFFFFFFFF
+	v_lshlrev_b32				v[v_acc1], 1, s[s_tmp2]
+	v_and_b32					v[v_acc2], s[s_tmp1], 1
+	v_add3_u32					v[v_acc0], v[v_acc0], v[v_acc1], v[v_acc2]					// v_acc0 = sr_id
+	
+	// -------------------------------------------------------------------------------
+	// pixBlkId = sr_id % in_pix_groups;
+	// weiBlkId = sr_id / in_pix_groups;
+	// -------------------------------------------------------------------------------
+	v_mov_b32					v[v_acc1], 0x0 + PIX_GRP_NUM
+	mv_div_u32					v[v_acc0], v[v_acc1], v[v_acc12], v[v_acc13]				// v_acc12 = weiBlkId
+																							// v_acc13 = pixBlkId
+	
+	// -------------------------------------------------------------------------------
+    // uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) / MLO_IN_CHANNEL_STRIDE;
+    // uint pos      = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) % MLO_IN_CHANNEL_STRIDE;
+    // uint out_id   = out_grp_block * MLO_N_LCL_OUT_MAPS;
+	// -------------------------------------------------------------------------------
+	v_lshlrev_b32				v[v_acc13], 0x0 + IN_PIXEL_PER_GROUP_LOG2, v[v_acc13]
+	v_add_co_u32				v[v_acc13], vcc, v[v_acc13], v[tid]
+	v_mov_b32					v[v_acc6], 0x0 + MLO_IN_CHANNEL_STRIDE
+	mv_div_u32					v[v_acc13], v[v_acc6], v[v_acc7], v[v_acc8]					// v_acc7 = batch_id v_acc8 = pos
+	v_lshlrev_b32				v[v_acc6], 0x0 + MLO_N_LCL_OUT_MAPS_LOG2, v[v_acc12]		// v_acc6 = out_id
+	
+	// -------------------------------------------------------------------------------
+	// 计算 weight 地址
+    // uint wei_off = out_id * MLO_WEI_CHANNEL_STRIDE;
+	// -------------------------------------------------------------------------------
+	v_mov_b32 					v[v_acc9], 0x0 + MLO_WEI_CHANNEL_STRIDE
+	v_mul_u32_u24				v[v_acc9], v[v_acc6], v[v_acc9]
+	v_readfirstlane_b32			s[s_tmp0], v[v_acc9]
+	s_lshl_b32					s[s_tmp1], s[s_tmp0], 2
+	s_waitcnt 					lgkmcnt(0)
+	s_add_u32					s[s_ptr_wei], s[s_ptr_wei], s[s_tmp1]
+	s_addc_u32					s[s_ptr_wei + 1], 0x0, s[s_ptr_wei + 1]	
+	
+	// -------------------------------------------------------------------------------
+	// PING_PANG_CU
+	// -------------------------------------------------------------------------------
+	s_and_b32 					s[s_tmp1], s[gid_x0], 0x0 + CU_NUM_MOD_MASK					// s_tmp1 = group_id0 % CU_NUM	
+	s_lshr_b32 					s[s_tmp1], s[s_tmp1], 0x0 + SE_NUM_LOG2						// s_tmp1 = cu_id
+	s_and_b32					s[s_tmp1], s[s_tmp1], 0x01
+	s_cmp_eq_u32				s[s_tmp1], 0x0	
+	s_cbranch_scc1				FETCH_GROUP
 	
 	// ------------------------------------------------------------------------------
-	// 调整指针: 到下一个 16 k_out
+	// PANG_CU调整指针: 到下一个 weight_block 的 k_out
 	// ------------------------------------------------------------------------------
 	s_waitcnt 					lgkmcnt(0)
 	s_add_u32 					s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_CHANNEL_STRIDE * K_FETCH_SUB * 4
 	s_addc_u32 					s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
-	s_add_u32 					s[s_ptr_wei], s[s_ptr_wei], 0x0 + MLO_WEI_CHANNEL_STRIDE * K_FETCH_SUB * 4
-	s_addc_u32 					s[s_ptr_wei+1], s[s_ptr_wei+1], 0x0
 
-FETCH_GROUP_PING:	
+FETCH_GROUP:	
 	// -------------------------------------------------------------------------------
 	// 计算 signal 地址 
 	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
@@ -629,11 +693,11 @@ FETCH_GROUP_PING:
 	
 	s_mov_b32 					s[s_loop_cnt], CLOOP0-1										// channel 的循环	
 	
-	m_fetch_k_out_blk			2
+	m_fetch_k_out_blk			1
 		
 PRE_FETCH:
 	m_wait_signal				s_loop_cnt
-	m_fetch_k_out_blk			2
+	m_fetch_k_out_blk			1
 	
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
@@ -643,9 +707,9 @@ PRE_FETCH:
 	s_cbranch_scc0 				PRE_FETCH
 	
 	// 最后一笔预取不再等待,转而去做指令预取
-	m_fetch_k_out_blk			2
+	m_fetch_k_out_blk			1
 	
-	//s_branch					END_PROG
+	s_branch					END_PROG
 	
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -700,7 +764,7 @@ CALCU_GROUP:
 	v_mov_b32					v[v_acc1], 0x0 + PIX_GRP_NUM
 	mv_div_u32					v[v_acc0], v[v_acc1], v[v_acc12], v[v_acc13]				// v_acc12 = weiBlkId
 																							// v_acc13 = pixBlkId
-		
+	
 	// -------------------------------------------------------------------------------
     // uint batch_id = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) / MLO_IN_CHANNEL_STRIDE;
     // uint pos      = (grp_id0_faked * FIXED_WORKGROUP_SIZE + local_id0) % MLO_IN_CHANNEL_STRIDE;
