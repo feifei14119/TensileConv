@@ -583,11 +583,11 @@ FETCH_WAIT:
 	s_load_dwordx2 				s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off
 	s_load_dwordx2 				s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
 	
-	s_branch					CALCU_ENTRENCE
 	
-	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(grp_id0 < CU_NUM) goto noraml_index
+	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(!(grp_id0 < CU_NUM)) goto noraml_index
 	s_cbranch_scc0				CALCU_GROUP
 	
+	s_branch					END_PROG
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 		
 	// -------------------------------------------------------------------------------
@@ -659,7 +659,6 @@ INSTR_FETCH_GROUP:
 CALCU_GROUP:
 	s_sub_u32					s[gid_x0], s[gid_x0], 0x0 + CU_NUM
 	
-CALCU_ENTRENCE:
 	// -------------------------------------------------------------------------------
 	// int se_id = group_id0 % SE_NUM;														// SE编号
 	// int cu_id = (group_id0 % CU_NUM) / SE_NUM;											// 一个SE内的CU编号
@@ -850,7 +849,7 @@ END_PROG:
         - { Name: d_in  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }
         - { Name: d_wei , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }
         - { Name: d_out , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }
-//        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: U32, TypeName: 'float*', AddrSpaceQual: Global  }
+        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: U32, TypeName: 'float*', AddrSpaceQual: Global  }
       }
 }
 .end_amd_amdgpu_hsa_metadata

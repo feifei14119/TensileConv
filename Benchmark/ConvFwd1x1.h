@@ -7,7 +7,7 @@
 /* solution控制                                                          */
 /************************************************************************/
 #define		MultSolution	(0)
-#define		EnSimuIndex		(1)
+#define		EnSimuIndex		(0)
 #define		EnSaveSource	(0)
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
@@ -33,7 +33,6 @@ private:
 	// -------------------------------------------------------------------
 	// prefetch mult-kernel
 	int *h_signal;
-	int prefetch_loop;
 	int size_sig;
 	T_KernelArgu d_signal;
 	RuntimeCtrl * preKernel;
@@ -181,23 +180,24 @@ public:
 		Copy2Dev((cl_mem)(d_in.ptr), extProb->h_in, extProb->size_in * sizeof(float));
 		Copy2Dev((cl_mem)(d_wei.ptr), extProb->h_wei, extProb->size_wei * sizeof(float));
 
-		if (SolutionConfig->ConfigName == "PreFetch_Mult")
+		if (SolutionConfig->ConfigName == "PreFetch_Mult" || SolutionConfig->ConfigName == "PreFetch_Single")
 		{
-			preKernel = new RuntimeCtrlOcl();
-
-			prefetch_loop = 32; // extProb->C / CACHE_LINE;
-			size_sig = prefetch_loop * CU_NUM;
-			h_signal = (int*)HstMalloc(size_sig * sizeof(int));
-			
+			size_sig = extProb->C * CU_NUM;
 			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
 			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
 			SolutionConfig->KernelArgus->push_back(d_signal);
 
-			extSol->preArgus = new std::list<T_KernelArgu>;
-			extSol->preArgus->push_back(d_in);
-			extSol->preArgus->push_back(d_wei);
-			extSol->preArgus->push_back(d_out);
-			extSol->preArgus->push_back(d_signal);
+			if (SolutionConfig->ConfigName == "PreFetch_Mult")
+			{
+				preKernel = new RuntimeCtrlOcl();
+				extSol->preArgus = new std::list<T_KernelArgu>;
+				extSol->preArgus->push_back(d_in);
+				extSol->preArgus->push_back(d_wei);
+				extSol->preArgus->push_back(d_out);
+				extSol->preArgus->push_back(d_signal);
+			}
+
+			//h_signal = (int*)HstMalloc(size_sig * sizeof(int));
 		}
 
 		return E_ReturnState::SUCCESS;
@@ -496,7 +496,7 @@ public:
 			//SolutionConfig->l_wk0 = 64;		// 需要注释掉循环控制的exec
 			//SolutionConfig->g_wk0 = (64 * SolutionConfig->l_wk0);
 
-			//SolutionConfig->g_wk0 += (64 * SolutionConfig->l_wk0);
+			SolutionConfig->g_wk0 += (CU_NUM * SolutionConfig->l_wk0);
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Mult")
 		{
@@ -908,7 +908,7 @@ public:
 };
 
 #define		SingleProblem	(1)
-#define		SkipHost		(1)
+#define		SkipHost		(0)
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
@@ -935,8 +935,8 @@ public:
 		probCfg = new T_ProblemConfig("convolution 1x1");
 
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-		exProbCfg->W = 56;		exProbCfg->H = 56;
-		exProbCfg->C = 2048;	exProbCfg->K = 128;
+		exProbCfg->W = 28;		exProbCfg->H = 28;
+		exProbCfg->C = 128;		exProbCfg->K = 128;
 		exProbCfg->N = 16;
 		probCfg->extConfig = exProbCfg;
 
