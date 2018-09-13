@@ -32,8 +32,8 @@ private:
 
 	// -------------------------------------------------------------------
 	// prefetch mult-kernel
-	int *h_signal;
-	int size_sig;
+	int *h_signal = nullptr;
+	int sig_num_per_cu,size_sig;
 	T_KernelArgu d_signal;
 	RuntimeCtrl * preKernel;
 
@@ -179,27 +179,7 @@ public:
 		
 		Copy2Dev((cl_mem)(d_in.ptr), extProb->h_in, extProb->size_in * sizeof(float));
 		Copy2Dev((cl_mem)(d_wei.ptr), extProb->h_wei, extProb->size_wei * sizeof(float));
-
-		if (SolutionConfig->ConfigName == "PreFetch_Mult" || SolutionConfig->ConfigName == "PreFetch_Single")
-		{
-			size_sig = extProb->C * CU_NUM;
-			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
-			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
-			SolutionConfig->KernelArgus->push_back(d_signal);
-
-			if (SolutionConfig->ConfigName == "PreFetch_Mult")
-			{
-				preKernel = new RuntimeCtrlOcl();
-				extSol->preArgus = new std::list<T_KernelArgu>;
-				extSol->preArgus->push_back(d_in);
-				extSol->preArgus->push_back(d_wei);
-				extSol->preArgus->push_back(d_out);
-				extSol->preArgus->push_back(d_signal);
-			}
-
-			//h_signal = (int*)HstMalloc(size_sig * sizeof(int));
-		}
-
+		
 		return E_ReturnState::SUCCESS;
 	}
 
@@ -211,7 +191,11 @@ public:
 		T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 		
 		Copy2Hst(extProb->h_out, (cl_mem)(d_out.ptr), extProb->size_out * sizeof(float));
-		//Copy2Hst(h_signal, (cl_mem)(d_signal.ptr), size_sig * sizeof(int));
+
+		if (SolutionConfig->ConfigName == "PreFetch_Mult" || SolutionConfig->ConfigName == "PreFetch_Single")
+		{
+			Copy2Hst(h_signal, (cl_mem)(d_signal.ptr), size_sig * sizeof(int));
+		}
 	}
 
 	/************************************************************************/
@@ -223,7 +207,7 @@ public:
 		DevFree((cl_mem)(d_wei.ptr));
 		DevFree((cl_mem)(d_out.ptr));
 
-		if (SolutionConfig->ConfigName == "PreFetch_Mult")
+		if (SolutionConfig->ConfigName == "PreFetch_Mult" || SolutionConfig->ConfigName == "PreFetch_Single")
 		{
 			DevFree((cl_mem)(d_signal.ptr));
 			delete preKernel;
@@ -334,6 +318,14 @@ public:
 			in_pix_maps = 64;
 			loop = c_in_maps / c_in_maps_once;
 			align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
+
+			// signal mem
+			sig_num_per_cu = next2pow(loop / 2);
+			size_sig = sig_num_per_cu * CU_NUM;
+			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
+			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
+			SolutionConfig->KernelArgus->push_back(d_signal);
+			h_signal = (int*)HstMalloc(size_sig * sizeof(int));
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Mult")
 		{
@@ -349,6 +341,20 @@ public:
 			in_pix_maps = 64;
 			loop = c_in_maps / c_in_maps_once;
 			align = ((extProb->W * extProb->H * extProb->N + in_pix_maps - 1) / in_pix_maps) * in_pix_maps;
+
+			// signal mem
+			size_sig = loop / 2 * CU_NUM;
+			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
+			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
+			SolutionConfig->KernelArgus->push_back(d_signal);
+			h_signal = (int*)HstMalloc(size_sig * sizeof(int));
+			// prefetch kernel
+			preKernel = new RuntimeCtrlOcl();
+			extSol->preArgus = new std::list<T_KernelArgu>;
+			extSol->preArgus->push_back(d_in);
+			extSol->preArgus->push_back(d_wei);
+			extSol->preArgus->push_back(d_out);
+			extSol->preArgus->push_back(d_signal);
 		}
 		else if (SolutionConfig->ConfigName == "TensileConv")
 		{
@@ -451,7 +457,9 @@ public:
 				std::string(" -Wa,-defsym,GRP_NUM_SE=") + std::to_string(grpNumPerSe) +
 				std::string(" -Wa,-defsym,GRP_NUM_CU_MIN=") + std::to_string(grpNumPerCUMin) +
 				std::string(" -Wa,-defsym,MAX_GRP_CU_NUM=") + std::to_string(maxGrpCUNum) +
-				std::string(" -Wa,-defsym,PIX_GRP_NUM=") + std::to_string(in_pix_groups);
+				std::string(" -Wa,-defsym,PIX_GRP_NUM=") + std::to_string(in_pix_groups) +
+				std::string(" -Wa,-defsym,SIG_NUM_PER_CU=") + std::to_string(sig_num_per_cu) +
+				std::string(" -Wa,-defsym,SIG_NUM_PER_CU_LOG2=") + std::to_string(log2(sig_num_per_cu));
 		}
 		return E_ReturnState::SUCCESS;
 	}
@@ -904,6 +912,31 @@ public:
 		free(testPosId);
 		free(testBatchId);
 		free(testOutId);
+	}
+	
+	int next2pow(int n)
+	{
+		int base = 1;
+		for (int i = 0; i < 32; i++)
+		{
+			base = 1 << i;
+			if (n <= base)
+			{
+				break;
+			}
+		}
+		return base;
+	}
+
+	int log2(int value)
+	{
+		int log2 = 0;
+		while (value > 1)
+		{
+			value = value / 2;
+			log2++;
+		}
+		return log2;
 	}
 };
 

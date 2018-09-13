@@ -546,7 +546,7 @@ FETCH_WAIT:
 	
 	v_lshlrev_b32 				v[v_tmp1], 0x0 + FIXED_WORKGROUP_SIZE_LOG2, s[gid_x0]
 	v_add_lshl_u32 				v[v_tmp1], v[v_tmp1], v[tid], 2
-				
+	
 	v_mov_b32					v[v_tmp2], s[s_ptr_out+1]
 	v_add_co_u32 				v[v_addr_dbg], vcc, s[s_ptr_out], v[v_tmp1]
 	v_addc_co_u32 				v[v_addr_dbg+1], vcc, 0, v[v_tmp2], vcc
@@ -614,7 +614,7 @@ FETCH_GROUP_PING:
 	// -------------------------------------------------------------------------------
 	s_waitcnt 					lgkmcnt(0)
 	s_and_b32					s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
-	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
+	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIG_NUM_PER_CU_LOG2 + 0x2		// (+2:dword)
 	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
 	
@@ -761,7 +761,7 @@ CALCU_GROUP:
 	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
 	// -------------------------------------------------------------------------------
 	s_and_b32					s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
-	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIGNAL_NUM_PER_CU_LOG2 + 0x2	// dword
+	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIG_NUM_PER_CU_LOG2 + 0x2		// (+2:dword)
 	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
 	
@@ -806,7 +806,7 @@ LOOP_CONV:
 	//m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature		 	v_data0, weight_offset, 8, disable, disable	
-	//m_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt	
+	m_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt	
 	m_load_input 				v_data0, enable
 	m_cacul_all_feature		 	v_datb0, weight_offset, 8, enable, enable
 	
