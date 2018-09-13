@@ -73,8 +73,8 @@
 .set OUT_BLOCKS_PER_GROUP,			4
 .set OUT_BLOCKS_PER_GROUP_LOG2,		2
 
-.set SIGNAL_NUM_PER_CU,				16				// channel 数除以 catch_line长度取2的n次幂
-.set SIGNAL_NUM_PER_CU_LOG2,		4
+//.set SIGNAL_NUM_PER_CU,			16				// channel 数除以 catch_line长度取2的n次幂
+//.set SIGNAL_NUM_PER_CU_LOG2,		4
 
 .set SIGNAL_REQ_FETCH,				0x1234
 .set SIGNAL_EXIT,					0xF0F0
@@ -582,8 +582,7 @@ FETCH_WAIT:
 	s_load_dwordx2 				s[s_ptr_wei:s_ptr_wei+1], s[kernarg:kernarg+1], 0x0 + wei_ptr_off
 	s_load_dwordx2 				s[s_ptr_out:s_ptr_out+1], s[kernarg:kernarg+1], 0x0 + out_ptr_off
 	s_load_dwordx2 				s[s_ptr_sig:s_ptr_sig+1], s[kernarg:kernarg+1], 0x0 + sig_ptr_off
-	
-	
+		
 	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(!(grp_id0 < CU_NUM)) goto noraml_index
 	s_cbranch_scc0				CALCU_GROUP
 	

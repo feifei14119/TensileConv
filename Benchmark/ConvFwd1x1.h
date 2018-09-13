@@ -927,7 +927,6 @@ public:
 		}
 		return base;
 	}
-
 	int log2(int value)
 	{
 		int log2 = 0;
@@ -1086,16 +1085,16 @@ public:
 
 		for (int i = 0; i < exProbCfg->size_in; i++)
 		{
-			exProbCfg->h_in[i] = 1;
+			//exProbCfg->h_in[i] = 1;
 			//exProbCfg->h_in[i] = (float)(i % 7) + 1.0f;
-			//exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
+			exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
 			//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exProbCfg->size_wei; i++)
 		{
-			exProbCfg->h_wei[i] = 1;
+			//exProbCfg->h_wei[i] = 1;
 			//exProbCfg->h_wei[i] = (float)(i % 13) + 1.0f;
-			//exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
+			exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
 			//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exProbCfg->size_out; i++)
