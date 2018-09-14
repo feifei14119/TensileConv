@@ -7,7 +7,7 @@
 /* solution控制                                                          */
 /************************************************************************/
 #define		MultSolution	(0)
-#define		EnSimuIndex		(0)
+#define		EnSimuIndex		(1)
 #define		EnSaveSource	(0)
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
@@ -943,16 +943,15 @@ public:
 };
 
 #define		SingleProblem	(1)
-#define		SkipHost		(0)
+#define		SkipHost		(1)
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
 class ConvFwd1x1Problem : public ProblemCtrlBase
 {
 public:
-	ConvFwd1x1Problem():ProblemCtrlBase()
+	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name)
 	{
-		ProblemName = "DirConv1x1Fwd";
 		Solution = new ConvFwd1x1Solution();
 	}
 	
@@ -971,8 +970,8 @@ public:
 
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		exProbCfg->W = 28;		exProbCfg->H = 28;
-		exProbCfg->C = 128;		exProbCfg->K = 128;
-		exProbCfg->N = 16;
+		exProbCfg->C = 128;	exProbCfg->K = 128;
+		exProbCfg->N = 8;
 		probCfg->extConfig = exProbCfg;
 
 		ProblemConfigList->push_back(probCfg);

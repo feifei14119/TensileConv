@@ -210,5 +210,8 @@
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
+    <None Include="Kernels\VectorAdd_ocml.cl">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
   </ItemGroup>
 </Project>

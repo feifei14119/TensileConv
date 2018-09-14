@@ -130,6 +130,7 @@
     <None Include="Kernels\Test.cl" />
     <None Include="Kernels\VectorAdd.cl" />
     <None Include="Kernels\VectorAdd.s" />
+    <None Include="Kernels\VectorAdd_ocml.cl" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

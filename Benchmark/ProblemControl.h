@@ -77,7 +77,7 @@ class SolutionCtrlBase
 public:
 	SolutionCtrlBase()
 	{
-		RepeatTime = 100;
+		RepeatTime = 1;
 		SolutionConfigList = new std::list<T_SolutionConfig*>;
 	}
 

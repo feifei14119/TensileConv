@@ -437,21 +437,7 @@ ConvFwd1x1:
 /************************************************************************************/
 /* 向prefetch kernel发射信号														*/
 /************************************************************************************/
-.macro ms_send_signal 			signal_type, index_reg
-	.if (\signal_type == SIGNAL_REQ_FETCH)
-		s_lshl_b32				s[s_tmp1], s[\index_reg], 0x02
-		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
-	.elseif (\signal_type == SIGNAL_EXIT)
-		s_mov_b32				s[s_signal], 0x0 + SIGNAL_EXIT
-		s_mov_b32				s[s_tmp1], CLOOP0
-		s_lshl_b32				s[s_tmp1], s[s_tmp1], 0x02
-		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
-	.endif
-.endm
-.macro mv_send_signal 			signal_type, index_reg
-	s_mov_b64					exec, 1
-	global_atomic_inc			v[1:2], v2, off offset:-1
-	
+.macro m_send_signal 			signal_type, index_reg
 	.if (\signal_type == SIGNAL_REQ_FETCH)
 		s_lshl_b32				s[s_tmp1], s[\index_reg], 0x02
 		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
@@ -621,7 +607,6 @@ FETCH_WAIT:
 	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(!(grp_id0 < CU_NUM)) goto noraml_index
 	s_cbranch_scc0				CALCU_GROUP
 
-	s_branch					END_PROG
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
 	// -------------------------------------------------------------------------------
 	// int se_id = group_id0 % SE_NUM;														// SE编号

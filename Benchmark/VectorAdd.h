@@ -9,12 +9,10 @@
 /************************************************************************/
 typedef struct ExtVectAddSolutionConfigTpye
 {
-#define FIX_WORKGROUP_SIZE (64)
 }T_ExtVectAddSolutionConfig;
 
 typedef struct ExtVectAddProblemConfigType
 {
-#define VECTOR_SIZE (1024)
 	size_t vectorSize;
 	float *h_a, *h_b, *h_c, *c_ref;
 }T_ExtVectAddProblemConfig;
@@ -81,23 +79,29 @@ public:
 		// ======================================================================
 		extSolutionConfig = new T_ExtVectAddSolutionConfig();
 
-		solutionConfig = new T_SolutionConfig();
-		solutionConfig->ConfigName = "OclSolution";
+		solutionConfig = new T_SolutionConfig("OCL");
 		solutionConfig->extConfig = extSolutionConfig;
 
-		// ----------------------------------------------------------------------
-		SolutionConfigList->push_back(solutionConfig);
+		//SolutionConfigList->push_back(solutionConfig);
 
 		// ======================================================================
 		// solution config 2: ASM
 		// ======================================================================
 		extSolutionConfig = new T_ExtVectAddSolutionConfig();
 
-		solutionConfig = new T_SolutionConfig();
-		solutionConfig->ConfigName = "AsmSolution";
+		solutionConfig = new T_SolutionConfig("ASM");
 		solutionConfig->extConfig = extSolutionConfig;
 
-		// ----------------------------------------------------------------------
+		//SolutionConfigList->push_back(solutionConfig);
+
+		// ======================================================================
+		// solution config 3: OCML
+		// ======================================================================
+		extSolutionConfig = new T_ExtVectAddSolutionConfig();
+
+		solutionConfig = new T_SolutionConfig("OCML");
+		solutionConfig->extConfig = extSolutionConfig;
+
 		SolutionConfigList->push_back(solutionConfig);
 
 		return E_ReturnState::SUCCESS;
@@ -114,21 +118,25 @@ public:
 		// ======================================================================
 		// 生成代码
 		// ======================================================================
-		if (SolutionConfig->ConfigName == "OclSolution")
+		SolutionConfig->KernelName = "VectorAdd";
+		if (SolutionConfig->ConfigName == "OCL")
 		{
-			SolutionConfig->KernelName = "VectorAdd";
 			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
 		}
-		else if (SolutionConfig->ConfigName == "AsmSolution")
+		else if (SolutionConfig->ConfigName == "ASM")
 		{
-			SolutionConfig->KernelName = "VectorAdd";
 			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+		}
+		else if (SolutionConfig->ConfigName == "OCML")
+		{
+			SolutionConfig->KernelFile = "VectorAdd_ocml.cl";
+			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
 		}
 
 		// ======================================================================
 		// 生成worksize
 		// ======================================================================
-		SolutionConfig->l_wk0 = FIX_WORKGROUP_SIZE;
+		SolutionConfig->l_wk0 = WAVE_SIZE;
 		SolutionConfig->l_wk1 = 1;
 		SolutionConfig->l_wk2 = 1;
 		SolutionConfig->g_wk0 = extProblem->vectorSize;
@@ -145,32 +153,26 @@ public:
 class VectorAddProblem : public ProblemCtrlBase
 {
 public:
-	VectorAddProblem()
+	VectorAddProblem(std::string name) :ProblemCtrlBase(name)
 	{
-		ProblemName = "VectorAdd";
 		Solution = new VectorAddSolution();
-		ProblemConfigList = new std::list<T_ProblemConfig*>;
 	}
 
-public:
 	/************************************************************************/
 	/* 生成问题空间													        */
 	/************************************************************************/
 	E_ReturnState GenerateProblemConfigs()
 	{
-		T_ProblemConfig * problemConfig;
-		T_ExtVectAddProblemConfig * extProblemConfig;
+		T_ProblemConfig * probCfg;
+		T_ExtVectAddProblemConfig * exProbCfg;
 
-		// ----------------------------------------------------------------------
-		// problem config 1
-		extProblemConfig = new T_ExtVectAddProblemConfig();
-		extProblemConfig->vectorSize = VECTOR_SIZE;
+		probCfg = new T_ProblemConfig();
 
-		problemConfig = new T_ProblemConfig();
-		problemConfig->ConfigName = "512";
-		problemConfig->extConfig = extProblemConfig;
+		exProbCfg = new T_ExtVectAddProblemConfig();
+		exProbCfg->vectorSize = 1024;
+		probCfg->extConfig = exProbCfg;
 
-		ProblemConfigList->push_back(problemConfig);
+		ProblemConfigList->push_back(probCfg);
 	}
 
 	/************************************************************************/
