@@ -12,8 +12,11 @@ public:
 	KernelWriterBase(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg)
 	{
 		variableMap = new std::map<std::string, int>();
+		OperatorMap = new std::map<std::string, t_operator*>();
 		sgprCount = 0;
 		vgprCount = 0;
+		memset(SgprState, 0, sizeof(int)*MAX_SGPR_COUNT);
+		memset(VgprState, 0, sizeof(int)*MAX_VGPR_COUNT);
 		
 		gas = new GasWriter();
 		gas->tableCnt = &tableCnt;
@@ -22,6 +25,7 @@ public:
 		isa = new IsaWriterBase();
 		isa->tableCnt = &tableCnt;
 		isa->kernelStr = &KernelStr;
+		isa->OperatorMap = OperatorMap;
 
 		problemConfig = probCfg;
 		solutionConfig = solCfg;
@@ -35,6 +39,11 @@ public:
 
 	void GenKernelString()
 	{
+		KernelStr.clear();
+
+		// 用来确定gpr使用的部分
+		generateParam();
+		writeContent();
 		KernelStr.clear();
 
 		generateParam();
@@ -63,7 +72,161 @@ protected:
 	T_SolutionConfig * solutionConfig;	// 当前正在处理的解决方案配置
 	std::string kernelName;
 	std::string kernelFile;
+	int SgprState[MAX_SGPR_COUNT];
+	int VgprState[MAX_VGPR_COUNT];
 	
+	
+	std::map<std::string, t_operator*> *OperatorMap;
+	t_operator * newSgpr(std::string name, int len = 1, int align = 1)
+	{
+		t_operator *opt;
+
+		if ((name == "off") || (name == "OFF"))
+		{
+			opt = new t_operator;
+			opt->name = name;
+			opt->type = e_opType::OP_OFF;
+		}
+		else
+		{
+			int idleIdx;
+			for (idleIdx = 0; idleIdx < MAX_SGPR_COUNT; idleIdx++)
+			{
+				if (idleIdx % align != 0)
+					continue;
+
+				if (SgprState[idleIdx] != 0)
+					continue;
+
+				int idleChk;
+				for (idleChk = 0; idleChk < len; idleChk++)
+				{
+					if (SgprState[idleChk + idleIdx] != 0)
+						break;
+				}
+				if (idleChk != len)
+					continue;
+				break;
+			}
+			if (idleIdx == MAX_SGPR_COUNT)
+				return nullptr;
+
+			for (int i = 0; i < len; i++)
+			{
+				SgprState[idleIdx + i] = 1;
+			}
+
+			opt = new t_operator;
+			opt->name = name;
+			opt->type = e_opType::OP_SGPR;
+			opt->sgpr.name = name;
+			opt->sgpr.perGprIdx = sgprCount;
+			opt->sgpr.gprIdx = idleIdx;
+			opt->sgpr.len = len;
+			opt->sgpr.align = align;
+
+			if (idleIdx + len > sgprCountMax)
+				sgprCountMax = idleIdx + len;
+		}
+
+		OperatorMap->insert(std::pair<std::string, t_operator*>(name, opt));
+		return opt;
+	}
+	t_operator * newVgpr(std::string name, int len = 1, int align = 1)
+	{
+		t_operator *opt;
+
+		if ((name == "off") || (name == "OFF"))
+		{
+			opt = new t_operator;
+			opt->name = name;
+			opt->type = e_opType::OP_OFF;
+		}
+		else
+		{
+			int idleIdx;
+			for (idleIdx = 0; idleIdx < MAX_VGPR_COUNT; idleIdx++)
+			{
+				if (idleIdx % align != 0)
+					continue;
+
+				if (VgprState[idleIdx] != 0)
+					continue;
+
+				int idleChk;
+				for (idleChk = 0; idleChk < len; idleChk++)
+				{
+					if (VgprState[idleChk + idleIdx] != 0)
+						break;
+				}
+				if (idleChk != len)
+					continue;
+				break;
+			}
+			if (idleIdx == MAX_VGPR_COUNT)
+				return nullptr;
+
+			for (int i = 0; i < len; i++)
+			{
+				VgprState[idleIdx + i] = 1;
+			}
+
+			opt = new t_operator;
+			opt->name = name;
+			opt->type = e_opType::OP_VGPR;
+			opt->vgpr.name = name;
+			opt->vgpr.perGprIdx = sgprCount;
+			opt->vgpr.gprIdx = idleIdx;
+			opt->vgpr.len = len;
+			opt->vgpr.align = align;
+
+			if (idleIdx + len > vgprCountMax)
+				vgprCountMax = idleIdx + len;
+		}
+
+		OperatorMap->insert(std::pair<std::string, t_operator*>(name, opt));
+		return opt;
+	}
+	t_operator * newImm(std::string name, int val = 0)
+	{
+		t_operator *opt = new t_operator;
+
+		opt->name = name;
+		opt->type = e_opType::OP_IMM;
+		opt->imm.name = name;
+		opt->imm.value = val;
+
+		OperatorMap->insert(std::pair<std::string, t_operator*>(name, opt));
+		return opt;
+	}
+	void delOpter(t_operator * opter)
+	{
+		if (opter->type == e_opType::OP_SGPR)
+		{
+			int gprIdx = opter->sgpr.gprIdx;
+			for (int i = 0; i < opter->sgpr.len; i++)
+			{
+				SgprState[gprIdx + i] = 0;
+			}
+		}
+		else if (opter->type == e_opType::OP_VGPR)
+		{
+			int gprIdx = opter->vgpr.gprIdx;
+			for (int i = 0; i < opter->vgpr.len; i++)
+			{
+				VgprState[gprIdx + i] = 0;
+			}
+		}
+		OperatorMap->erase(opter->name);
+		delete(opter);
+	}
+	void clrOpter()
+	{
+		memset(SgprState, 0, sizeof(int)*MAX_SGPR_COUNT);
+		memset(VgprState, 0, sizeof(int)*MAX_VGPR_COUNT);
+		OperatorMap->clear();
+	}
+
 	/************************************************************************/
 	/* sgpr操作		                                                        */
 	/************************************************************************/

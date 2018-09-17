@@ -217,6 +217,8 @@ gid_z0 = 8
 	.VGPR_ALLOC v_io_offset2, 2
 	.VGPR_ALLOC v_io_offset3, 2	
 	
+	.VGPR_ALLOC v_ptr_sig, 2
+	.VGPR_ALLOC v_signal
 	
     //.VGPR_ALLOC v_addr_dbg, 2
 	//.VGPR_ALLOC v_dbg0, 2
@@ -450,17 +452,9 @@ ConvFwd1x1:
 .endm
 .macro mv_send_signal 			signal_type, index_reg
 	s_mov_b64					exec, 1
-	global_atomic_inc			v[1:2], v2, off offset:-1
-	
-	.if (\signal_type == SIGNAL_REQ_FETCH)
-		s_lshl_b32				s[s_tmp1], s[\index_reg], 0x02
-		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
-	.elseif (\signal_type == SIGNAL_EXIT)
-		s_mov_b32				s[s_signal], 0x0 + SIGNAL_EXIT
-		s_mov_b32				s[s_tmp1], CLOOP0
-		s_lshl_b32				s[s_tmp1], s[s_tmp1], 0x02
-		s_store_dword			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
-	.endif
+	v_mov_b32					v[v_signal], s[\index_reg]
+	global_store_dword 			v[v_ptr_sig:v_ptr_sig+1], v[v_signal], off
+	s_mov_b64					exec, 0xFFFFFFFFFFFFFFFF
 .endm
 
 /************************************************************************************/
@@ -852,14 +846,27 @@ CALCU_GROUP:
 	v_add_co_u32				v[v_addr_out], vcc, s[s_ptr_out], v[v_acc12]
 	v_addc_co_u32				v[v_addr_out + 1], vcc, 0, v[v_addr_out + 1], vcc
 	
+//	// -------------------------------------------------------------------------------
+//	// 计算 signal 地址 
+//	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
+//	// -------------------------------------------------------------------------------
+//	s_and_b32					s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
+//	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIG_NUM_PER_CU_LOG2 + 0x2		// (+2:dword)
+//	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
+//	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
+		
 	// -------------------------------------------------------------------------------
 	// 计算 signal 地址 
-	// uint glb_sig_off = (grp_id0 % 64) * CLOOP0
+	// uint glb_sig_off = raw_id * SIG_NUM_PER_CU + col_id
 	// -------------------------------------------------------------------------------
-	s_and_b32					s[s_tmp0], s[gid_x0], 0x0 + CU_NUM_MOD_MASK
-	s_lshl_b32					s[s_tmp0], s[s_tmp0], 0x0 + SIG_NUM_PER_CU_LOG2 + 0x2		// (+2:dword)
-	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
-	s_addc_u32					s[s_ptr_sig+1], s[s_ptr_sig+1], 0x0
+	s_lshl_b32					s[s_tmp0], s[s_tmp2+1], 0x0 + SIG_NUM_PER_CU_LOG2
+	s_add_u32					s[s_tmp0], s[s_tmp0], s[s_tmp2]
+	s_lshl_b32					s[s_tmp0], s[s_tmp0], 2
+	
+	v_mov_b32					v[v_ptr_sig + 1], s[s_ptr_sig + 1]
+	v_mov_b32					v[v_acc0], s[s_tmp0]
+	v_add_co_u32				v[v_ptr_sig], vcc, s[s_ptr_sig], v[v_acc0]
+	v_addc_co_u32				v[v_ptr_sig + 1], vcc, 0, v[v_ptr_sig + 1], vcc
 	
 	s_mov_b32					s[s_signal], SIGNAL_REQ_FETCH
 	
@@ -902,7 +909,7 @@ LOOP_CONV:
 	//m_debug_wait				// ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature		 	v_data0, weight_offset, 8, disable, disable	
-	m_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt	
+	mv_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt	
 	m_load_input 				v_data0, enable
 	m_cacul_all_feature		 	v_datb0, weight_offset, 8, enable, enable
 	

@@ -21,14 +21,16 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	// Sample
 	// ----------------------------------------------------------------------
-	ProblemCtrlBase *vAdd = new VectorAddProblem("VectorAdd");
-	vAdd->RunProblem();
+	//ProblemCtrlBase *vAdd = new VectorAddProblem("VectorAdd");
+	//vAdd->RunProblem();
 	//ProblemCtrlBase *pc = new ProducerConsumerProblem();
 	//pc->RunProblem();
 
 	// ----------------------------------------------------------------------
 	// Instrucion
 	// ----------------------------------------------------------------------
+	ProblemCtrlBase *smem = new SmemProblem("smem instr demo");
+	smem->RunProblem();
 	//ProblemCtrlBase *flat = new FlatProblem();
 	//flat->RunProblem();
 	//ProblemCtrlBase *global = new GlobalProblem();

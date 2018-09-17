@@ -88,6 +88,15 @@
     <ClInclude Include="ConvFwd1x1KernelWriter.h">
       <Filter>problems\tensile</Filter>
     </ClInclude>
+    <ClInclude Include="IsaSmem.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="IsaSmemKernelWriter.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
+    <ClInclude Include="IsaDemoConfig.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -211,6 +220,9 @@
       <Filter>problems\tensile\kernels</Filter>
     </None>
     <None Include="Kernels\VectorAdd_ocml.cl">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaSmem.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
   </ItemGroup>

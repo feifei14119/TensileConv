@@ -502,4 +502,37 @@ public:
 	}
 };
 
+
+typedef struct GprType
+{
+	std::string name;
+	int perGprIdx;
+	int gprIdx;
+	int len;
+	int align;
+}t_gpr;
+
+typedef struct ImmType
+{
+	std::string name;
+	int value;
+}t_imm;
+
+typedef enum OpTypeEnum
+{
+	OP_SGPR = 1,
+	OP_VGPR = 2,
+	OP_IMM = 3,
+	OP_OFF = 0
+}e_opType;
+
+typedef struct OpType
+{
+	std::string name;
+	t_gpr sgpr;
+	t_gpr vgpr;
+	t_imm imm;
+	e_opType type;
+}t_operator;
+
 #include "helper_cl.h"

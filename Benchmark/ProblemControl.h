@@ -437,6 +437,7 @@ public:
 
 #include "TestProblem.h"
 
+#include "IsaSmem.h"
 #include "IsaFlat.h"
 #include "IsaGlobal.h"
 #include "IsaDs.h"

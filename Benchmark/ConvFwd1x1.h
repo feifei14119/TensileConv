@@ -321,14 +321,6 @@ public:
 			in_pix_maps = 64;
 			loop = c_in_maps / c_in_maps_once;
 			align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
-
-			// signal mem
-			sig_num_per_cu = next2pow(loop / 2);
-			size_sig = sig_num_per_cu * CU_NUM;
-			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
-			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
-			SolutionConfig->KernelArgus->push_back(d_signal);
-			h_signal = (int*)HstMalloc(size_sig * sizeof(int));
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Mult")
 		{
@@ -450,6 +442,15 @@ public:
 			int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
 			int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
 			int grpNumPerSe = groupNum / SE_NUM;
+
+			sig_num_per_cu = next2pow(grpNumPerCUMax);
+			// signal mem
+			//sig_num_per_cu = next2pow(loop / 2);
+			size_sig = sig_num_per_cu * CU_NUM;
+			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
+			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
+			SolutionConfig->KernelArgus->push_back(d_signal);
+			h_signal = (int*)HstMalloc(size_sig * sizeof(int));
 
 			SolutionConfig->extCompilerOpt =
 				std::string(" -Wa,-defsym,W=") + std::to_string(extProb->W) +

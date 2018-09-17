@@ -73,7 +73,10 @@
     <ClInclude Include="ConvFwd1x1.h" />
     <ClInclude Include="ConvFwd1x1Config.h" />
     <ClInclude Include="GasWriter.h" />
+    <ClInclude Include="IsaDemoConfig.h" />
     <ClInclude Include="IsaFlat.h" />
+    <ClInclude Include="IsaSmem.h" />
+    <ClInclude Include="IsaSmemKernelWriter.h" />
     <ClInclude Include="IsaWriterGfx9.h" />
     <ClInclude Include="IsaGlobal.h" />
     <ClInclude Include="helper.h" />
@@ -121,6 +124,7 @@
     <None Include="Kernels\gpr_alloc.inc" />
     <None Include="Kernels\inst_wrappers.inc" />
     <None Include="Kernels\IsaDs.s" />
+    <None Include="Kernels\IsaSmem.s" />
     <None Include="Kernels\IsaVMBuf.s" />
     <None Include="Kernels\IsaSleep.s" />
     <None Include="Kernels\ProducerConsumer.s" />
