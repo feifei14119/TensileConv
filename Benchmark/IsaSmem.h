@@ -13,6 +13,40 @@ private:
 
 public:
 	/************************************************************************/
+	/* 根据problem参数成solution参数空间                                      */
+	/************************************************************************/
+	E_ReturnState GenerateSolutionConfigs()
+	{
+		T_SolutionConfig * solutionConfig;
+		T_ExtSmemSolutionConfig * extSol;
+
+		// ======================================================================
+		// solution config 1: ASM
+		// ======================================================================
+		{
+			extSol = new T_ExtSmemSolutionConfig();
+
+			solutionConfig = new T_SolutionConfig("ASM");
+			solutionConfig->extConfig = extSol;
+
+			SolutionConfigList->push_back(solutionConfig);
+		}
+		// ======================================================================
+		// solution config 2: AutoGen
+		// ======================================================================
+		{
+			extSol = new T_ExtSmemSolutionConfig();
+
+			solutionConfig = new T_SolutionConfig("AutoGen");
+			solutionConfig->extConfig = extSol;
+
+			//SolutionConfigList->push_back(solutionConfig);
+		}
+
+		return E_ReturnState::SUCCESS;
+	}
+
+	/************************************************************************/
 	/* 申请显存                                                            */
 	/************************************************************************/
 	E_ReturnState InitDev()
@@ -52,41 +86,7 @@ public:
 		DevFree((cl_mem)(d_b.ptr));
 		DevFree((cl_mem)(d_c.ptr));
 	}
-
-	/************************************************************************/
-	/* 根据problem参数成solution参数空间                                      */
-	/************************************************************************/
-	E_ReturnState GenerateSolutionConfigs()
-	{
-		T_SolutionConfig * solutionConfig;
-		T_ExtSmemSolutionConfig * extSol;
-
-		// ======================================================================
-		// solution config 1: ASM
-		// ======================================================================
-		{
-			extSol = new T_ExtSmemSolutionConfig();
-
-			solutionConfig = new T_SolutionConfig("ASM");
-			solutionConfig->extConfig = extSol;
-
-			SolutionConfigList->push_back(solutionConfig);
-		}
-		// ======================================================================
-		// solution config 2: AutoGen
-		// ======================================================================
-		{
-			extSol = new T_ExtSmemSolutionConfig();
-
-			solutionConfig = new T_SolutionConfig("AutoGen");
-			solutionConfig->extConfig = extSol;
-
-			SolutionConfigList->push_back(solutionConfig);
-		}
-
-		return E_ReturnState::SUCCESS;
-	}
-
+	
 	/************************************************************************/
 	/* 根据solution参数生成source, complier和worksize                         */
 	/************************************************************************/
@@ -153,7 +153,6 @@ public:
 		extProb = new T_ExtSmemProblemConfig();
 		extProb->VectorSize = 1024;
 		probCfg->extConfig = extProb;
-		probCfg->Calculation = extProb->VectorSize;
 
 		ProblemConfigList->push_back(probCfg);
 	}
@@ -169,6 +168,7 @@ public:
 		extProb->h_b = (float*)HstMalloc(extProb->VectorSize * sizeof(float));
 		extProb->h_out = (float*)HstMalloc(extProb->VectorSize * sizeof(float));
 		extProb->c_ref = (float*)HstMalloc(extProb->VectorSize * sizeof(float));
+		ProblemConfig->Calculation = extProb->VectorSize;
 		
 		for (int i = 0; i < extProb->VectorSize; i++)
 		{

@@ -29,16 +29,16 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	// Instrucion
 	// ----------------------------------------------------------------------
-	ProblemCtrlBase *smem = new SmemProblem("smem instr demo");
-	smem->RunProblem();
+	//ProblemCtrlBase *smem = new SmemProblem("smem instruction demo");
+	//smem->RunProblem();
+	ProblemCtrlBase *mubuf = new MubufProblem("mubuf instruction demo");
+	mubuf->RunProblem();
 	//ProblemCtrlBase *flat = new FlatProblem();
 	//flat->RunProblem();
 	//ProblemCtrlBase *global = new GlobalProblem();
 	//global->RunProblem();
 	//ProblemCtrlBase *lds = new DsProblem();
 	//lds->RunProblem();
-	//ProblemCtrlBase *mubuf = new VMBufProblem("VM Buffer Instruction");
-	//mubuf->RunProblem();
 	//ProblemCtrlBase *slp = new SleepProblem();
 	//slp->RunProblem();
 

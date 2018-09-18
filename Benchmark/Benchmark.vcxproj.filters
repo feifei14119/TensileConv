@@ -97,6 +97,9 @@
     <ClInclude Include="IsaDemoConfig.h">
       <Filter>problems\sample</Filter>
     </ClInclude>
+    <ClInclude Include="IsaMubufKernelWriter.h">
+      <Filter>problems\sample</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -213,9 +216,6 @@
     <None Include="Kernels\SimuIndex.cl">
       <Filter>problems\tensile\kernels</Filter>
     </None>
-    <None Include="Kernels\IsaVMBuf.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
@@ -223,6 +223,9 @@
       <Filter>problems\sample\kernels</Filter>
     </None>
     <None Include="Kernels\IsaSmem.s">
+      <Filter>problems\sample\kernels</Filter>
+    </None>
+    <None Include="Kernels\IsaMubuf.s">
       <Filter>problems\sample\kernels</Filter>
     </None>
   </ItemGroup>

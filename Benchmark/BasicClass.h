@@ -518,21 +518,55 @@ typedef struct ImmType
 	int value;
 }t_imm;
 
-typedef enum OpTypeEnum
+typedef enum OpterTypeEnum
 {
-	OP_SGPR = 1,
-	OP_VGPR = 2,
-	OP_IMM = 3,
-	OP_OFF = 0
-}e_opType;
+	OPTER_SGPR = 1,
+	OPTER_VGPR = 2,
+	OPTER_IMM = 3,
+	OPTER_OFF = 0
+}E_OpterType;
 
-typedef struct OpType
+typedef struct OpterType
 {
 	std::string name;
 	t_gpr sgpr;
 	t_gpr vgpr;
 	t_imm imm;
-	e_opType type;
+	E_OpterType type;
+
+	OpterType * operator+(int i)
+	{
+		struct OpterType * np = new OpterType();
+		np->name = this->name + "+" + d2s(i);
+		np->type = this->type;
+		np->sgpr = this->sgpr;
+		np->vgpr = this->vgpr;
+		np->imm = this->imm;
+
+		if (this->type == E_OpterType::OPTER_SGPR)
+			np->sgpr.gprIdx = this->sgpr.gprIdx + i;
+		else if(this->type == E_OpterType::OPTER_VGPR)
+			np->vgpr.gprIdx = this->vgpr.gprIdx + i;
+
+		return np;
+	}
 }t_operator;
+
+typedef enum OpTypeEnum
+{
+	ATM_ADD = 1,
+	ATM_SUB = 2,
+	ATM_INC = 3,
+	ATM_DEC = 4,
+	ATM_OR = 5,
+	ATM_XOR = 6,
+	ATM_AND = 7,
+	ATM_SMAX = 8,
+	ATM_SMIN = 9,
+	ATM_UMAX = 10,
+	ATM_UMIN = 11,
+	ATM_SWAP = 12,
+	ATM_CMPSWAP = 13,
+}E_OpType;
 
 #include "helper_cl.h"

@@ -1,15 +1,5 @@
 /************************************************************************************/
-// buffer指令包含MUBUF和MTBUF指令. 用于读写线性buffer内存, 每thread每指令可以操作1~4DWORD
-// buffer_load_dword            dst,  src0, src1, src2				idxen offen buf_offset12 glc slc lds
-//								vgpr, vgpr, sreg, sreg/-1~-16/64
-//
-// flat_offset13:
-//			Specifies an immediate signed 13-bit offset, in bytes.
-//			offset:{-4096..+4095}
-//
-// Global instructions offer two types of addressing:
-//			Memory_addr = VGPR-address + instruction-offset.
-//			Memory_addr = SGPR-address + VGPR-offset + instruction-offset.
+
 /************************************************************************************/
 .hsa_code_object_version 2,1
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
@@ -143,6 +133,9 @@ START_PROG:
 	s_store_dwordx2		s[s_temp1:s_temp1+1], s[s_c_ptr:s_c_ptr+1], 0
 	s_store_dwordx2		s[s_temp2:s_temp2+1], s[s_c_ptr:s_c_ptr+1], 4*2
 	s_store_dwordx2		s[s_temp3:s_temp3+1], s[s_c_ptr:s_c_ptr+1], 4*4
+	s_waitcnt 			lgkmcnt(0)
+	s_mov_b32			s[s_temp0], 1.23
+	s_atomic_add		s[s_temp0], s[s_c_ptr:s_c_ptr+1], 0
 	s_waitcnt 			lgkmcnt(0)
 	s_dcache_wb
 	

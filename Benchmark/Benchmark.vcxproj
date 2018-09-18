@@ -75,6 +75,7 @@
     <ClInclude Include="GasWriter.h" />
     <ClInclude Include="IsaDemoConfig.h" />
     <ClInclude Include="IsaFlat.h" />
+    <ClInclude Include="IsaMubufKernelWriter.h" />
     <ClInclude Include="IsaSmem.h" />
     <ClInclude Include="IsaSmemKernelWriter.h" />
     <ClInclude Include="IsaWriterGfx9.h" />
@@ -125,7 +126,7 @@
     <None Include="Kernels\inst_wrappers.inc" />
     <None Include="Kernels\IsaDs.s" />
     <None Include="Kernels\IsaSmem.s" />
-    <None Include="Kernels\IsaVMBuf.s" />
+    <None Include="Kernels\IsaMubuf.s" />
     <None Include="Kernels\IsaSleep.s" />
     <None Include="Kernels\ProducerConsumer.s" />
     <None Include="Kernels\PS_Consumer.s" />

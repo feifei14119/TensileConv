@@ -85,7 +85,7 @@ protected:
 		{
 			opt = new t_operator;
 			opt->name = name;
-			opt->type = e_opType::OP_OFF;
+			opt->type = E_OpterType::OPTER_OFF;
 		}
 		else
 		{
@@ -118,7 +118,7 @@ protected:
 
 			opt = new t_operator;
 			opt->name = name;
-			opt->type = e_opType::OP_SGPR;
+			opt->type = E_OpterType::OPTER_SGPR;
 			opt->sgpr.name = name;
 			opt->sgpr.perGprIdx = sgprCount;
 			opt->sgpr.gprIdx = idleIdx;
@@ -140,7 +140,7 @@ protected:
 		{
 			opt = new t_operator;
 			opt->name = name;
-			opt->type = e_opType::OP_OFF;
+			opt->type = E_OpterType::OPTER_OFF;
 		}
 		else
 		{
@@ -173,7 +173,7 @@ protected:
 
 			opt = new t_operator;
 			opt->name = name;
-			opt->type = e_opType::OP_VGPR;
+			opt->type = E_OpterType::OPTER_VGPR;
 			opt->vgpr.name = name;
 			opt->vgpr.perGprIdx = sgprCount;
 			opt->vgpr.gprIdx = idleIdx;
@@ -192,7 +192,7 @@ protected:
 		t_operator *opt = new t_operator;
 
 		opt->name = name;
-		opt->type = e_opType::OP_IMM;
+		opt->type = E_OpterType::OPTER_IMM;
 		opt->imm.name = name;
 		opt->imm.value = val;
 
@@ -201,7 +201,7 @@ protected:
 	}
 	void delOpter(t_operator * opter)
 	{
-		if (opter->type == e_opType::OP_SGPR)
+		if (opter->type == E_OpterType::OPTER_SGPR)
 		{
 			int gprIdx = opter->sgpr.gprIdx;
 			for (int i = 0; i < opter->sgpr.len; i++)
@@ -209,7 +209,7 @@ protected:
 				SgprState[gprIdx + i] = 0;
 			}
 		}
-		else if (opter->type == e_opType::OP_VGPR)
+		else if (opter->type == E_OpterType::OPTER_VGPR)
 		{
 			int gprIdx = opter->vgpr.gprIdx;
 			for (int i = 0; i < opter->vgpr.len; i++)

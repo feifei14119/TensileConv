@@ -271,7 +271,7 @@ public:
 	{
 		//buildClOption = "-D hello=hello";
 		//buildClOption = " -target amdgcn--amdhsa -mcpu=gfx900 ";
-		buildClOption = extCompilerOpt;
+		buildClOption = extCompilerOpt + " -save-temps ";
 	}
 
 	void GetBuildGasOptions()

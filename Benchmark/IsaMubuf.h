@@ -1,21 +1,7 @@
 #pragma once
 
-#include "BasicClass.h"
-#include "RuntimeControl.h"
-#include "ProblemControl.h"
-
-/************************************************************************/
-/* 扩展参数                                                              */
-/************************************************************************/
-typedef struct ExtVMBufSolutionConfigTpye
-{
-}T_ExtVMBufSolutionConfig;
-
-typedef struct ExtVMBufProblemConfigType
-{
-	size_t VectorSize;
-	float *h_a, *h_b, *h_out, *c_ref;
-}T_ExtVMBufProblemConfig;
+#include "IsaDemoConfig.h"
+#include "IsaMubufKernelWriter.h"
 
 /************************************************************************/
 /* solution控制                                                          */
@@ -31,7 +17,7 @@ public:
 	/************************************************************************/
 	E_ReturnState InitDev()
 	{
-		T_ExtVMBufProblemConfig * extProb = (T_ExtVMBufProblemConfig *)ProblemConfig->extConfig;
+		T_ExtMubufProblemConfig * extProb = (T_ExtMubufProblemConfig *)ProblemConfig->extConfig;
 
 		DevMalloc((void**)&(d_a.ptr), extProb->VectorSize * sizeof(float));
 		DevMalloc((void**)&(d_b.ptr), extProb->VectorSize * sizeof(float));
@@ -53,7 +39,7 @@ public:
 	/************************************************************************/
 	E_ReturnState GetBackResult()
 	{
-		T_ExtVMBufProblemConfig * extProb = (T_ExtVMBufProblemConfig *)ProblemConfig->extConfig;
+		T_ExtMubufProblemConfig * extProb = (T_ExtMubufProblemConfig *)ProblemConfig->extConfig;
 		Copy2Hst(extProb->h_out, (cl_mem)(d_c.ptr), extProb->VectorSize * sizeof(float));
 	}
 
@@ -73,33 +59,29 @@ public:
 	E_ReturnState GenerateSolutionConfigs()
 	{
 		T_SolutionConfig * solutionConfig;
-		T_ExtVMBufSolutionConfig * extSol;
+		T_ExtMubufSolutionConfig * extSol;
 
 		// ======================================================================
 		// solution config 1: ASM
 		// ======================================================================
 		{
-			extSol = new T_ExtVMBufSolutionConfig();
+			extSol = new T_ExtMubufSolutionConfig();
 
 			solutionConfig = new T_SolutionConfig("ASM");
 			solutionConfig->extConfig = extSol;
 
-			// ----------------------------------------------------------------------
-			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 		// ======================================================================
-		// solution config 6: AutoGen
+		// solution config 2: AutoGen
 		// ======================================================================
 		{
-			extSol = new T_ExtVMBufSolutionConfig();
+			extSol = new T_ExtMubufSolutionConfig();
 
 			solutionConfig = new T_SolutionConfig("AutoGen");
 			solutionConfig->extConfig = extSol;
 
-			// ----------------------------------------------------------------------
-			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		return E_ReturnState::SUCCESS;
@@ -110,18 +92,8 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolution()
 	{
-		T_ExtVMBufProblemConfig * extProb = (T_ExtVMBufProblemConfig *)ProblemConfig->extConfig;
-		T_ExtVMBufSolutionConfig * extSol = (T_ExtVMBufSolutionConfig *)SolutionConfig->extConfig;
-		
-		// ======================================================================
-		// 生成代码
-		// ======================================================================
-		if (SolutionConfig->ConfigName == "ASM")
-		{
-			SolutionConfig->KernelName = "IsaVMBuf";
-			SolutionConfig->KernelFile = "IsaVMBuf.s";
-			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-		}
+		T_ExtMubufProblemConfig * extProb = (T_ExtMubufProblemConfig *)ProblemConfig->extConfig;
+		T_ExtMubufSolutionConfig * extSol = (T_ExtMubufSolutionConfig *)SolutionConfig->extConfig;
 
 		// ======================================================================
 		// 生成worksize
@@ -132,6 +104,26 @@ public:
 		SolutionConfig->g_wk0 = extProb->VectorSize;
 		SolutionConfig->g_wk1 = 1;
 		SolutionConfig->g_wk2 = 1;
+		
+		// ======================================================================
+		// 生成代码
+		// ======================================================================
+		if (SolutionConfig->ConfigName == "ASM")
+		{
+			SolutionConfig->KernelName = "IsaMubuf";
+			SolutionConfig->KernelFile = "IsaMubuf.s";
+			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+		}
+		else if (SolutionConfig->ConfigName == "AutoGen")
+		{
+			SolutionConfig->KernelName = "IsaMubuf";
+			SolutionConfig->KernelFile = "IsaMubufAutoGen.s";
+			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+
+			KernelWriterBase * kw = new KernelWriterIsaMubuf(ProblemConfig, SolutionConfig);
+			kw->GenKernelString();
+			kw->SaveKernelStr2File();
+		}
 
 		return E_ReturnState::SUCCESS;
 	}
@@ -140,10 +132,10 @@ public:
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-class VMBufProblem : public ProblemCtrlBase
+class MubufProblem : public ProblemCtrlBase
 {
 public:
-	VMBufProblem(std::string name):ProblemCtrlBase(name)
+	MubufProblem(std::string name):ProblemCtrlBase(name)
 	{
 		Solution = new VMBubSolution();
 	}
@@ -154,13 +146,13 @@ public:
 	E_ReturnState GenerateProblemConfigs()
 	{
 		T_ProblemConfig * probCfg;
-		T_ExtVMBufProblemConfig * exCfg;
+		T_ExtMubufProblemConfig * extProb;
 
 		probCfg = new T_ProblemConfig();
 
-		exCfg = new T_ExtVMBufProblemConfig();
-		exCfg->VectorSize = 1024;
-		probCfg->extConfig = exCfg;
+		extProb = new T_ExtMubufProblemConfig();
+		extProb->VectorSize = 1024;
+		probCfg->extConfig = extProb;
 
 		ProblemConfigList->push_back(probCfg);
 	}
@@ -170,23 +162,19 @@ public:
 	/************************************************************************/
 	E_ReturnState InitHost()
 	{
-		T_ExtVMBufProblemConfig * exCfg = (T_ExtVMBufProblemConfig *)ProblemConfig->extConfig;
+		T_ExtMubufProblemConfig * extProb = (T_ExtMubufProblemConfig *)ProblemConfig->extConfig;
 
-		ProblemConfig->Calculation = exCfg->VectorSize; 
-		ProblemConfig->TheoryElapsedTime = ProblemConfig->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
-		printf("Calculation = %.3f G\n", ProblemConfig->Calculation * 1e-9);
-		printf("TheoryElapsedTime = %.3f us \n", ProblemConfig->TheoryElapsedTime * 1e6);
-
-		exCfg->h_a = (float*)HstMalloc(exCfg->VectorSize * sizeof(float));
-		exCfg->h_b = (float*)HstMalloc(exCfg->VectorSize * sizeof(float));
-		exCfg->h_out = (float*)HstMalloc(exCfg->VectorSize * sizeof(float));
-		exCfg->c_ref = (float*)HstMalloc(exCfg->VectorSize * sizeof(float));
+		extProb->h_a = (float*)HstMalloc(extProb->VectorSize * sizeof(float));
+		extProb->h_b = (float*)HstMalloc(extProb->VectorSize * sizeof(float));
+		extProb->h_out = (float*)HstMalloc(extProb->VectorSize * sizeof(float));
+		extProb->c_ref = (float*)HstMalloc(extProb->VectorSize * sizeof(float));
+		ProblemConfig->Calculation = extProb->VectorSize;
 		
-		for (int i = 0; i < exCfg->VectorSize; i++)
+		for (int i = 0; i < extProb->VectorSize; i++)
 		{
-			exCfg->h_a[i] = i;
-			exCfg->h_b[i] = 2;
-			exCfg->h_out[i] = 0;
+			extProb->h_a[i] = i;
+			extProb->h_b[i] = 2;
+			extProb->h_out[i] = 0;
 		}
 
 		return E_ReturnState::SUCCESS; 
@@ -197,11 +185,11 @@ public:
 	/************************************************************************/
 	E_ReturnState Host()
 	{
-		T_ExtVMBufProblemConfig * exCfg = (T_ExtVMBufProblemConfig *)ProblemConfig->extConfig;
+		T_ExtMubufProblemConfig * extProb = (T_ExtMubufProblemConfig *)ProblemConfig->extConfig;
 
-		for (int i = 0; i < exCfg->VectorSize; i++)
+		for (int i = 0; i < extProb->VectorSize; i++)
 		{
-			exCfg->c_ref[i] = exCfg->h_a[i];
+			extProb->c_ref[i] = extProb->h_a[i] + extProb->h_b[i];
 		}
 		return E_ReturnState::SUCCESS;
 	}
@@ -211,17 +199,17 @@ public:
 	/************************************************************************/
 	E_ReturnState Verify()
 	{
-		T_ExtVMBufProblemConfig * exCfg = (T_ExtVMBufProblemConfig *)ProblemConfig->extConfig;
+		T_ExtMubufProblemConfig * extProb = (T_ExtMubufProblemConfig *)ProblemConfig->extConfig;
 		
 		float diff = 0;
-		for (int i = 0; i < exCfg->VectorSize; i++)
+		for (int i = 0; i < extProb->VectorSize; i++)
 		{
-			diff += (exCfg->c_ref[i] - exCfg->h_out[i]) * (exCfg->c_ref[i] - exCfg->h_out[i]);
+			diff += (extProb->c_ref[i] - extProb->h_out[i]) * (extProb->c_ref[i] - extProb->h_out[i]);
 		}
-		diff /= exCfg->VectorSize;
+		diff /= extProb->VectorSize;
 		
 		printf("mean err = %.1f.\n", diff);
-		if (diff > MIN_FP32_ERR)
+		if (!(diff >= 0 && diff < MIN_FP32_ERR))
 		{
 			printf("err = %.2f\n", diff);
 			INFO("verify failed!");
@@ -236,12 +224,12 @@ public:
 	/************************************************************************/
 	void ReleaseHost()
 	{
-		T_ExtVMBufProblemConfig * exCfg = (T_ExtVMBufProblemConfig *)ProblemConfig->extConfig;
+		T_ExtMubufProblemConfig * extProb = (T_ExtMubufProblemConfig *)ProblemConfig->extConfig;
 
-		HstFree(exCfg->h_a);
-		HstFree(exCfg->h_b);
-		HstFree(exCfg->h_out);
-		HstFree(exCfg->c_ref);
+		HstFree(extProb->h_a);
+		HstFree(extProb->h_b);
+		HstFree(extProb->h_out);
+		HstFree(extProb->c_ref);
 	}	
 };
  

@@ -15,10 +15,10 @@
 .hsa_code_object_isa 9,0,0,"AMD","AMDGPU"
 
 .text
-.globl IsaVMBuf
+.globl IsaMubuf
 .p2align 8
-.type IsaVMBuf,@function
-.amdgpu_hsa_kernel IsaVMBuf
+.type IsaMubuf,@function
+.amdgpu_hsa_kernel IsaMubuf
 
 /************************************************************************************/
 /* 预定义																			*/
@@ -73,7 +73,7 @@ v_input = 16
 /************************************************************************************/
 /* 主程序																			*/
 /************************************************************************************/
-IsaVMBuf:
+IsaMubuf:
 	// ===============================================================================
 	// ===============================================================================
 	.amd_kernel_code_t
@@ -210,7 +210,7 @@ END_PROG:
 .amd_amdgpu_hsa_metadata
 { Version: [ 1, 0 ],
   Kernels: 
-    - { Name: IsaVMBuf, SymbolName: 'IsaVMBuf', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
+    - { Name: IsaMubuf, SymbolName: 'IsaMubuf', Language: OpenCL C, LanguageVersion: [ 1, 2 ],
         Attrs: { ReqdWorkGroupSize: [ 64, 1, 1 ] }
         CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize: 0, PrivateSegmentFixedSize: 0, KernargSegmentAlign: 8, WavefrontSize: 64, MaxFlatWorkGroupSize: 512 }
         Args:
