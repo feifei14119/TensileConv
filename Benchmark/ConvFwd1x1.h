@@ -975,7 +975,7 @@ public:
 
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		exProbCfg->W = 28;		exProbCfg->H = 28;
-		exProbCfg->C = 128;		exProbCfg->K = 128;
+		exProbCfg->C = 1024;	exProbCfg->K = 128;
 		exProbCfg->N = 8;
 		probCfg->extConfig = exProbCfg;
 
