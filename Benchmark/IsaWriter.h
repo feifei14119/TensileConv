@@ -50,8 +50,47 @@ public:
 	}
 
 	/************************************************************************************/
+	/* bufferÃèÊö·û																		*/
+	/************************************************************************************/
+	void setBufferDsc(
+		t_operator * des,
+		t_operator * base,
+		uint stride,
+		uint record_num,
+		uint num_fmt, uint dat_fmt,
+		bool add_tid_en)
+	{
+		// desc0
+		op1("s_mov_b64", des, base);
+
+		// desc1
+		uint dsc1_tmp = stride & 0x3FFF;
+		dsc1_tmp = dsc1_tmp << 16;
+		op2("s_or_b32", *des + 1, *des + 1, dsc1_tmp);
+
+		// desc2
+		op1("s_mov_b32", *des + 2, record_num);
+
+		// desc3
+		uint dsc3_tmp = (num_fmt & 0x7) << 12;
+		if (add_tid_en == true)
+		{
+			dsc3_tmp |= ((stride & 0x3C000) >> 14) << 15;
+			dsc3_tmp |= 1 << 23;
+		}
+		else
+		{
+			dsc3_tmp |= (dat_fmt & 0xF) << 15;
+		}
+		op1("s_mov_b32", *des + 3, dsc3_tmp);
+	}
+
+	/************************************************************************************/
 	/* SMEM																				*/
 	/************************************************************************************/
+	/*
+	 * offset: 20-bit integer
+	 */
 	template <typename T1, typename T2, typename T3>
 	void s_load_dword(int num, T1 s_dst, T2 s_base, T3 offset)
 	{
@@ -112,43 +151,13 @@ public:
 		str.append("\n");
 		kernelStr->append(str);
 	}
-
+	
 	/************************************************************************************/
 	/* MUBUF																			*/
 	/************************************************************************************/
-	void setBufferDsc(
-		t_operator * des, 
-		t_operator * base,
-		uint stride,
-		uint record_num,
-		uint num_fmt, uint dat_fmt,
-		bool add_tid_en)
-	{
-		// desc0
-		op1("s_mov_b64", des, base);
-
-		// desc1
-		uint dsc1_tmp = stride & 0x3FFF;
-		dsc1_tmp = dsc1_tmp << 16;
-		op2("s_or_b32", *des + 1, *des + 1, dsc1_tmp);
-
-		// desc2
-		op1("s_mov_b32", *des + 2, record_num);
-
-		// desc3
-		uint dsc3_tmp = (num_fmt & 0x7) << 12;
-		if (add_tid_en == true)
-		{
-			dsc3_tmp |= ((stride & 0x3C000) >> 14) << 15;
-			dsc3_tmp |= 1 << 23;
-		}
-		else
-		{
-			dsc3_tmp |= (dat_fmt & 0xF) << 15;
-		}
-		op1("s_mov_b32", *des + 3, dsc3_tmp);
-	}
-
+	/*
+	 * i_offset = 12-bit unsigned
+	 */
 	template <typename T1, typename T2, typename T3, typename T4>
 	void buffer_load_dword(int num, T1 v_dst, T2 v_off_idx, T3 s_dsc, T4 s_base_off,
 		bool idx_en, bool off_en, uint i_offset)
@@ -218,6 +227,20 @@ public:
 
 		str.append("\n");
 		kernelStr->append(str);
+	}
+
+	void flat_load_dword(int num, t_operator * v_dst, t_operator *)
+	{
+		int tmpIdx;
+		std::string str = sblk();
+		str.append("flat_load_dword");
+		if (num > 1)
+		{
+			str.append("x" + d2s(num));
+		}
+		tmpIdx = PARAM_START_COL - str.length();
+		for (int i = 0; i < tmpIdx; i++)
+			str.append(" ");
 	}
 
 	/************************************************************************************/

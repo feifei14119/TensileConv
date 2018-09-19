@@ -7,7 +7,7 @@
 /* solution控制                                                          */
 /************************************************************************/
 #define		MultSolution	(0)
-#define		EnSimuIndex		(1)
+#define		EnSimuIndex		(0)
 #define		EnSaveSource	(0)
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
@@ -90,7 +90,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -104,7 +104,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -443,14 +443,17 @@ public:
 			int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
 			int grpNumPerSe = groupNum / SE_NUM;
 
-			sig_num_per_cu = next2pow(grpNumPerCUMax);
-			// signal mem
-			//sig_num_per_cu = next2pow(loop / 2);
-			size_sig = sig_num_per_cu * CU_NUM;
-			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
-			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
-			SolutionConfig->KernelArgus->push_back(d_signal);
-			h_signal = (int*)HstMalloc(size_sig * sizeof(int));
+			if (SolutionConfig->ConfigName != "SQC")
+			{
+				sig_num_per_cu = next2pow(grpNumPerCUMax);
+				// signal mem
+				//sig_num_per_cu = next2pow(loop / 2);
+				size_sig = sig_num_per_cu * CU_NUM;
+				DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
+				d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
+				SolutionConfig->KernelArgus->push_back(d_signal);
+				h_signal = (int*)HstMalloc(size_sig * sizeof(int));
+			}
 
 			SolutionConfig->extCompilerOpt =
 				std::string(" -Wa,-defsym,W=") + std::to_string(extProb->W) +
@@ -557,9 +560,10 @@ public:
 		}
 		else if (SolutionConfig->ConfigName == "SQC")
 		{
-			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm.s";
+			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm.s";
 			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
 			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_256thread.s";
+			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_Cin_Mult.s";
 			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Single")
@@ -944,7 +948,7 @@ public:
 };
 
 #define		SingleProblem	(1)
-#define		SkipHost		(1)
+#define		SkipHost		(0)
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
@@ -971,7 +975,7 @@ public:
 
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		exProbCfg->W = 28;		exProbCfg->H = 28;
-		exProbCfg->C = 128;	exProbCfg->K = 128;
+		exProbCfg->C = 128;		exProbCfg->K = 128;
 		exProbCfg->N = 8;
 		probCfg->extConfig = exProbCfg;
 
@@ -1015,7 +1019,7 @@ public:
 
 		ProblemConfigList->push_back(probCfg);
 #endif
-	} 
+	}
 	
 	/************************************************************************/
 	/* 参数初始化                                                            */

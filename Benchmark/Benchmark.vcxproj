@@ -110,6 +110,7 @@
   <ItemGroup>
     <None Include="Kernels\common.inc" />
     <None Include="Kernels\ConvFwd1x1_Jasm.s" />
+    <None Include="Kernels\ConvFwd1x1_Jasm_Cin_Mult.s" />
     <None Include="Kernels\ConvFwd1x1_Jasm_NewOrg.s" />
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Mult_Conv.s" />
     <None Include="Kernels\ConvFwd1x1_Jasm_Prefetch_Mult_Fetch.s" />

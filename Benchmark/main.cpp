@@ -31,8 +31,8 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	//ProblemCtrlBase *smem = new SmemProblem("smem instruction demo");
 	//smem->RunProblem();
-	ProblemCtrlBase *mubuf = new MubufProblem("mubuf instruction demo");
-	mubuf->RunProblem();
+	//ProblemCtrlBase *mubuf = new MubufProblem("mubuf instruction demo");
+	//mubuf->RunProblem();
 	//ProblemCtrlBase *flat = new FlatProblem();
 	//flat->RunProblem();
 	//ProblemCtrlBase *global = new GlobalProblem();
@@ -45,8 +45,8 @@ int main(int argc, char *argv[])
 	// ----------------------------------------------------------------------
 	// TensileConv
 	// ----------------------------------------------------------------------
-	//ProblemCtrlBase *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");
-	//conv1x1->RunProblem();
+	ProblemCtrlBase *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");
+	conv1x1->RunProblem();
 	
 	// ======================================================================
 	// ======================================================================
