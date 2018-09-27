@@ -22,10 +22,9 @@ private:
 	int c_in_maps;		// 每个CU计算多少个输入通道C
 	int c_in_group;		// 一个像素的所有输入通道分给几个CU计算
 	// W,H划分
-	int in_pix_maps;	// 每个CU计算多少个输入像素
+	int pix_per_group;	// 每个CU计算多少个输入像素
 	// thread规划
-	int out_pix_tile;	// 每个thread负责多少个输出像素
-	int out_tile;		// 每个thread负责多少个输出数据(W*H*K)
+	int pix_maps;	// 每个thread负责多少个输出像素
 	// 程序规划
 	int c_in_maps_once;	// 每轮循环计算多少个输入通道C
 	int loop;			// 循环次数
@@ -90,7 +89,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -104,7 +103,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -294,48 +293,50 @@ public:
 		}
 		else if (SolutionConfig->ConfigName == "SQC")
 		{
-			extSol->group_size = 64;
+			extSol->group_size = WAVE_SIZE;
 			extSol->k_out_maps = 16;
-			k_out_group = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
+			k_out_group = divCeil(extProb->K, extSol->k_out_maps);
 			c_in_maps = extProb->C;
-			c_in_group = (extProb->C + c_in_maps - 1) / c_in_maps;
+			c_in_group = divCeil(extProb->C, c_in_maps);
 
+			pix_per_group = 64;
+			align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
 			c_in_maps_once = 8;
-			out_pix_tile = 1;
-			out_tile = out_pix_tile * extSol->k_out_maps;
-			in_pix_maps = 64;
 			loop = c_in_maps / c_in_maps_once;
-			align = ((extProb->W * extProb->H * extProb->N + in_pix_maps - 1) / in_pix_maps) * in_pix_maps;
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Single")
 		{
-			extSol->group_size = 64;
+			extSol->group_size = WAVE_SIZE;
 			extSol->k_out_maps = 16;
-			k_out_group = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
+			k_out_group = divCeil(extProb->K, extSol->k_out_maps);
 			c_in_maps = extProb->C;
-			c_in_group = (extProb->C + c_in_maps - 1) / c_in_maps;
+			c_in_group = divCeil(extProb->C, c_in_maps);
 
 			c_in_maps_once = 8;
-			out_pix_tile = 1;
-			out_tile = out_pix_tile * extSol->k_out_maps;
-			in_pix_maps = 64;
 			loop = c_in_maps / c_in_maps_once;
-			align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
+			pix_per_group = 64;
+			align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
+			
+			// signal space
+			sig_num_per_cu = c_in_maps / CACHE_LINE;
+			size_sig = sig_num_per_cu * CU_NUM;
+			h_signal = (int*)HstMalloc(size_sig * sizeof(int));
+			DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
+			d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
+			SolutionConfig->KernelArgus->push_back(d_signal);
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Mult")
 		{
-			extSol->group_size = 64;
+			extSol->group_size = WAVE_SIZE;
 			extSol->k_out_maps = 16;
-			k_out_group = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
+			k_out_group = divCeil(extProb->K, extSol->k_out_maps);
 			c_in_maps = extProb->C;
-			c_in_group = (extProb->C + c_in_maps - 1) / c_in_maps;
+			c_in_group = divCeil(extProb->C, c_in_maps);
 
 			c_in_maps_once = 8;
-			out_pix_tile = 1;
-			out_tile = out_pix_tile * extSol->k_out_maps;
-			in_pix_maps = 64;
 			loop = c_in_maps / c_in_maps_once;
-			align = ((extProb->W * extProb->H * extProb->N + in_pix_maps - 1) / in_pix_maps) * in_pix_maps;
+			pix_per_group = 64;
+			align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group);
 
 			// signal mem
 			size_sig = loop / 2 * CU_NUM;
@@ -387,16 +388,14 @@ public:
 			printf("	group_size=[%d]\n", extSol->group_size);
 			printf("----------------------------------------------------------------------\n");
 
-			k_out_group = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
+			k_out_group = divCeil(extProb->K, extSol->k_out_maps);
 			c_in_maps = extProb->C;
-			c_in_group = (extProb->C + c_in_maps - 1) / c_in_maps;
+			c_in_group = divCeil(extProb->C, c_in_maps);
 
 			c_in_maps_once = 8;
-			out_pix_tile = 1;
-			out_tile = out_pix_tile * extSol->k_out_maps;
-			in_pix_maps = 64;
-			loop = c_in_maps / c_in_maps_once;
-			align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
+			loop = divCeil(c_in_maps, c_in_maps_once);
+			pix_per_group = 64;
+			align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
 		}
 
 		return E_ReturnState::SUCCESS;
@@ -434,26 +433,15 @@ public:
 		}
 		else
 		{
-			int in_pix_groups = align / extSol->group_size;
-			int k_out_groups = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
+			int in_pix_groups = divCeil(align, extSol->group_size);
+			int k_out_groups = divCeil(extProb->K, extSol->k_out_maps);
 			int groupNum = in_pix_groups * k_out_groups;
+
 			int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
 			int grpNumPerCUMin = groupNum / CU_NUM;
 			int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
 			int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
 			int grpNumPerSe = groupNum / SE_NUM;
-
-			if (SolutionConfig->ConfigName != "SQC")
-			{
-				sig_num_per_cu = next2pow(grpNumPerCUMax);
-				// signal mem
-				//sig_num_per_cu = next2pow(loop / 2);
-				size_sig = sig_num_per_cu * CU_NUM;
-				DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
-				d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
-				SolutionConfig->KernelArgus->push_back(d_signal);
-				h_signal = (int*)HstMalloc(size_sig * sizeof(int));
-			}
 
 			SolutionConfig->extCompilerOpt =
 				std::string(" -Wa,-defsym,W=") + std::to_string(extProb->W) +
@@ -490,10 +478,10 @@ public:
 		else if (SolutionConfig->ConfigName == "SQC")
 		{
 			SolutionConfig->l_wk0 = extSol->group_size;
-			SolutionConfig->l_wk1 = 1;
+			SolutionConfig->l_wk1 = 2;
 			SolutionConfig->l_wk2 = 1;
 			SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
-			SolutionConfig->g_wk1 = 1;
+			SolutionConfig->g_wk1 = 2;
 			SolutionConfig->g_wk2 = 1;
 
 			//SolutionConfig->l_wk0 = 1;
@@ -509,7 +497,7 @@ public:
 			SolutionConfig->g_wk2 = 1;
 
 			//SolutionConfig->l_wk0 = 64;		// 需要注释掉循环控制的exec
-			//SolutionConfig->g_wk0 = (64 * SolutionConfig->l_wk0);
+			//SolutionConfig->g_wk0 = (CU_NUM * SolutionConfig->l_wk0);
 
 			SolutionConfig->g_wk0 += (CU_NUM * SolutionConfig->l_wk0);
 		}
@@ -570,7 +558,8 @@ public:
 		{
 			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
 			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
-			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s";
+			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s";
+			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_FixWei_2.s";
 			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Mult")
@@ -945,10 +934,14 @@ public:
 		}
 		return log2;
 	}
+	int divCeil(int a, int b)
+	{
+		return ((a + b - 1) / b);
+	}
 };
 
 #define		SingleProblem	(1)
-#define		SkipHost		(0)
+#define		SkipHost		(1)
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
@@ -975,8 +968,8 @@ public:
 
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		exProbCfg->W = 28;		exProbCfg->H = 28;
-		exProbCfg->C = 1024;	exProbCfg->K = 128;
-		exProbCfg->N = 8;
+		exProbCfg->C = 2048;		exProbCfg->K = 128;
+		exProbCfg->N = 32;
 		probCfg->extConfig = exProbCfg;
 
 		ProblemConfigList->push_back(probCfg);
@@ -1197,12 +1190,11 @@ public:
 		for (int i = 0; i < exProbCfg->size_out; i++)
 		{
 			diff += (exProbCfg->out_ref[i] - exProbCfg->h_out[i]) * (exProbCfg->out_ref[i] - exProbCfg->h_out[i]);
-			//diff += (exProbCfg->h_out[i]) * (exProbCfg->h_out[i]);
 		}
 		diff /= exProbCfg->size_out;
 
 		printf("mean err = %.1f.\n", diff);
-		if (diff > MIN_FP32_ERR)
+		if (!(diff >= 0 && diff < MIN_FP32_ERR))
 		{
 			printf("err = %.2f\n", diff);
 			printf("verify failed!\n");

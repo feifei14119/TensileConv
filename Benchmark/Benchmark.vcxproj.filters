@@ -231,5 +231,8 @@
     <None Include="Kernels\ConvFwd1x1_Jasm_Cin_Mult.s">
       <Filter>problems\tensile\kernels</Filter>
     </None>
+    <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_FixWei_2.s">
+      <Filter>problems\tensile\kernels</Filter>
+    </None>
   </ItemGroup>
 </Project>

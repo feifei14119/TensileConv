@@ -33,6 +33,8 @@ typedef struct ExtConvFwd1x1ProblemConfigType
 	int U, V;			// stride
 	int OutW, OutH;		// output size
 
-	float* h_in, *h_wei, *h_out, *out_ref;
+	float* h_in, *h_wei, *h_out;
+	float *out_ref, *h_dbg;
 	int size_in, size_wei, size_out;
+	int size_dbg;
 }T_ExtConvFwd1x1ProblemConfig;
