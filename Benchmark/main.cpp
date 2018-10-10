@@ -19,30 +19,6 @@ int main(int argc, char *argv[])
 	//test->RunProblem();
 
 	// ----------------------------------------------------------------------
-	// Sample
-	// ----------------------------------------------------------------------
-	//ProblemCtrlBase *vAdd = new VectorAddProblem("VectorAdd");
-	//vAdd->RunProblem();
-	//ProblemCtrlBase *pc = new ProducerConsumerProblem();
-	//pc->RunProblem();
-
-	// ----------------------------------------------------------------------
-	// Instrucion
-	// ----------------------------------------------------------------------
-	//ProblemCtrlBase *smem = new SmemProblem("smem instruction demo");
-	//smem->RunProblem();
-	//ProblemCtrlBase *mubuf = new MubufProblem("mubuf instruction demo");
-	//mubuf->RunProblem();
-	//ProblemCtrlBase *flat = new FlatProblem();
-	//flat->RunProblem();
-	//ProblemCtrlBase *global = new GlobalProblem();
-	//global->RunProblem();
-	//ProblemCtrlBase *lds = new DsProblem();
-	//lds->RunProblem();
-	//ProblemCtrlBase *slp = new SleepProblem();
-	//slp->RunProblem();
-
-	// ----------------------------------------------------------------------
 	// TensileConv
 	// ----------------------------------------------------------------------
 	ProblemCtrlBase *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");

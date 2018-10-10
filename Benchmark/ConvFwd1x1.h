@@ -8,7 +8,7 @@
 /************************************************************************/
 #define		MultSolution	(0)
 #define		EnSimuIndex		(0)
-#define		EnSaveSource	(0)
+#define		EnSaveSource	(1)
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:

@@ -434,18 +434,5 @@ public:
 	SolutionCtrlBase * Solution;
 };
 
-
-#include "TestProblem.h"
-
-#include "IsaSmem.h"
-#include "IsaFlat.h"
-#include "IsaGlobal.h"
-#include "IsaDs.h"
-#include "IsaMubuf.h"
-#include "IsaSleep.h"
-
-#include "VectorAdd.h"
-#include "ProducerConsumer.h"
-
 #include "ConvFwd1x1.h"
 

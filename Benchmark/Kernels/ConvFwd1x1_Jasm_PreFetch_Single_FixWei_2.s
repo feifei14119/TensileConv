@@ -467,7 +467,7 @@ ConvFwd1x1:
 FETCH_WAIT:	
 	s_sleep						0x1
 		
-	s_lshl_b32					s[s_tmp1], s[\index_reg], 0x02
+	s_lshl_b32					s[s_tmp1], s[\index_reg], 2
 	s_load_dword				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]		glc
 	s_waitcnt 					lgkmcnt(0)
 		
@@ -638,6 +638,7 @@ FETCH_WAIT:
 	s_cmp_lt_u32				s[gid_x0], 0x0 + CU_NUM										// if(!(grp_id0 < CU_NUM)) goto noraml_index
 	s_cbranch_scc0				CALCU_GROUP
 
+//	s_branch					END_PROG
 // ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
 	// -------------------------------------------------------------------------------
 	// int se_id = group_id0 % SE_NUM;														// SE编号
@@ -748,9 +749,6 @@ FETCH_GROUP:
 	s_add_u32					s[s_ptr_sig], s[s_ptr_sig], s[s_tmp0]
 	s_addc_u32					s[s_ptr_sig + 1], s[s_ptr_sig + 1], 0x0
 	
-//	s_lshl_b32				s[s_tmp1], s[gid_y0], 0x0 + MLO_N_LCL_OUT_MAPS_LOG2 + FIXED_WORKGROUP_SIZE_LOG2
-//	v_add_u32				v[v_addr_ds], v[tid], s[s_tmp1]
-//	v_lshlrev_b32			v[v_addr_ds], 2, v[v_addr_ds]
 	// -------------------------------------------------------------------------------
 	// 初始化消息队列
 	// -------------------------------------------------------------------------------
@@ -763,75 +761,43 @@ FETCH_GROUP:
 	s_mov_b32					s[s_tmp1], 0
 	s_gpr_idx = 0
 	.rept CLOOP0
-		//s_store_dword			s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], 0x0 + s_gpr_idx
-		s_atomic_and			s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], 0x0 + s_gpr_idx
+		s_store_dword			s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], 0x0 + s_gpr_idx	glc
 		s_gpr_idx = s_gpr_idx  + 4
 	.endr
 	
-FETCH_PERIOD:
-//	m_wait_signal				s_loop_cnt
-	
+FETCH_PERIOD:	
 	s_mov_b64					s[s_ptr_wei:s_ptr_wei+1], s[s_ptr_wei_save0:s_ptr_wei_save0+1]
 	s_mov_b32 					s[s_loop_cnt], CLOOP0-1										// channel 的循环	
 	
 	m_fetch_k_out_blk			1
-		
+	
 PRE_FETCH:
 	m_wait_signal0				s_loop_cnt
 	m_fetch_k_out_blk			1
-
-//	// if s_loop_cnt <= 8
-//	// 		s_loop_cnt  = s_loop_cnt + CLOOP0 - 1
-//	// s_loop_cnt  = s_loop_cnt - 8
-//	s_mov_b32					s[s_tmp1], s[s_loop_cnt]
-//	s_mov_b32					s[s_tmp0], s[s_loop_cnt]
-//	s_cmp_le_u32				s[s_tmp0], 8
-//	s_cbranch_scc0				SEG0
-//	s_add_u32					s[s_tmp0], s[s_tmp0], 0x0 + CLOOP0 - 1
-//SEG0:
-//	s_sub_u32					s[s_tmp0], s[s_tmp0], 8
-//	s_lshl_b32					s[s_tmp0], s[s_tmp0], 2
-//	s_store_dword				s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp0]
-//	//s_atomic_and				s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp0]
 	
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
 	// -------------------------------------------------------------------------------
-	s_sub_u32 					s[s_loop_cnt], s[s_loop_cnt], 0x1							// s_loop_cnt--
-	s_cmpk_le_i32 				s[s_loop_cnt], 0x1
+	s_sub_u32 					s[s_loop_cnt], s[s_loop_cnt], 1							// s_loop_cnt--
+	s_cmpk_le_i32 				s[s_loop_cnt], 1
 	s_cbranch_scc0 				PRE_FETCH
 	
-		s_mov_b32				s[s_signal], 0
-		s_atomic_and			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], 4
 	
 	// 最后一笔预取不再等待,转而去做指令预取
 	m_fetch_k_out_blk			1
 	
 
-//	// if s_loop_cnt <= 8
-//	// 		s_loop_cnt  = s_loop_cnt + CLOOP0 - 1
-//	// s_loop_cnt  = s_loop_cnt - 8
-//	s_mov_b32					s[s_tmp1], s[s_period_cnt]
-//	s_mov_b32					s[s_tmp0], s[s_loop_cnt]
-//	s_cmp_le_u32				s[s_tmp0], 8
-//	s_cbranch_scc0				SEG1
-//	s_add_u32					s[s_tmp0], s[s_tmp0], 0x0 + CLOOP0 - 1
-//SEG1:
-//	s_sub_u32					s[s_tmp0], s[s_tmp0], 8
-//	s_lshl_b32					s[s_tmp0], s[s_tmp0], 2
-//	s_store_dword				s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp0]
-//	//s_atomic_and				s[s_tmp1], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp0]
 
 	// -------------------------------------------------------------------------------
 	// -------------------------------------------------------------------------------
-	s_load_dword				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], 0				glc
-	s_waitcnt					0
-	s_cmpk_eq_u32 				s[s_signal], 19
+//	s_load_dword				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], 0				glc
+//	s_waitcnt					0
+//	s_cmpk_eq_u32 				s[s_signal], 19
 //	s_cbranch_scc0 				FETCH_PERIOD
 
-//	s_sub_u32 					s[s_period_cnt], s[s_period_cnt], 0x1							// s_loop_cnt--
-//	s_cmpk_le_i32 				s[s_period_cnt], 0x1
-//	s_cbranch_scc0 				FETCH_PERIOD
+	s_sub_u32 					s[s_period_cnt], s[s_period_cnt], 0x1							// s_loop_cnt--
+	s_cmpk_le_i32 				s[s_period_cnt], 0x1
+	s_cbranch_scc0 				FETCH_PERIOD
 	
 	
 	s_branch					END_PROG
@@ -1002,8 +968,6 @@ MAIN_CONV:
 	m_load_input 				v_data0, enable
 	weight_offset = 0
 	
-//		s_mov_b32				s[s_signal], 1
-//		s_atomic_add			s[s_signal], s[s_ptr_sig:s_ptr_sig+1], 4
 	// -------------------------------------------------------------------------------
 	// 循环体 :
 	// -------------------------------------------------------------------------------
@@ -1013,12 +977,8 @@ LOOP_CONV:
 	m_load_input 				v_datb0, enable
 	m_cacul_all_feature		 	v_data0, weight_offset, 8, disable, disable	
 	
-	s_barrier
-	s_sleep						1
-	s_nop						1
-	s_barrier
 	
-	ms_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt
+//	ms_send_signal				SIGNAL_REQ_FETCH, s_loop_cnt
 //	s_waitcnt	0
 //	s_dcache_wb
 //		s_lshl_b32				s[s_tmp1], s[s_loop_cnt], 0x02
@@ -1026,6 +986,20 @@ LOOP_CONV:
 	m_load_input 				v_data0, enable
 	m_cacul_all_feature		 	v_datb0, weight_offset, 8, enable, enable
 	
+	// 同步
+	s_mov_b32					s[s_signal], 1
+	s_lshl_b32					s[s_tmp1], s[s_loop_cnt], 2
+	s_atomic_add				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
+	s_mov_b32					s[s_signal], 0
+SYNC_WAIT:	
+	s_sleep						10	
+	s_load_dword				s[s_signal], s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]		glc
+	s_waitcnt 					0	
+	s_cmp_le_u32				s[s_signal], 5								// if(signal == SIGNAL_NULL) wait
+	s_cbranch_scc1				SYNC_WAIT
+	
+	
+//	s_dcache_discard			s[s_ptr_sig:s_ptr_sig+1], s[s_tmp1]
 	// -------------------------------------------------------------------------------
 	// 循环控制 :
 	// -------------------------------------------------------------------------------
@@ -1049,6 +1023,7 @@ LAST_CYCLE:
 	// -------------------------------------------------------------------------------
 	m_save_output
 	ms_send_signal				SIGNAL_EXIT, 0
+	
 	
 //	s_getreg_b32 				s[s_tmp0], 0xF804
 //	//s_waitcnt					0

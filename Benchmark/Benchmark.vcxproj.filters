@@ -10,17 +10,11 @@
     <ClInclude Include="RuntimeControl.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="ConvFwd1x1.h">
-      <Filter>problems\tensile</Filter>
-    </ClInclude>
     <ClInclude Include="helper_hip.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="helper_cl.h">
       <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="VectorAdd.h">
-      <Filter>problems\sample</Filter>
     </ClInclude>
     <ClInclude Include="helper.h">
       <Filter>util</Filter>
@@ -49,56 +43,29 @@
     <ClInclude Include="utils\AMDCL2\SDKUtil\SDKUtil.hpp">
       <Filter>Includes\utils\amdcl2</Filter>
     </ClInclude>
-    <ClInclude Include="TestProblem.h">
-      <Filter>problems\test</Filter>
+    <ClInclude Include="KernelWriterBasicClass.h">
+      <Filter>util\KernelWriter</Filter>
     </ClInclude>
-    <ClInclude Include="IsaMubuf.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaDs.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaFlat.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaGlobal.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaSleep.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="ProducerConsumer.h">
-      <Filter>problems\sample</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaWriter.h">
-      <Filter>problems\tensile</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaWriterGfx9.h">
-      <Filter>problems\tensile</Filter>
-    </ClInclude>
-    <ClInclude Include="KernelWriter.h">
-      <Filter>problems\tensile</Filter>
-    </ClInclude>
-    <ClInclude Include="GasWriter.h">
-      <Filter>problems\tensile</Filter>
+    <ClInclude Include="ConvFwd1x1.h">
+      <Filter>TensileConv</Filter>
     </ClInclude>
     <ClInclude Include="ConvFwd1x1Config.h">
-      <Filter>problems\tensile</Filter>
+      <Filter>TensileConv</Filter>
     </ClInclude>
     <ClInclude Include="ConvFwd1x1KernelWriter.h">
-      <Filter>problems\tensile</Filter>
+      <Filter>TensileConv</Filter>
     </ClInclude>
-    <ClInclude Include="IsaSmem.h">
-      <Filter>problems\sample</Filter>
+    <ClInclude Include="GasWriter.h">
+      <Filter>TensileConv</Filter>
     </ClInclude>
-    <ClInclude Include="IsaSmemKernelWriter.h">
-      <Filter>problems\sample</Filter>
+    <ClInclude Include="IsaWriter.h">
+      <Filter>TensileConv</Filter>
     </ClInclude>
-    <ClInclude Include="IsaDemoConfig.h">
-      <Filter>problems\sample</Filter>
+    <ClInclude Include="IsaWriterGfx9.h">
+      <Filter>TensileConv</Filter>
     </ClInclude>
-    <ClInclude Include="IsaMubufKernelWriter.h">
-      <Filter>problems\sample</Filter>
+    <ClInclude Include="KernelWriter.h">
+      <Filter>TensileConv</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -109,38 +76,26 @@
     <Filter Include="Includes">
       <UniqueIdentifier>{29523e91-5957-45f4-b6c0-2b28ec3df1a1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="problems">
-      <UniqueIdentifier>{b317f902-cc3f-4e96-aed3-cba511c680f8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="problems\sample">
-      <UniqueIdentifier>{301d4113-91d4-41c9-b8e9-48f4d7cb5762}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="problems\sample\kernels">
-      <UniqueIdentifier>{0e3f67dd-253f-4bf6-baff-c1fad8f57c56}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="problems\tensile">
-      <UniqueIdentifier>{67f684ed-ac72-4437-9ade-aa62128dc6b7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="problems\tensile\kernels">
-      <UniqueIdentifier>{03ef0283-3e71-4cfc-a5a1-3f72f7a318a8}</UniqueIdentifier>
-    </Filter>
     <Filter Include="util">
       <UniqueIdentifier>{9821c96d-a183-48ed-bb1d-aad9e1f80d74}</UniqueIdentifier>
     </Filter>
     <Filter Include="util\asmTool">
       <UniqueIdentifier>{d36ee4ff-ece6-40a8-bb59-6919ddd8c246}</UniqueIdentifier>
     </Filter>
-    <Filter Include="problems\test">
-      <UniqueIdentifier>{0c151de4-3aab-47aa-90dc-d0defb888fc2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="problems\test\kernels">
-      <UniqueIdentifier>{f19488d0-d378-43d2-835d-987518c6da72}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Includes\utils">
       <UniqueIdentifier>{2ae1397a-fd8d-410d-966f-187768df57af}</UniqueIdentifier>
     </Filter>
     <Filter Include="Includes\utils\amdcl2">
       <UniqueIdentifier>{dd00e094-454f-48db-b608-0b85689807b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="util\KernelWriter">
+      <UniqueIdentifier>{e7ac8f1f-de4d-4eec-b3ef-fc3655b67724}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="TensileConv">
+      <UniqueIdentifier>{fbe90e90-e18f-4a40-890e-0470eb5470cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="TensileConv\kernels">
+      <UniqueIdentifier>{03ef0283-3e71-4cfc-a5a1-3f72f7a318a8}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -156,83 +111,44 @@
     <None Include="Kernels\conv_sizes.inc">
       <Filter>util\asmTool</Filter>
     </None>
-    <None Include="Kernels\VectorAdd.cl">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\VectorAdd.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\Test.cl">
-      <Filter>problems\test\kernels</Filter>
-    </None>
     <None Include="Kernels\ConvFwd1x1_Jasm.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
-    <None Include="Kernels\IsaDs.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\IsaFlat.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\IsaGlobal.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\IsaSleep.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\ProducerConsumer.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\PS_Consumer.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\PS_Producer.s">
-      <Filter>problems\sample\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_NewOrg.s">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jcl.cl">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jcl_256thread.cl">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jcl_NewOrg.cl">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Mult_Conv.s">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_Prefetch_Mult_Fetch.s">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single.s">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\SimuIndex.cl">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s">
-      <Filter>problems\tensile\kernels</Filter>
-    </None>
-    <None Include="Kernels\VectorAdd_ocml.cl">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\IsaSmem.s">
-      <Filter>problems\sample\kernels</Filter>
-    </None>
-    <None Include="Kernels\IsaMubuf.s">
-      <Filter>problems\sample\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_Cin_Mult.s">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm_PreFetch_Single_FixWei_2.s">
-      <Filter>problems\tensile\kernels</Filter>
+      <Filter>TensileConv\kernels</Filter>
     </None>
   </ItemGroup>
 </Project>
