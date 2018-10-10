@@ -89,7 +89,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			//SolutionConfigList->push_back(solutionConfig);
+			SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -103,7 +103,7 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
-			SolutionConfigList->push_back(solutionConfig);
+			//SolutionConfigList->push_back(solutionConfig);
 		}
 
 		// ======================================================================
@@ -449,6 +449,10 @@ public:
 				std::string(" -Wa,-defsym,C=") + std::to_string(extProb->C) +
 				std::string(" -Wa,-defsym,K=") + std::to_string(extProb->K) +
 				std::string(" -Wa,-defsym,N=") + std::to_string(extProb->N) +
+				std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS=") + std::to_string(k_out_group) +
+				std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_LOG2=") + std::to_string(log2(k_out_group)) +
+				std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_DIV_MASK=") + std::to_string(k_out_group-1) +
+				std::string(" -Wa,-defsym,MLO_N_LCL_IN_MAPS=") + std::to_string(c_in_maps) +
 				std::string(" -Wa,-defsym,GRP_NUM_SE=") + std::to_string(grpNumPerSe) +
 				std::string(" -Wa,-defsym,GRP_NUM_CU_MIN=") + std::to_string(grpNumPerCUMin) +
 				std::string(" -Wa,-defsym,MAX_GRP_CU_NUM=") + std::to_string(maxGrpCUNum) +
@@ -478,10 +482,10 @@ public:
 		else if (SolutionConfig->ConfigName == "SQC")
 		{
 			SolutionConfig->l_wk0 = extSol->group_size;
-			SolutionConfig->l_wk1 = 2;
+			SolutionConfig->l_wk1 = 1;
 			SolutionConfig->l_wk2 = 1;
 			SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
-			SolutionConfig->g_wk1 = 2;
+			SolutionConfig->g_wk1 = 1;
 			SolutionConfig->g_wk2 = 1;
 
 			//SolutionConfig->l_wk0 = 1;
@@ -941,7 +945,7 @@ public:
 };
 
 #define		SingleProblem	(1)
-#define		SkipHost		(1)
+#define		SkipHost		(0)
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
@@ -968,8 +972,8 @@ public:
 
 		exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 		exProbCfg->W = 28;		exProbCfg->H = 28;
-		exProbCfg->C = 2048;		exProbCfg->K = 128;
-		exProbCfg->N = 32;
+		exProbCfg->C = 2048;		exProbCfg->K = 16;
+		exProbCfg->N = 1;
 		probCfg->extConfig = exProbCfg;
 
 		ProblemConfigList->push_back(probCfg);
