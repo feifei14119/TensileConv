@@ -89,6 +89,20 @@ public:
 
 			// ----------------------------------------------------------------------
 			// 添加solution
+			//SolutionConfigList->push_back(solutionConfig);
+		}
+
+		// ======================================================================
+		// solution config 3: SQC-c_mult: 基于SQC的对C进行分解
+		// ======================================================================
+		{
+			extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+
+			solutionConfig = new T_SolutionConfig("C_MULT");
+			solutionConfig->extConfig = extSolutionConfig;
+
+			// ----------------------------------------------------------------------
+			// 添加solution
 			SolutionConfigList->push_back(solutionConfig);
 		}
 
@@ -304,6 +318,19 @@ public:
 			c_in_maps_once = 8;
 			loop = c_in_maps / c_in_maps_once;
 		}
+		else if (SolutionConfig->ConfigName == "C_MULT")
+		{
+			extSol->group_size = WAVE_SIZE;
+			extSol->k_out_maps = 16;
+			k_out_group = divCeil(extProb->K, extSol->k_out_maps);
+			c_in_maps = extProb->C / 16;
+			c_in_group = divCeil(extProb->C, c_in_maps);
+
+			pix_per_group = 64;
+			align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
+			c_in_maps_once = 8;
+			loop = c_in_maps / c_in_maps_once;
+		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Single")
 		{
 			extSol->group_size = WAVE_SIZE;
@@ -453,6 +480,10 @@ public:
 				std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_LOG2=") + std::to_string(log2(k_out_group)) +
 				std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_DIV_MASK=") + std::to_string(k_out_group-1) +
 				std::string(" -Wa,-defsym,MLO_N_LCL_IN_MAPS=") + std::to_string(c_in_maps) +
+				std::string(" -Wa,-defsym,MLO_N_IN_GROUPS=") + std::to_string(c_in_group) +
+				std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_LOG2=") + std::to_string(log2(c_in_group)) +
+				std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_DIV_MASK=") + std::to_string(c_in_group-1) +
+
 				std::string(" -Wa,-defsym,GRP_NUM_SE=") + std::to_string(grpNumPerSe) +
 				std::string(" -Wa,-defsym,GRP_NUM_CU_MIN=") + std::to_string(grpNumPerCUMin) +
 				std::string(" -Wa,-defsym,MAX_GRP_CU_NUM=") + std::to_string(maxGrpCUNum) +
@@ -490,6 +521,15 @@ public:
 
 			//SolutionConfig->l_wk0 = 1;
 			//SolutionConfig->g_wk0 = 64;
+		}
+		else if (SolutionConfig->ConfigName == "C_MULT")
+		{
+			SolutionConfig->l_wk0 = extSol->group_size;
+			SolutionConfig->l_wk1 = 1;
+			SolutionConfig->l_wk2 = 1;
+			SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
+			SolutionConfig->g_wk1 = 1;
+			SolutionConfig->g_wk2 = 1;
 		}
 		else if (SolutionConfig->ConfigName == "PreFetch_Single")
 		{
@@ -552,9 +592,13 @@ public:
 		}
 		else if (SolutionConfig->ConfigName == "SQC")
 		{
-			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm.s";
+			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm.s";
 			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
 			//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_256thread.s";
+			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
+		}
+		else if (SolutionConfig->ConfigName == "C_MULT")
+		{
 			SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_Cin_Mult.s";
 			SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
 		}
@@ -1089,16 +1133,16 @@ public:
 
 		for (int i = 0; i < exProbCfg->size_in; i++)
 		{
-			//exProbCfg->h_in[i] = 1;
+			exProbCfg->h_in[i] = 1;
 			//exProbCfg->h_in[i] = (float)(i % 7) + 1.0f;
-			exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
+			//exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
 			//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exProbCfg->size_wei; i++)
 		{
-			//exProbCfg->h_wei[i] = 1;
+			exProbCfg->h_wei[i] = 1;
 			//exProbCfg->h_wei[i] = (float)(i % 13) + 1.0f;
-			exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
+			//exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
 			//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 		}
 		for (int i = 0; i < exProbCfg->size_out; i++)
