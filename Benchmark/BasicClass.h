@@ -126,12 +126,6 @@ struct Option
 	void *       _value;
 };
 
-#define	c2s(c)				std::string(c)
-#define	s2c(s)				s.c_str()
-#define	d2s(d)				std::to_string(d)
-#define d2c(d)				(char*)(s2c(d2s(d)))
-#define	d2hs(d)				std::string("0x0+"+std::to_string(d))
-#define	c2hs(c)				std::string("0x0+"+c2s(c))
 
 /************************************************************************/
 /* 常量定义																*/
@@ -222,39 +216,6 @@ public:
 /* GPU计时器																*/
 /************************************************************************/
 #if GPU_TIMER
-#if RUNTIME_CUDA
-class CudaTimer
-{
-private:
-	cudaEvent_t startEvent;
-	cudaEvent_t stopEvent;
-
-public:
-	CudaTimer()
-	{
-		cudaEventCreate(&startEvent);
-		cudaEventCreate(&stopEvent);
-	}
-
-public:
-	void Restart()
-	{
-		cudaEventRecord(startEvent, 0);
-	}
-
-	void Stop()
-	{
-		float diffTime1ms;
-		cudaEventRecord(stopEvent, 0);
-		cudaEventSynchronize(stopEvent);
-		cudaEventElapsedTime(&diffTime1ms, startEvent, stopEvent);
-
-		ElapsedMilliSec = diffTime1ms;
-	}
-
-	double ElapsedMilliSec;
-};
-#endif
 
 #if RUNTIME_OCL
 #define ffTimer OclTimer
@@ -311,262 +272,199 @@ public:
 	double ElapsedNanoSec = 0;
 };
 
-
-/************************************************************************/
-/* 搜索参数					                                             */
-/************************************************************************/
-typedef struct SearchParamType
+namespace AutoTune
 {
-	SearchParamType(std::string name)
+	using namespace std;
+	/************************************************************************/
+	/* 搜索参数					                                             */
+	/************************************************************************/
+	typedef struct SearchParamType
 	{
-		Name = name;
-	}
-	SearchParamType()
-	{
-	}
-
-	std::string Name;
-	std::vector<int> ValueArray;
-	int CurrIdx;
-	int CurrValue;
-	int BestIdx;
-	int BestValue;
-	int MinValue;
-	int MaxValue;
-	int Step;
-	int ValueNum;
-
-	SearchParamType operator=(SearchParamType &p)
-	{
-		Name = p.Name;
-		CurrValue = p.CurrValue;
-		CurrIdx = p.CurrIdx;
-		MinValue = p.MinValue;
-		MaxValue = p.MaxValue;
-		Step = p.Step;
-		ValueNum = p.ValueNum;
-
-		for (int i = 0; i < p.ValueArray.size(); i++)
+		SearchParamType(std::string name)
 		{
-			int val = p.ValueArray[i];
-			ValueArray.push_back(val);
+			Name = name;
+		}
+		SearchParamType()
+		{
 		}
 
-		return *this;
-	}
-} T_SearchParam;
+		std::string Name;
+		std::vector<int> ValueArray;
+		int CurrIdx;
+		int CurrValue;
+		int BestIdx;
+		int BestValue;
+		int MinValue;
+		int MaxValue;
+		int Step;
+		int ValueNum;
 
-class SearchSpace
-{
-public:
-	SearchSpace()
-	{
-		searchParams = new std::vector<T_SearchParam>;
-	}
-
-	~SearchSpace()
-	{
-		delete searchParams;
-	}
-
-public:
-	int ParamNum = 0;
-
-private:
-	std::vector<T_SearchParam> * searchParams;	// 搜索参数数组列表
-
-	int searchParamIdx = 0;
-	bool moveCurrIdx = true;
-	int getParamIdx = 0;
-
-public:
-	/************************************************************************/
-	/* 获取一组新的参数组合													*/
-	/************************************************************************/
-	E_ReturnState GetNexComb()
-	{
-		T_SearchParam * currParam;
-		currParam = &((*searchParams)[searchParamIdx]);
-		
-		// 遍历完成: 如果已经指向最后一个参数且仍需调整指针,则搜索完成
-		if ((searchParamIdx >= ParamNum - 1) && (currParam->CurrIdx >= currParam->ValueNum - 1) && moveCurrIdx)
+		SearchParamType operator=(SearchParamType &p)
 		{
-			moveCurrIdx = true;
-			searchParamIdx = 0;
-			return E_ReturnState::FAIL;
-		}
-		
-		// 调整当前数组指针
-		bool moveNextIdx;
-		if (moveCurrIdx)
-		{			
-			if(currParam->CurrIdx >= currParam->ValueNum - 1)
+			Name = p.Name;
+			CurrValue = p.CurrValue;
+			CurrIdx = p.CurrIdx;
+			MinValue = p.MinValue;
+			MaxValue = p.MaxValue;
+			Step = p.Step;
+			ValueNum = p.ValueNum;
+
+			for (int i = 0; i < p.ValueArray.size(); i++)
 			{
-				currParam->CurrIdx = 0; 
-				moveNextIdx = true;
-			}
-			else
-			{
-				currParam->CurrIdx++;
-				moveNextIdx = false;
+				int val = p.ValueArray[i];
+				ValueArray.push_back(val);
 			}
 
-			currParam->CurrValue = currParam->ValueArray[currParam->CurrIdx];
+			return *this;
+		}
+	} T_SearchParam;
+
+	class SearchSpace
+	{
+	public:
+		SearchSpace()
+		{
+			searchParams = new std::vector<T_SearchParam>;
 		}
 
-		// 搜索完一轮完成: 当前正在搜索最后一个参数
-		if (searchParamIdx >= ParamNum - 1)
+		~SearchSpace()
 		{
-			moveCurrIdx = true;
-			searchParamIdx = 0;
+			delete searchParams;
+		}
+
+	public:
+		int ParamNum = 0;
+
+	private:
+		std::vector<T_SearchParam> * searchParams;	// 搜索参数数组列表
+
+		int searchParamIdx = 0;
+		bool moveCurrIdx = true;
+		int getParamIdx = 0;
+
+	public:
+		/************************************************************************/
+		/* 获取一组新的参数组合													*/
+		/************************************************************************/
+		E_ReturnState GetNexComb()
+		{
+			T_SearchParam * currParam;
+			currParam = &((*searchParams)[searchParamIdx]);
+
+			// 遍历完成: 如果已经指向最后一个参数且仍需调整指针,则搜索完成
+			if ((searchParamIdx >= ParamNum - 1) && (currParam->CurrIdx >= currParam->ValueNum - 1) && moveCurrIdx)
+			{
+				moveCurrIdx = true;
+				searchParamIdx = 0;
+				return E_ReturnState::FAIL;
+			}
+
+			// 调整当前数组指针
+			bool moveNextIdx;
+			if (moveCurrIdx)
+			{
+				if (currParam->CurrIdx >= currParam->ValueNum - 1)
+				{
+					currParam->CurrIdx = 0;
+					moveNextIdx = true;
+				}
+				else
+				{
+					currParam->CurrIdx++;
+					moveNextIdx = false;
+				}
+
+				currParam->CurrValue = currParam->ValueArray[currParam->CurrIdx];
+			}
+
+			// 搜索完一轮完成: 当前正在搜索最后一个参数
+			if (searchParamIdx >= ParamNum - 1)
+			{
+				moveCurrIdx = true;
+				searchParamIdx = 0;
+				return E_ReturnState::SUCCESS;
+			}
+
+			// 搜索下一组参数
+			searchParamIdx++;
+			moveCurrIdx = moveNextIdx;
+			GetNexComb();
+		}
+
+		/************************************************************************/
+		/* 记录当前参数组合														*/
+		/************************************************************************/
+		E_ReturnState RecordBestComb()
+		{
+			for (int i = 0; i < ParamNum; i++)
+			{
+				(*searchParams)[i].BestIdx = (*searchParams)[i].CurrIdx;
+				(*searchParams)[i].BestValue = (*searchParams)[i].CurrValue;
+			}
+		}
+
+		/************************************************************************/
+		/* 添加一组新的参数列表													*/
+		/************************************************************************/
+		E_ReturnState AddOneParam(T_SearchParam * param)
+		{
+			T_SearchParam *newParam = new T_SearchParam();
+			*newParam = *param;
+
+			if (newParam->ValueArray.size() == 0)
+			{
+				if (newParam->Step == 0)
+				{
+					return E_ReturnState::FAIL;
+				}
+
+				int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
+
+				if (len <= 0)
+				{
+					return E_ReturnState::FAIL;
+				}
+
+				int val = newParam->MinValue;
+				for (int i = 0; i < len; i++)
+				{
+					newParam->ValueArray.push_back(val);
+					val + newParam->Step;
+				}
+			}
+
+			newParam->CurrIdx = 0;
+			newParam->CurrValue = newParam->ValueArray[0];
+			newParam->ValueNum = newParam->ValueArray.size();
+
+			searchParams->push_back(*newParam);
+			ParamNum++;
+
 			return E_ReturnState::SUCCESS;
 		}
 
-		// 搜索下一组参数
-		searchParamIdx++;
-		moveCurrIdx = moveNextIdx;
-		GetNexComb();
-	}
-
-	/************************************************************************/
-	/* 记录当前参数组合														*/
-	/************************************************************************/
-	E_ReturnState RecordBestComb()
-	{
-		for (int i = 0; i < ParamNum; i++)
+		/************************************************************************/
+		/* 获取下一个参数															*/
+		/************************************************************************/
+		T_SearchParam * GetOneParam()
 		{
-			(*searchParams)[i].BestIdx = (*searchParams)[i].CurrIdx;
-			(*searchParams)[i].BestValue = (*searchParams)[i].CurrValue;
-		}
-	}
-
-	/************************************************************************/
-	/* 添加一组新的参数列表													*/
-	/************************************************************************/
-	E_ReturnState AddOneParam(T_SearchParam * param)
-	{
-		T_SearchParam *newParam = new T_SearchParam();
-		*newParam = *param;
-
-		if (newParam->ValueArray.size() == 0)
-		{
-			if (newParam->Step == 0)
+			if (searchParams == NULL)
 			{
-				return E_ReturnState::FAIL;
+				getParamIdx = 0;
+				return NULL;
 			}
 
-			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
-
-			if (len <= 0)
+			if (getParamIdx >= searchParams->size())
 			{
-				return E_ReturnState::FAIL;
+				getParamIdx = 0;
+				return NULL;
 			}
 
-			int val = newParam->MinValue;
-			for (int i = 0; i < len; i++)
-			{
-				newParam->ValueArray.push_back(val);
-				val + newParam->Step;
-			}
+			getParamIdx++;
+			return &(*searchParams)[getParamIdx - 1];
 		}
+	};
+}
 
-		newParam->CurrIdx = 0;
-		newParam->CurrValue = newParam->ValueArray[0];
-		newParam->ValueNum = newParam->ValueArray.size();
-
-		searchParams->push_back(*newParam);
-		ParamNum++;
-
-		return E_ReturnState::SUCCESS;
-	}
-
-	/************************************************************************/
-	/* 获取下一个参数															*/ 
-	/************************************************************************/
-	T_SearchParam * GetOneParam()
-	{
-		if (searchParams == NULL)
-		{
-			getParamIdx = 0;
-			return NULL;
-		}
-
-		if (getParamIdx >= searchParams->size())
-		{
-			getParamIdx = 0;
-			return NULL;
-		}
-
-		getParamIdx++;
-		return &(*searchParams)[getParamIdx - 1];
-	}
-};
-
-
-typedef struct GprType
-{
-	std::string name;
-	int perGprIdx;
-	int gprIdx;
-	int len;
-	int align;
-}t_gpr;
-
-typedef struct ImmType
-{
-	std::string name;
-	int value;
-}t_imm;
-
-typedef enum OpterTypeEnum
-{
-	OPTER_SGPR = 1,
-	OPTER_VGPR = 2,
-	OPTER_IMM = 3,
-	OPTER_OFF = 0
-}E_OpterType;
-
-typedef struct OpterType
-{
-	std::string name;
-	t_gpr sgpr;
-	t_gpr vgpr;
-	t_imm imm;
-	E_OpterType type;
-
-	OpterType * operator+(int i)
-	{
-		struct OpterType * np = new OpterType();
-		np->name = this->name + "+" + d2s(i);
-		np->type = this->type;
-		np->sgpr = this->sgpr;
-		np->vgpr = this->vgpr;
-		np->imm = this->imm;
-
-		if (this->type == E_OpterType::OPTER_SGPR)
-			np->sgpr.gprIdx = this->sgpr.gprIdx + i;
-		else if(this->type == E_OpterType::OPTER_VGPR)
-			np->vgpr.gprIdx = this->vgpr.gprIdx + i;
-
-		return np;
-	}
-}t_operator;
-
-typedef enum OpTypeEnum
-{
-	ATM_ADD = 1,
-	ATM_SUB = 2,
-	ATM_INC = 3,
-	ATM_DEC = 4,
-	ATM_OR = 5,
-	ATM_XOR = 6,
-	ATM_AND = 7,
-	ATM_SMAX = 8,
-	ATM_SMIN = 9,
-	ATM_UMAX = 10,
-	ATM_UMIN = 11,
-	ATM_SWAP = 12,
-	ATM_CMPSWAP = 13,
-}E_OpType;
 
 #include "helper_cl.h"

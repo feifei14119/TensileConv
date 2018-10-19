@@ -121,18 +121,16 @@ protected:
 		{
 			EnInputOffset = 0;
 		}
-		sSimuAlloc();
-		eSimuAlloc();
 	}
 	
 	void writeProgram()
 	{
-//		sSimuAlloc();
+		sSimuAlloc();
 		writeSubFunc();
-//		eSimuAlloc();
 		writeLoadArgs();
 		writeCalcuIndex();
 		writeMainConv();
+		//eSimuAlloc();
 	}
 
 	void writeSubFunc()
@@ -719,5 +717,29 @@ protected:
 
 		gas->eFOR();
 		gas->eFUNC();
-	}	
+	}
+
+	void writeAtomicAdd()
+	{
+		char * t_acc = "tmp1";
+
+		int loop;
+
+		gas->sFUNC(m_save_output, 0);
+		gas->setGPR(t_acc, v_accum);
+		loop = K_OUT_MAPS;
+
+		gas->sFOR(loop);
+		// debug
+		//isa->inst2("v_mov_b32", vgpr(t_acc), d2s(192), "");
+		//isa->inst2("v_cvt_f32_u32", vgpr(t_acc), vgpr(t_acc), "");
+
+		isa->inst3("global_store_dword", vgpr(v_addr_out, 2), vgpr(t_acc), "off", "");
+		isa->inst4("v_add_co_u32", vgpr(v_addr_out), "vcc", d2s(OUT_CHANNEL_STRIDE * 4), vgpr(v_addr_out), "");
+		isa->inst5("v_addc_co_u32", vgpr_h(v_addr_out), "vcc", d2s(0), vgpr_h(v_addr_out), "vcc", "");
+		sline(t_acc + c2s(" = ") + t_acc + c2s(" + ") + d2s(1));
+
+		gas->eFOR();
+		gas->eFUNC();
+	}
 };

@@ -6,6 +6,8 @@
 #include "RuntimeControl.h"
 #include "ProblemControl.h"
 
+#include "ConvFwd1x1.h"
+
 int main(int argc, char *argv[])
 {
 	RuntimeCtrl::InitRuntime(argc, argv);

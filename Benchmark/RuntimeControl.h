@@ -7,24 +7,11 @@
 /************************************************************************/
 /* 运行时头文件                                                         */
 /************************************************************************/
-#if RUNTIME_CUDA 
-#include "cuda.h"
-#include "cuda_runtime.h"
-#include "helper_cuda.h"
-#endif
-
-#if RUNTIME_OCL
-
 //#include <CL/cl.h>
 #include <CL/opencl.h>
 #include "./utils/AMDCL2/SDKUtil/CLUtil.hpp"
 using namespace appsdk;
-#endif
 
-#if RUNTIME_HIP
-#include "hip/hip_runtime.h"
-#include "helper_hip.h"
-#endif
 
 #define		BEST_DEVICE				(-1)
 #define		DEFAULT_DEVICE			(0)
@@ -58,30 +45,6 @@ typedef struct DeviceInfoType
 /************************************************************************/
 /* 运行时状态定义															*/
 /************************************************************************/
-#if RUNTIME_CUDA
-#define		DevStatus						cudaError_t
-#define		CheckDevState(ret)				checkCudaErrors(ret)
-#define		RuntimeControl					RuntimeControlCuda
-#define		HstMalloc						malloc
-#define		HstFree							free
-#define		DevMalloc						cudaMalloc
-#define		DevFree							cudaFree
-#define		Copy2Dev(DES,SRC,SIZEN)			cudaMemcpy(DES,SRC,SIZEN,cudaMemcpyHostToDevice)
-#define		Copy2Hst(DES,SRC,SIZEN)			cudaMemcpy(DES,SRC,SIZEN,cudaMemcpyDeviceToHost)
-#define		BlockDim_x						blockDim.x
-#define		BlockDim_y						blockDim.y
-#define		BlockDim_z						blockDim.z
-#define		BlockIdx_x						blockIdx.x
-#define		BlockIdx_y						blockIdx.y
-#define		BlockIdx_z						blockIdx.z
-#define		ThreadIdx_x						threadIdx.x
-#define		ThreadIdx_y						threadIdx.y
-#define		ThreadIdx_z						threadIdx.z
-#define		LanchKernel(KERNEL_NAME,BLOCK_SIZE,GRID_SIZE,args...) \
-KERNEL_NAME << <BLOCK_SIZE, GRID_SIZE >> >(##args);
-#endif
-
-#if RUNTIME_OCL
 typedef struct KernelArguType
 {
 	size_t size;
@@ -108,25 +71,6 @@ typedef struct KernelArguType
 
 #define		DevCheckFunc(val)				cl_checkFuncRet((val), #val, __FILE__, __LINE__)
 #define		DevCheckErr(val)				cl_checkErrNum((val), __FILE__, __LINE__)
-
-#endif
-
-#if RUNTIME_HIP
-#define		DevStatus						hipError_t
-#define		RuntimeCtrl					SolutionCtrlHip
-#define		HstMalloc						malloc
-#define		HstFree							free
-#define		DevMalloc						hipMalloc
-#define		DevFree							hipFree
-#define		Copy2Dev(DES,SRC,SIZEN)			hipMemcpy(DES,SRC,SIZEN,hipMemcpyHostToDevice)
-#define		Copy2Hst(DES,SRC,SIZEN)			hipMemcpy(DES,SRC,SIZEN,hipMemcpyDeviceToHost)
-
-#define		LanchKernel00(KERNEL_NAME,BLOCK_SIZE,GRID_SIZE,args...) \
-hipLaunchKernelGGL(KERNEL_NAME, BLOCK_SIZE, GRID_SIZE, 0, 0, ##args)
-
-#define		DevCheckFunc(val)				hip_checkFuncRet((val), #val, __FILE__, __LINE__)
-#define		DevCheckErr(val)				hip_checkErrNum((val), __FILE__, __LINE__)
-#endif
 
 /************************************************************************/
 /* 运行时控制基类															*/
@@ -338,204 +282,6 @@ protected:
 /************************************************************************/
 /* 运行时控制                                                            */
 /************************************************************************/
-#if RUNTIME_CUDA
-class RuntimeControlCuda :public RuntimeCtrlBase
-{
-public:
-
-	static E_ReturnState Init()
-	{
-		cudaDeviceReset();
-		cudaGetDeviceCount(&DeviceNum);
-		
-		if (SpecifyDeviceIdx != BEST_DEVICE)
-		{
-			if ((SpecifyDeviceIdx < 0) || (SpecifyDeviceIdx >= DeviceNum))
-			{
-				FATAL("invalid device ID\n");
-			}
-
-			cudaGetDeviceProperties(&deviceProperties, SpecifyDeviceIdx);
-			if (deviceProperties.computeMode == cudaComputeModeProhibited)
-			{
-				FATAL("Error: device is running in <Compute Mode Prohibited>, no threads can use ::cudaSetDevice().\n");
-			}
-
-			if (deviceProperties.major < 1)
-			{
-				FATAL("Error: GPU device does not support CUDA.\n");
-			}
-
-			DeviceIdx = SpecifyDeviceIdx;
-			cudaSetDevice(DeviceIdx);
-		}
-		else
-		{
-			DeviceIdx = gpuGetMaxGflopsDeviceId();
-			cudaSetDevice(DeviceIdx);
-			cudaGetDeviceProperties(&deviceProperties, DeviceIdx);
-		}
-		PrintInfo();
-	}
-
-	static void PrintInfo()
-	{
-		printf("################################################################################\r\n");
-		printf("# Device %d/%d: \"%s\" with compute capability %d.%d.\r\n",
-			DeviceIdx, DeviceNum, deviceProperties.name, deviceProperties.major, deviceProperties.minor);
-		printf("################################################################################\r\n");
-	}
-
-	void DestroyControls()
-	{
-		cudaDeviceReset();
-	}
-
-private:
-	static cudaDeviceProp deviceProperties;
-};
-#endif
-
-typedef void(*pfuncc)(...);
-#if RUNTIME_HIP
-class SolutionCtrlHip : public RuntimeCtrlBase
-{
-public:
-	static E_ReturnState Init()
-	{
-		DevCheckFunc(hipGetDeviceCount(&DeviceNum));
-
-		if (SpecifyDeviceIdx != DEFAULT_DEVICE)
-		{
-			if ((SpecifyDeviceIdx < 0) || (SpecifyDeviceIdx >= DeviceNum))
-			{
-				FATAL("specify device not exist.");
-			}
-			DeviceIdx = SpecifyDeviceIdx;
-		}
-		else
-		{
-			DeviceIdx = 0;
-		}
-
-		DevCheckFunc(hipSetDevice(DeviceIdx));
-		DevCheckFunc(hipStreamCreate(&stream));
-
-		DevCheckFunc(hipGetDeviceProperties(&deviceProperties, DeviceIdx));
-
-		Bandwidth = (size_t)deviceProperties.memoryClockRate * deviceProperties.memoryBusWidth * 2 / (8 * 1000 * 1000);
-		Compute = (size_t)deviceProperties.clockRate * deviceProperties.multiProcessorCount * 2 * 64 / (1000 * 1000);
-
-		PrintInfo();
-
-		return ReturnStateEnum::SUCCESS;
-	}
-
-	static void PrintInfo()
-	{
-		printf("################################################################################\n");
-		printf("# Device %d/%d: \"%s\" .\n", DeviceIdx, DeviceNum, deviceProperties.name);
-		printf("################################################################################\n");
-	}
-
-	static void Destroy()
-	{
-		hipStreamDestroy(stream);
-	}
-	
-	E_ReturnState CreatSolution()
-	{
-		switch (KernelSrcType)
-		{
-		case E_KernleType::KERNEL_LANG_HIP:
-			return E_ReturnState::SUCCESS;
-
-		case E_KernleType::KERNEL_TYPE_GAS_FILE:
-			return CreatProgramFromAsm();
-
-		case E_KernleType::KERNEL_LANG_BIN:
-			return CreatProgramFromBinary();
-
-		default:
-			FATAL("unrecognized kernel language.");
-		}
-	}
-
-	E_ReturnState CreatProgramFromAsm()
-	{
-		GetComplier();
-		GetBuildAsmOptions();
-
-		std::string cmd = complier + buildAsmOption + "-o " + binFileFullName + " " + asmFileFullName;
-		std::cout << cmd << std::endl;
-		FILE * pfp = popen(cmd.c_str(), "r");
-		auto status = pclose(pfp);
-		WEXITSTATUS(status);
-
-		CheckFunc(CreatProgramFromBinary());
-	}
-
-	E_ReturnState CreatProgramFromBinary()
-	{
-		FILE * fp = fopen(binFileFullName.c_str(), "rb");
-		if (fp == NULL)
-		{
-			FATAL("can't open bin file: " + binFileFullName);
-		}
-
-		size_t binSize;
-		fseek(fp, 0, SEEK_END);
-		binSize = ftell(fp);
-		rewind(fp);
-		printf("bin size = %d\n", binSize);
-
-		unsigned char * binProgram = new unsigned char[binSize];
-		fread(binProgram, 1, binSize, fp);
-		fclose(fp);
-
-		DevCheckFunc(hipModuleLoadData(&module, binProgram));
-		DevCheckFunc(hipModuleGetFunction(&hipFunction, module, KernelName.c_str()));
-	
-		return E_ReturnState::SUCCESS;
-	}
-	
-	E_ReturnState LanchKernel(void ** hipLaunchParams)
-	{
-		DevCheckFunc(hipModuleLaunchKernel(hipFunction,
-			gridSize.x, gridSize.y, gridSize.z, blockSize.x, blockSize.y, blockSize.z,
-			0, stream, NULL, hipLaunchParams));
-
-		return E_ReturnState::SUCCESS;
-	}
-	
-	/*E_ReturnState LanchKernel(pfuncc pk, ...)
-	{
-		va_list va;
-		va_start(va, pk);
-		hipLaunchKernel(*pk, gridSize, blockSize, 0, stream, va);
-		va_end(va);
-
-		return E_ReturnState::SUCCESS;
-	}*/
-	
-	void Release()
-	{
-	}
-
-public:
-	hipModule_t module;
-	hipFunction_t hipFunction;
-
-	E_ReturnState(*pSetupFunc)(RuntimeCtrl*);
-	E_ReturnState(*pLanchFunc)(RuntimeCtrl*);
-
-private:
-	static hipStream_t stream;
-	static hipDeviceProp_t deviceProperties;
-};
-#endif
-
-#if RUNTIME_OCL
 class RuntimeCtrlOcl :public RuntimeCtrlBase
 {
 public:
@@ -1230,4 +976,3 @@ public:
 
 };
 
-#endif

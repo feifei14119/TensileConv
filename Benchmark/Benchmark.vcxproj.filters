@@ -10,15 +10,6 @@
     <ClInclude Include="RuntimeControl.h">
       <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="helper_hip.h">
-      <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="helper_cl.h">
-      <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="helper.h">
-      <Filter>util</Filter>
-    </ClInclude>
     <ClInclude Include="utils\AMDCL2\SDKUtil\BoltAMPUtil.hpp">
       <Filter>Includes\utils\amdcl2</Filter>
     </ClInclude>
@@ -43,44 +34,33 @@
     <ClInclude Include="utils\AMDCL2\SDKUtil\SDKUtil.hpp">
       <Filter>Includes\utils\amdcl2</Filter>
     </ClInclude>
-    <ClInclude Include="KernelWriterBasicClass.h">
-      <Filter>util\KernelWriter</Filter>
-    </ClInclude>
     <ClInclude Include="ConvFwd1x1.h">
       <Filter>TensileConv</Filter>
     </ClInclude>
     <ClInclude Include="ConvFwd1x1Config.h">
       <Filter>TensileConv</Filter>
     </ClInclude>
-    <ClInclude Include="ConvFwd1x1KernelWriter.h">
-      <Filter>TensileConv</Filter>
+    <ClInclude Include="helper_cl.h">
+      <Filter>Includes</Filter>
     </ClInclude>
-    <ClInclude Include="GasWriter.h">
-      <Filter>TensileConv</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaWriter.h">
-      <Filter>TensileConv</Filter>
-    </ClInclude>
-    <ClInclude Include="IsaWriterGfx9.h">
-      <Filter>TensileConv</Filter>
+    <ClInclude Include="KernelWriterBasic.h">
+      <Filter>Includes</Filter>
     </ClInclude>
     <ClInclude Include="KernelWriter.h">
-      <Filter>TensileConv</Filter>
+      <Filter>Includes</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="RuntimeControl.cpp" />
+    <ClCompile Include="ProblemControl.cpp" />
+    <ClCompile Include="ConvFwd1x1.cpp">
+      <Filter>TensileConv</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Includes">
       <UniqueIdentifier>{29523e91-5957-45f4-b6c0-2b28ec3df1a1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="util">
-      <UniqueIdentifier>{9821c96d-a183-48ed-bb1d-aad9e1f80d74}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="util\asmTool">
-      <UniqueIdentifier>{d36ee4ff-ece6-40a8-bb59-6919ddd8c246}</UniqueIdentifier>
     </Filter>
     <Filter Include="Includes\utils">
       <UniqueIdentifier>{2ae1397a-fd8d-410d-966f-187768df57af}</UniqueIdentifier>
@@ -88,28 +68,28 @@
     <Filter Include="Includes\utils\amdcl2">
       <UniqueIdentifier>{dd00e094-454f-48db-b608-0b85689807b6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="util\KernelWriter">
-      <UniqueIdentifier>{e7ac8f1f-de4d-4eec-b3ef-fc3655b67724}</UniqueIdentifier>
-    </Filter>
     <Filter Include="TensileConv">
       <UniqueIdentifier>{fbe90e90-e18f-4a40-890e-0470eb5470cd}</UniqueIdentifier>
     </Filter>
     <Filter Include="TensileConv\kernels">
       <UniqueIdentifier>{03ef0283-3e71-4cfc-a5a1-3f72f7a318a8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Includes\asmTool">
+      <UniqueIdentifier>{d36ee4ff-ece6-40a8-bb59-6919ddd8c246}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="Kernels\gpr_alloc.inc">
-      <Filter>util\asmTool</Filter>
+      <Filter>Includes\asmTool</Filter>
     </None>
     <None Include="Kernels\inst_wrappers.inc">
-      <Filter>util\asmTool</Filter>
+      <Filter>Includes\asmTool</Filter>
     </None>
     <None Include="Kernels\common.inc">
-      <Filter>util\asmTool</Filter>
+      <Filter>Includes\asmTool</Filter>
     </None>
     <None Include="Kernels\conv_sizes.inc">
-      <Filter>util\asmTool</Filter>
+      <Filter>Includes\asmTool</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm.s">
       <Filter>TensileConv\kernels</Filter>

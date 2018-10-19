@@ -72,15 +72,9 @@
     <ClInclude Include="BasicClass.h" />
     <ClInclude Include="ConvFwd1x1.h" />
     <ClInclude Include="ConvFwd1x1Config.h" />
-    <ClInclude Include="GasWriter.h" />
-    <ClInclude Include="IsaWriterGfx9.h" />
-    <ClInclude Include="helper.h" />
     <ClInclude Include="helper_cl.h" />
-    <ClInclude Include="helper_hip.h" />
-    <ClInclude Include="IsaWriter.h" />
     <ClInclude Include="KernelWriter.h" />
-    <ClInclude Include="ConvFwd1x1KernelWriter.h" />
-    <ClInclude Include="KernelWriterBasicClass.h" />
+    <ClInclude Include="KernelWriterBasic.h" />
     <ClInclude Include="ProblemControl.h" />
     <ClInclude Include="RuntimeControl.h" />
     <ClInclude Include="utils\AMDCL2\SDKUtil\BoltAMPUtil.hpp" />
@@ -93,7 +87,9 @@
     <ClInclude Include="utils\AMDCL2\SDKUtil\SDKUtil.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ConvFwd1x1.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="ProblemControl.cpp" />
     <ClCompile Include="RuntimeControl.cpp" />
   </ItemGroup>
   <ItemGroup>

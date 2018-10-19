@@ -1,538 +1,390 @@
+/************************************************************************/
+/* 这里定义的是依赖于问题配置的相关生成kernel的函数							*/
+/* 比如group size，传入参数列表等等										*/
+/* 因此只需要include ProblemControl.h									*/
+/************************************************************************/
 #pragma once
 
-#include "BasicClass.h"
+#include "KernelWriterBasic.h"
 #include "ProblemControl.h"
 
-#include "GasWriter.h"
-#include "IsaWriter.h"
+#include <sys/stat.h>
 
-class KernelWriterBase
+namespace krnelWriter
 {
-public:	
-	KernelWriterBase(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg)
+	class KernelWriter : public KernelWriterBasic
 	{
-		variableMap = new std::map<std::string, int>();
-		OperatorMap = new std::map<std::string, t_operator*>();
-		sgprCount = 0;
-		vgprCount = 0;
-		memset(SgprState, 0, sizeof(int)*MAX_SGPR_COUNT);
-		memset(VgprState, 0, sizeof(int)*MAX_VGPR_COUNT);
-		
-		gas = new GasWriter();
-		gas->tableCnt = &tableCnt;
-		gas->kernelStr = &KernelStr;
-
-		isa = new IsaWriterBase();
-		isa->tableCnt = &tableCnt;
-		isa->kernelStr = &KernelStr;
-		isa->OperatorMap = OperatorMap;
-
-		problemConfig = probCfg;
-		solutionConfig = solCfg;
-
-		kernelName = solutionConfig->KernelName;
-		kernelFile = solutionConfig->KernelFile;
-		group_size = solutionConfig->l_wk0;
-	}
-
-public:
-
-	void GenKernelString()
-	{
-		KernelStr.clear();
-
-		// 用来确定gpr使用的部分
-		generateParam();
-		writeContent();
-		KernelStr.clear();
-
-		generateParam();
-		writeSignature();
-		writeContent();
-		writeMetadata();
-	}
-
-	void SaveKernelStr2File()
-	{
-		std::string SrcFileName = "../../../Kernels/" + kernelFile;
-		std::ofstream fout(SrcFileName, std::ios::out);
-		if (!fout.is_open())
+	public:
+		KernelWriter(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg)
+			: KernelWriterBasic(E_IsaArch::Gfx900)
 		{
-			FATAL("can't open save file");
+			problemConfig = probCfg;
+			solutionConfig = solCfg;
+
+			kernelName = solutionConfig->KernelName;
+			kernelFile = solutionConfig->KernelFile;
+			groupSize0 = solutionConfig->l_wk0;
+			groupSize1 = solutionConfig->l_wk1;
+			groupSize2 = solutionConfig->l_wk2;
 		}
-		fout.write(KernelStr.c_str(), KernelStr.length());
-		fout.close();
-	}
 
-protected:
-	std::string KernelStr;
-	GasWriter *gas;
-	IsaWriterBase *isa;
-	T_ProblemConfig * problemConfig;	// 当前正在处理的问题配置
-	T_SolutionConfig * solutionConfig;	// 当前正在处理的解决方案配置
-	std::string kernelName;
-	std::string kernelFile;
-	int SgprState[MAX_SGPR_COUNT];
-	int VgprState[MAX_VGPR_COUNT];
-	
-	
-	std::map<std::string, t_operator*> *OperatorMap;
-	t_operator * newSgpr(std::string name, int len = 1, int align = 1)
-	{
-		t_operator *opt;
-
-		if ((name == "off") || (name == "OFF"))
+	public:
+		void GenKernelString()
 		{
-			opt = new t_operator;
-			opt->name = name;
-			opt->type = E_OpterType::OPTER_OFF;
+			clearString();
+			writeContent();
+
+			clearString();
+			writeSignature();
+			writeContent();
+			writeMetadata();
 		}
-		else
+		void SaveKernelString2File()
 		{
-			int idleIdx;
-			for (idleIdx = 0; idleIdx < MAX_SGPR_COUNT; idleIdx++)
+			std::string kernelPath = "../../../Kernels/";
+			
+			if (access(kernelPath.c_str(), F_OK) == -1)
 			{
-				if (idleIdx % align != 0)
-					continue;
-
-				if (SgprState[idleIdx] != 0)
-					continue;
-
-				int idleChk;
-				for (idleChk = 0; idleChk < len; idleChk++)
-				{
-					if (SgprState[idleChk + idleIdx] != 0)
-						break;
-				}
-				if (idleChk != len)
-					continue;
-				break;
-			}
-			if (idleIdx == MAX_SGPR_COUNT)
-				return nullptr;
-
-			for (int i = 0; i < len; i++)
-			{
-				SgprState[idleIdx + i] = 1;
+				::mkdir(kernelPath.c_str(), 0777);
 			}
 
-			opt = new t_operator;
-			opt->name = name;
-			opt->type = E_OpterType::OPTER_SGPR;
-			opt->sgpr.name = name;
-			opt->sgpr.perGprIdx = sgprCount;
-			opt->sgpr.gprIdx = idleIdx;
-			opt->sgpr.len = len;
-			opt->sgpr.align = align;
-
-			if (idleIdx + len > sgprCountMax)
-				sgprCountMax = idleIdx + len;
-		}
-
-		OperatorMap->insert(std::pair<std::string, t_operator*>(name, opt));
-		return opt;
-	}
-	t_operator * newVgpr(std::string name, int len = 1, int align = 1)
-	{
-		t_operator *opt;
-
-		if ((name == "off") || (name == "OFF"))
-		{
-			opt = new t_operator;
-			opt->name = name;
-			opt->type = E_OpterType::OPTER_OFF;
-		}
-		else
-		{
-			int idleIdx;
-			for (idleIdx = 0; idleIdx < MAX_VGPR_COUNT; idleIdx++)
+			std::string SrcFileName = kernelPath + kernelFile;
+			std::ofstream fout(SrcFileName, std::ios::out);
+			if (!fout.is_open())
 			{
-				if (idleIdx % align != 0)
-					continue;
-
-				if (VgprState[idleIdx] != 0)
-					continue;
-
-				int idleChk;
-				for (idleChk = 0; idleChk < len; idleChk++)
-				{
-					if (VgprState[idleChk + idleIdx] != 0)
-						break;
-				}
-				if (idleChk != len)
-					continue;
-				break;
+				FATAL("can't open save file");
 			}
-			if (idleIdx == MAX_VGPR_COUNT)
-				return nullptr;
-
-			for (int i = 0; i < len; i++)
-			{
-				VgprState[idleIdx + i] = 1;
-			}
-
-			opt = new t_operator;
-			opt->name = name;
-			opt->type = E_OpterType::OPTER_VGPR;
-			opt->vgpr.name = name;
-			opt->vgpr.perGprIdx = sgprCount;
-			opt->vgpr.gprIdx = idleIdx;
-			opt->vgpr.len = len;
-			opt->vgpr.align = align;
-
-			if (idleIdx + len > vgprCountMax)
-				vgprCountMax = idleIdx + len;
+			fout.write(KernelString.c_str(), KernelString.length());
+			fout.close();
 		}
-
-		OperatorMap->insert(std::pair<std::string, t_operator*>(name, opt));
-		return opt;
-	}
-	t_operator * newImm(std::string name, int val = 0)
-	{
-		t_operator *opt = new t_operator;
-
-		opt->name = name;
-		opt->type = E_OpterType::OPTER_IMM;
-		opt->imm.name = name;
-		opt->imm.value = val;
-
-		OperatorMap->insert(std::pair<std::string, t_operator*>(name, opt));
-		return opt;
-	}
-	void delOpter(t_operator * opter)
-	{
-		if (opter->type == E_OpterType::OPTER_SGPR)
+		void PrintKernelString()
 		{
-			int gprIdx = opter->sgpr.gprIdx;
-			for (int i = 0; i < opter->sgpr.len; i++)
-			{
-				SgprState[gprIdx + i] = 0;
-			}
+			printf("/************************************************************************************/\n");
+			printf("/***** START  %s KERNEL *****/\n", kernelName.c_str());
+			printf("/************************************************************************************/\n");
+			printf(KernelString.c_str());
+			printf("/************************************************************************************/\n");
+			printf("/***** END  %s KERNEL *****/\n", kernelName.c_str());
+			printf("/************************************************************************************/\n");
 		}
-		else if (opter->type == E_OpterType::OPTER_VGPR)
+
+	protected:
+		T_ProblemConfig * problemConfig;
+		T_SolutionConfig * solutionConfig;
+		std::string kernelName;
+		std::string kernelFile;
+		int groupSize0, groupSize1, groupSize2;
+
+		Var * s_privateSeg;
+		Var * s_kernelArg;
+		Var * s_gid_x;
+		Var * s_gid_y;
+		Var * s_gid_z;
+
+		Var * v_tid_x;
+		Var * v_tid_y;
+		Var * v_tid_z;
+
+		Var * l_start_prog;
+		Var * l_end_prg;
+
+		/************************************************************************/
+		/* kernel文件生成函数                                                    */
+		/************************************************************************/
+		void writeSignature()
 		{
-			int gprIdx = opter->vgpr.gprIdx;
-			for (int i = 0; i < opter->vgpr.len; i++)
-			{
-				VgprState[gprIdx + i] = 0;
-			}
+			setTable(0);
+			wrLine(".hsa_code_object_version 2, 1");
+			wrLine(".hsa_code_object_isa 9, 0, 0, \"AMD\", \"AMDGPU\"");
+			wrLine("");
+			wrLine(".text");
+			wrLine(".globl " + kernelName);
+			wrLine(".p2align 8");
+			wrLine(".type " + kernelName + ",@function");
+			wrLine(".amdgpu_hsa_kernel " + kernelName);
+			wrLine("");
 		}
-		OperatorMap->erase(opter->name);
-		delete(opter);
-	}
-	void clrOpter()
-	{
-		memset(SgprState, 0, sizeof(int)*MAX_SGPR_COUNT);
-		memset(VgprState, 0, sizeof(int)*MAX_VGPR_COUNT);
-		OperatorMap->clear();
-	}
-
-	/************************************************************************/
-	/* sgpr操作		                                                        */
-	/************************************************************************/
-	int sgprCount = 0, sgprCountMax = 0;
-	void newSgpr(int *gpr, int num = 1, int align = 1)
-	{
-		while (true)
+		void writeContent()
 		{
-			if (sgprCount % align == 0)
-				break;
-			sgprCount++;
+			initialDefaultGprs();
+			setTable(0);
+			wrLine(kernelName + ":");
+			writeCodeObj();
+			_writeProgram();
 		}
-		*gpr = sgprCount;
-		sgprCount += num;
-		if (sgprCount > sgprCountMax)
-			sgprCountMax = sgprCount;
-		if (sgprCount >= MAX_SGPR_COUNT)
-			FATAL("malloc sgpr overflow");
-	}
-	void delSgpr(int *gpr)
-	{
-		sgprCount = *gpr;
-		if (sgprCount <= 0)
-			FATAL("free sgpr overflow");
-	}
-	std::string sgpr(std::string name, int num = 1)
-	{
-		if (num == 1)
-			return std::string("s[" + name + "]");
-		else
-			return std::string("s[" + name + ":" + name + "+" + d2s(num-1) + "]");
-	}
-	std::string sgpr(int idx, int num = 1)
-	{
-		if (num == 1)
-			return std::string("s[" + d2s(idx) + "]");
-		else
-			return std::string("s[" + d2s(idx) + ":" + d2s(idx + num - 1) + "]");
-	}
-	std::string sgpr_h(std::string name)
-	{
-		return std::string("s[" + name + "+1]");
-	}
-	std::string sgpr_h(int idx)
-	{
-		return std::string("s[" + d2s(idx + 1) + "]");
-	}
-	
-	/************************************************************************/
-	/* vgpr操作		                                                        */
-	/************************************************************************/
-	int vgprCount = 0, vgprCountMax = 0;
-	void newVgpr(int *gpr, int num = 1, int align = 1)
-	{
-		while (true)
+		virtual void writeMetadata()
 		{
-			if (vgprCount % align == 0)
-				break;
-			vgprCount++;
+			setTable(0);
+			wrLine(".amd_amdgpu_hsa_metadata");
+			wrLine("{ Version: [1, 0],");
+			wrLine("  Kernels :");
+			wrLine("    - { Name: " + kernelName + ",");
+			wrLine("        SymbolName: " + kernelName + ",");
+			wrLine("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],");
+			wrLine("        Attrs: { ReqdWorkGroupSize: [ " + d2s(groupSize0) + ", " + d2s(groupSize1) + ", " + d2s(groupSize2) + " ] }");
+			wrLine("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 512 }");
+			wrLine("        Args:");
+			wrLine("        - { Name: d_in  , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }");
+			wrLine("        - { Name: d_wei , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }");
+			wrLine("        - { Name: d_out , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global  }");
+			wrLine("      }");
+			wrLine("}");
+			wrLine(".end_amd_amdgpu_hsa_metadata");
+			wrLine("");
 		}
-		*gpr = vgprCount;
-		vgprCount += num;
-		if (vgprCount > vgprCountMax)
-			vgprCountMax = vgprCount;
-		if (vgprCount >= MAX_VGPR_COUNT)
-			FATAL("malloc vgpr overflow");
-	}
-	void delVgpr(int *gpr)
-	{
-		vgprCount = *gpr;
-		if (vgprCount <= 0)
-			FATAL("free sgpr overflow");
-	}
-	std::string vgpr(std::string name, int num = 1)
-	{
-		if (num == 1)
-			return std::string("v[" + name + "]");
-		else
-			return std::string("v[" + name + ":" + name + "+" + d2s(num-1) + "]");
-	}
-	std::string vgpr(int idx, int num = 1)
-	{
-		if (num == 1)
-			return std::string("v[" + d2s(idx) + "]");
-		else
-			return std::string("v[" + d2s(idx) + ":" + d2s(idx + num - 1) + "]");
-	}
-	std::string vgpr_h(std::string name)
-	{
-		return std::string("v[" + name + "+1]");
-	}
-	std::string vgpr_h(int idx)
-	{
-		return std::string("v[" + d2s(idx + 1) + "]");
-	}
 
-	/************************************************************************/
-	/* 全局变量操作	                                                        */
-	/************************************************************************/
-	std::map<std::string, int> *variableMap;
-	void newVar(std::string name, int val)
-	{
-		variableMap->insert(std::pair<std::string, int>(name, val));
-	}
-	std::string var(std::string name)
-	{
-		return d2s((*variableMap)[name]);
-	}
-	int varVal(std::string name)
-	{
-		return (*variableMap)[name];
-	}
-	
-	/************************************************************************/
-	/* 通用函数		                                                        */
-	/************************************************************************/
-	int tableCnt = 0;
-	std::string sblk()
-	{
-		std::string str = "";
-		for (int i = 0; i < tableCnt; i++)
+		/************************************************************************/
+		/* kernel 函数内容生成函数                                                */
+		/************************************************************************/
+		void initialDefaultGprs()
 		{
-			str.append("    ");
+			s_privateSeg = newSgpr("s_privateSeg", 4);
+			s_kernelArg = newSgpr("s_kernelArg", 2);
+			s_gid_x = newSgpr("s_gid_x");
+			s_gid_y = newSgpr("s_gid_y");
+			s_gid_z = newSgpr("s_gid_z");
+
+			v_tid_x = newVgpr("v_tid_x");
+			v_tid_y = newVgpr("v_tid_y");
+
+			l_start_prog = newLaber("START_PROG");
+			l_end_prg = newLaber("END_PROG");
 		}
-		return str;
-	}
-	void sline(std::string line)
-	{
-		std::string str = sblk();
-		str.append(line);
-		str.append("\n");
-		KernelStr.append(str);
-	}
-	void sline(std::string * srcString, std::string line)
-	{
-		std::string str = sblk();
-		str.append(line);
-		str.append("\n");
-		srcString->append(str);
-	}
-
-	void wirteCommom1(std::string common)
-	{
-		KernelStr.append("/************************************************************************************/\n");
-		KernelStr.append("/* " + common + " */\n");
-		KernelStr.append("/************************************************************************************/\n");
-	}
-	void wirteCommom2(std::string common)
-	{
-		KernelStr.append("// ==================================================================================\n");
-		KernelStr.append("// " + common + " \n");
-		KernelStr.append("// ==================================================================================\n");
-	}	
-	void wirteCommom3(std::string common)
-	{
-		KernelStr.append("// ----------------------------------------------------------------------------------\n");
-		KernelStr.append("// " + common + " \n");
-		KernelStr.append("// ----------------------------------------------------------------------------------\n");
-	}
-
-	int log2(int value)
-	{
-		int log2 = 0;
-		while (value > 1)
+		void writeCodeObj()
 		{
-			value = value / 2;
-			log2++;
+			setTable(1);
+			wrLine(".amd_kernel_code_t");
+			indent();
+			wrLine("enable_sgpr_private_segment_buffer = 1");
+			wrLine("enable_sgpr_kernarg_segment_ptr = 1");
+			wrLine("enable_sgpr_workgroup_id_x = 1");
+			wrLine("enable_sgpr_workgroup_id_y = 1");
+			wrLine("enable_sgpr_workgroup_id_z = 1");
+			wrLine("enable_vgpr_workitem_id = 2");
+			wrLine("is_ptr64 = 1");
+			wrLine("float_mode = 240");
+			wrLine("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax - 1) / 4));
+			wrLine("granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
+			wrLine("user_sgpr_count = 6");
+			wrLine("wavefront_sgpr_count = " + d2s(sgprCountMax));
+			wrLine("workitem_vgpr_count = " + d2s(vgprCountMax));
+			wrLine("kernarg_segment_byte_size = 56");
+			wrLine("workgroup_group_segment_byte_size = " + d2s(ldsByteCount));
+			backSpace();
+			wrLine(".end_amd_kernel_code_t");
+			wrLine("");
 		}
-		return log2;
-	}
-	int modMask(int value)
-	{
-		return value - 1;
-	}
+		void _writeProgram()
+		{
+			setTable(0);
+			wrLine(getVar(l_start_prog) + ":");
+			indent();
+			writeProgram();
+			setTable(0);
+			wrLine(getVar(l_end_prg) + ":");
+			indent();
+			wrLine("s_endpgm\n");
+			clrVar();
+		}
+		virtual void writeProgram() = 0;
 
-	/************************************************************************/
-	/* kernel文件生成函数                                                    */
-	/************************************************************************/
-	virtual void generateParam() = 0;
-	void writeSignature()
-	{
-		KernelStr.append(".hsa_code_object_version 2, 1\n");
-		KernelStr.append(".hsa_code_object_isa 9, 0, 0, \"AMD\", \"AMDGPU\"\n");
-		KernelStr.append("\n");
-		KernelStr.append(".text\n");
-		KernelStr.append(".globl " + kernelName + "\n");
-		KernelStr.append(".p2align 8\n");
-		KernelStr.append(".type " + kernelName + ",@function\n");
-		KernelStr.append(".amdgpu_hsa_kernel " + kernelName + "\n");
-		KernelStr.append("\n");
-		KernelStr.append(".include \"gpr_alloc.inc\"\n");
-		KernelStr.append(".include \"common.inc\"\n");
-		KernelStr.append(".include \"inst_wrappers.inc\"\n");
-		KernelStr.append("\n");
-	}
+		/************************************************************************/
+		/* 常用kernel函数														 */
+		/************************************************************************/
+		void f_linear_addr(Var * s_base_addr, Var * v_addr)
+		{
+			Var * v_tmp1 = newVgpr("v_tmp1");
+			Var * v_tmp2 = newVgpr("v_tmp2");
 
-	void writeContent0()
-	{
-		int objPos;
-		startProgram();
-		objPos = KernelStr.length();
-		writeProgram();
-		endProgram();
+			op3("v_lshlrev_b32", v_tmp1, log2(groupSize0), s_gid_x);
+			op4("v_add_lshl_u32", v_tmp1, v_tmp1, v_tid_x, 2);
 
-		std::string objStr = "";
-		generateCodeObj(&objStr);
-		KernelStr.insert(objPos, s2c(objStr));
-	}
+			op2("v_mov_b32", v_tmp2, *s_base_addr + 1);
+			op4("v_add_co_u32", v_addr, "vcc", s_base_addr, v_tmp1);
+			op5("v_addc_co_u32", *v_addr + 1, "vcc", 0, v_tmp2, "vcc");
 
-	void writeContent()
-	{
-		startProgram();
-		generateCodeObj();
-		writeProgram();
-		endProgram();
-	}
+			delVar(v_tmp1);
+			delVar(v_tmp2);
+		}
 
-	int group_size;
-	void writeMetadata()
-	{
-		KernelStr.append(".amd_amdgpu_hsa_metadata\n");
-		KernelStr.append("{ Version: [1, 0],\n");
-		KernelStr.append("  Kernels :\n");
-		KernelStr.append("    - { Name: " + kernelName + ",\n");
-		KernelStr.append("        SymbolName: " + kernelName + ",\n");
-		KernelStr.append("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],\n");
-		KernelStr.append("        Attrs: { ReqdWorkGroupSize: [ " + d2s(group_size) + ", 1, 1 ] }\n");
-		KernelStr.append("        CodeProps: { KernargSegmentSize: 24, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 512 }\n");
-		KernelStr.append("        Args:\n");
-		KernelStr.append("        - { Name: d_in  , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
-		KernelStr.append("        - { Name: d_wei , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global, IsConst : true }\n");
-		KernelStr.append("        - { Name: d_out , Size : 8, Align : 8, ValueKind : GlobalBuffer, ValueType : F32, TypeName : 'float*', AddrSpaceQual : Global  }\n");
-		KernelStr.append("      }\n");
-		KernelStr.append("}\n");
-		KernelStr.append(".end_amd_amdgpu_hsa_metadata\n");
-		KernelStr.append("\n");
-	}
+		void f_signal_slot_addr(Var * s_signal_slot_addr, Var * s_ptr_signal, uint slot_size_per_cu)
+		{
+			// 读取硬件ID
+			Var * s_tmp1 = newSgpr("s_tmp1");
+			Var * s_cu_id = newSgpr("s_cu_id");
+			Var * s_se_id = newSgpr("s_se_id");
+			f_read_hw_reg_hw_id("off", "off", "off", s_cu_id, "off", s_se_id, "off", "off", "off", "off", "off");
+			op3("s_lshl_b32", s_tmp1, s_se_id, log2(CU_PER_SE));
+			op3("s_add_u32", s_cu_id, s_tmp1, s_cu_id);
 
-	/************************************************************************/
-	/* kernel 函数内容生成函数                                                */
-	/************************************************************************/
-	char * END_PROG = "END_PROG";
-	void startProgram()
-	{
-		tableCnt = 0;
-		sline(kernelName + ":");
-		tableCnt = 1;
-	}
-	void generateCodeObj(std::string * objString)
-	{
-		tableCnt = 1;
-		std::string tmpStr = sblk();
-		sline(&tmpStr, ".amd_kernel_code_t");
-		tableCnt++;
-		sline(&tmpStr, "enable_sgpr_private_segment_buffer = 1");
-		sline(&tmpStr, "enable_sgpr_kernarg_segment_ptr = 1");
-		sline(&tmpStr, "enable_sgpr_workgroup_id_x = 1");
-		sline(&tmpStr, "enable_sgpr_workgroup_id_y = 1");
-		sline(&tmpStr, "enable_sgpr_workgroup_id_z = 1");
-		sline(&tmpStr, "enable_vgpr_workitem_id = 0");
-		sline(&tmpStr, "is_ptr64 = 1");
-		sline(&tmpStr, "float_mode = 240");
-		sline(&tmpStr, "granulated_wavefront_sgpr_count = " + d2s((sgprCountMax - 1) / 8));
-		sline(&tmpStr, "granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
-		sline(&tmpStr, "user_sgpr_count = 6");
-		sline(&tmpStr, "wavefront_sgpr_count = " + d2s(sgprCountMax));
-		sline(&tmpStr, "workitem_vgpr_count = " + d2s(vgprCountMax));
-		sline(&tmpStr, "kernarg_segment_byte_size = 56");
-		sline(&tmpStr, "workgroup_group_segment_byte_size = 0");
-		tableCnt--;
-		sline(&tmpStr, ".end_amd_kernel_code_t");
-		sline(&tmpStr, "");
+			// 根据HW_CU_ID计算每个CU的信号槽首地址
+			op3("s_lshl_b32", s_tmp1, s_cu_id, log2(slot_size_per_cu) + 2);
+			op3("s_add_u32", s_signal_slot_addr, s_ptr_signal, s_tmp1);
+			op3("s_addc_u32", *s_signal_slot_addr + 1, *s_ptr_signal + 1, 0);
 
-		objString->append(tmpStr);
-	}
-	void generateCodeObj()
-	{
-		tableCnt = 1;
-		sline(".amd_kernel_code_t");
-		tableCnt++;
-		sline("enable_sgpr_private_segment_buffer = 1");
-		sline("enable_sgpr_kernarg_segment_ptr = 1");
-		sline("enable_sgpr_workgroup_id_x = 1");
-		sline("enable_sgpr_workgroup_id_y = 1");
-		sline("enable_sgpr_workgroup_id_z = 1");
-		sline("enable_vgpr_workitem_id = 0");
-		sline("is_ptr64 = 1");
-		sline("float_mode = 240");
-		sline("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax - 1) / 8));
-		sline("granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
-		sline("user_sgpr_count = 6");
-		sline("wavefront_sgpr_count = " + d2s(sgprCountMax));
-		sline("workitem_vgpr_count = " + d2s(vgprCountMax));
-		sline("kernarg_segment_byte_size = 56");
-		sline("workgroup_group_segment_byte_size = 0");
-		tableCnt--;
-		sline(".end_amd_kernel_code_t");
-		sline("");
-	}
-	virtual void writeProgram() = 0;
-	void endProgram()
-	{
-		tableCnt = 0;
-		sline(c2s(END_PROG) + ":");
-		tableCnt = 1;
-		sline("s_endpgm\n");
-		tableCnt = 0;
-	}
-};
+			delVar(s_cu_id);
+			delVar(s_se_id);
+			delVar(s_tmp1);
+		}
+		void f_init_signal_slot(Var * s_signal_slot_addr, Var * v_signal_addr, uint wave_num_offset, uint signal_offset)
+		{
+			Var * v_tmp1 = newVgpr("v_tmp1");
+			Var * v_tmp2 = newVgpr("v_tmp2");
+			Var * s_tmp1 = newSgpr("s_tmp1");
+			Var * s_wave_id = newSgpr("s_wave_id");
+			Var * s_sig_idx = newSgpr("s_sig_idx");
+			Var * l_end_init = newLaber("END_INIT");
+
+			// 使用WAVE0做初始化(尽量提前做)(需要写入L2以作为atomic操作)
+			op3("s_lshr_b32", s_wave_id, s_gid_x, log2(CU_NUM));
+			op2("s_cmp_eq_u32", s_wave_id, 0);
+			op1("s_cbranch_scc0", l_end_init);
+			op2("s_mov_b32", s_tmp1, 0);
+			s_store_dword(1, s_tmp1, s_signal_slot_addr, 0, true);
+			wrLaber(l_end_init);
+
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// 如果初始化比较靠后,需要提供间隔,以保证初始化完成
+			op1("s_sleep", 16);
+			// 用于测试的等待（不能使用s_sleep）
+			op1("s_nop", 100);
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			// 根据WAVE数,获取信号下标
+			op2("s_mov_b32", s_sig_idx, 1);
+			s_atomic_op(E_OpType::OP_ADD, s_sig_idx, s_signal_slot_addr, wave_num_offset * 4, true);
+			s_wait_lgkmcnt(0);
+
+			// 根据信号下标计算信号地址
+			op3("v_lshlrev_b32", v_tmp2, 2, s_sig_idx);
+			op2("v_mov_b32", v_tmp1, *s_signal_slot_addr + 1);
+			op4("v_add_co_u32", v_signal_addr, "vcc", s_signal_slot_addr, v_tmp2);
+			op5("v_addc_co_u32", *v_signal_addr + 1, "vcc", 0, v_tmp1, "vcc");
+			
+			// 初始化信号(不需要写入L2). 是否需要只一个thread操作???????????
+			op2("v_mov_b32", v_tmp1, 0);
+			flat_store_dword(1, v_signal_addr, v_tmp1, "off", signal_offset * 4);
+			s_wait_vmcnt(0);
+
+			delVar(v_tmp1);
+			delVar(v_tmp2);
+			delVar(s_tmp1);
+			delVar(s_wave_id);
+			delVar(s_sig_idx);
+			delVar(l_end_init);
+		}
+		void f_deinit_signal_slot(Var * s_signal_slot_addr, uint wave_num_offset)
+		{
+			Var * s_tmp1 = newSgpr("s_tmp1");
+
+			// 销毁WAVE数
+			op2("s_mov_b32", s_tmp1, 1);
+			s_atomic_op(E_OpType::OP_SUB, s_tmp1, s_signal_slot_addr, wave_num_offset * 4, true);
+			s_wait_lgkmcnt(0);
+
+			delVar(s_tmp1);
+		}
+		void f_send_signal(Var * v_signal_addr, Var * v_signal, uint signal_offset)
+		{
+			// 这里将发送信号的waitcnt放在这里,为了防止后继有L1的乒乓操作,造成waitcnt混乱
+			flat_store_dword(1, v_signal_addr, v_signal, "off", signal_offset * 4);
+			s_wait_vmcnt(0);
+		}
+		void f_s_pend_signal(Var * s_signal_slot_addr,
+			Var * l_begin_loop, Var * l_end_loop, 
+			uint wave_num_offset,uint signal_offset,
+			Var * s_signal)
+		{
+			Var * v_tmp1 = newVgpr("v_tmp1");
+			Var * v_tmp2 = newVgpr("v_tmp2");
+			Var * v_signal = newVgpr("v_signal");
+			Var * v_signal_addr = newVgpr("v_signal_addr", 2, 2);
+			Var * v_fetch_flag = newVgpr("v_fetch_flag");
+			Var * v_fetch_idx_stack = newVgpr("v_fetch_idx_stack");
+			Var * s_exec_save = newSgpr("s_exec_save");
+			Var * s_wave_num = newSgpr("s_wave_num");
+			Var * s_old_fetch = newSgpr("s_old_fetch");
+			Var * s_new_fetch = newSgpr("s_new_fetch");
+			Var * s_fetched_data_flag = newSgpr("s_fetched_data_flag");
+
+			op3("v_lshlrev_b32", v_tmp1, 2, v_tid_x);
+			op2("v_mov_b32", v_tmp2, *s_signal_slot_addr + 1);
+			op4("v_add_co_u32", v_signal_addr, "vcc", s_signal_slot_addr, v_tmp1);
+			op5("v_addc_co_u32", *v_signal_addr + 1, "vcc", 0, v_tmp2, "vcc");
+
+			// 仅保留32个thread,即只做32个wave的prefetch
+			op2("s_mov_b32", "exec_hi", 0);
+
+			op2("s_mov_b32", s_exec_save, "exec_lo");
+			op2("v_mov_b32", v_fetch_idx_stack, 0);						// fetch序号堆栈清零
+			op2("s_mov_b32", s_fetched_data_flag, 0);					// 所有存在的fetch标志位清零
+
+			wrLaber(l_begin_loop);
+			op2("s_mov_b32", "exec_lo", s_exec_save);
+			//op3("s_add_u32", s_loop_cnt2, s_loop_cnt2, 1);
+			// 使fetch线程不频繁工作
+			op1("s_sleep", 10);
+
+			// 读取wave数(如果atomic不改变SQC,则需要到L2读取)(未完全测试)
+			s_load_dword(1, s_wave_num, s_signal_slot_addr, wave_num_offset * 4);
+			//s_load_dword(1, s_wave_num, s_signal_slot_addr, wave_num_offset * 4, true);
+			s_wait_lgkmcnt(0);
+
+			// 如果活动wave数等于0则退出prefetch
+			op2("s_cmp_eq_u32", s_wave_num, 0);
+			op1("s_cbranch_scc1", l_end_loop);
+
+			// 读取信号(序号)
+			flat_load_dword(1, v_signal, v_signal_addr, "off", signal_offset * 4);
+			s_wait_vmcnt(0);
+
+			op3("v_lshlrev_b32", v_fetch_flag, v_signal, 1);			// 将序号转换为位标志位
+			op2("s_mov_b32", s_exec_save, "exec_lo");					// 保存exec
+			op2("v_readfirstlane_b32", s_old_fetch, v_fetch_idx_stack);	// 保存最老fetche的序号
+			
+			// 判断收到的预取序号是否已在序号堆栈中
+			op3("s_or_b32", s_fetched_data_flag, s_fetched_data_flag, 1);	// 躲避首次进入的0
+			op3("v_xor_b32", v_tmp1, s_fetched_data_flag, v_fetch_flag);
+			op3("v_and_b32", v_tmp1, v_tmp1, v_fetch_flag);
+			op3("v_cmpx_ne_u32", "vcc", v_tmp1, 0);						// 判断是否有新的需要fetche的标志位
+
+			// if vcc == 0 : continue
+			op2("s_cmp_eq_u32", "vcc_lo", 0);
+			op1("s_cbranch_scc1", l_begin_loop);
+
+			op2("v_readfirstlane_b32", s_new_fetch, v_signal);			// 获得需要fetch的第一个序号
+			
+			// 此处已经获得的需要fetch的下标，可以在此进行fetch
+			// 但为保证程序简洁，仍将真正的fetch工作放在最后
+
+			// 对存在的所有fetch标志位更新
+			op2("s_bitset0_b32", s_fetched_data_flag, s_old_fetch);
+			op2("s_bitset1_b32", s_fetched_data_flag, s_new_fetch);
+			op2("s_mov_b32", s_signal, s_new_fetch);
+
+			// 已经fetch的下标的堆栈进行移位更新
+			op2("s_mov_b32", "exec_lo", s_exec_save);
+			op3("v_add_u32", v_tmp1, v_tid_x, 1);
+			op3("v_lshlrev_b32", v_tmp1, 2, v_tmp1);
+			op3("ds_bpermute_b32", v_fetch_idx_stack, v_tmp1, v_fetch_idx_stack);
+			op3("v_writelane_b32", v_fetch_idx_stack, s_new_fetch, 7);	// 写入最新的fetch的序号
+
+			delVar(v_tmp1);
+			delVar(v_tmp2);
+			delVar(v_signal);
+			delVar(v_signal_addr);
+			delVar(v_fetch_flag);
+			delVar(v_fetch_idx_stack);
+			delVar(s_exec_save);
+			delVar(s_wave_num);
+			delVar(s_old_fetch);
+			delVar(s_new_fetch);
+			delVar(s_fetched_data_flag);
+		}
+		void f_e_pend_signal(Var * l_begin_loop, Var * l_end_loop)
+		{
+			op1("s_branch", l_begin_loop);
+			wrLaber(l_end_loop);
+		}
+	};
+}
