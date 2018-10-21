@@ -72,6 +72,7 @@
     <ClInclude Include="BasicClass.h" />
     <ClInclude Include="ConvFwd1x1.h" />
     <ClInclude Include="ConvFwd1x1Config.h" />
+    <ClInclude Include="ConvFwd1x1KernelWriter.h" />
     <ClInclude Include="helper_cl.h" />
     <ClInclude Include="KernelWriter.h" />
     <ClInclude Include="KernelWriterBasic.h" />
@@ -88,6 +89,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConvFwd1x1.cpp" />
+    <ClCompile Include="ConvFwd1x1KernelWriter.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProblemControl.cpp" />
     <ClCompile Include="RuntimeControl.cpp" />

@@ -1071,18 +1071,18 @@ namespace krnelWriter
 			{
 				is64AddrMode = true;
 			}
+			str.append(getVar(v_offset_addr, 2));
+			str.append(", ");
+
 			if (is64AddrMode == true)
 			{
-				str.append(getVar(v_offset_addr, 2));
+				// s_address(32-bit) / "off"(64-bit)
+				str.append(getVar(s_addr));
 			}
 			else
 			{
-				str.append(getVar(v_offset_addr));
+				str.append(getVar(s_addr, 2));
 			}
-			str.append(", ");
-
-			// s_address(32-bit) / "off"(64-bit)
-			str.append(getVar(s_addr));
 
 			// imm_offset
 			tmpIdx = FLAG_START_COL - str.length();
@@ -2359,6 +2359,25 @@ namespace krnelWriter
 			}
 			return E_ReturnState::SUCCESS;
 		}
+
+		/************************************************************************************/
+		/* 整型除法:                                                                       	*/
+		/* a: 被除数                                                                       	*/
+		/* b: 除数                                                                         	*/
+		/* c: 商                                                                           	*/
+		/* d: 余数                                                                         	*/
+		/************************************************************************************/
+		E_ReturnState fv_div_u32(Var * a, Var * b, Var * c, Var *d)
+		{
+			op2("v_cvt_f32_u32", c, a);		// c = (float)a
+			op2("v_cvt_f32_u32", d, b);		// d = (float)b
+			op2("v_rcp_f32", d, d);			// d = 1/(float)b
+			op3("v_mul_f32", d, c, d);		// d = a/(float)b
+			op2("v_cvt_u32_f32", c, d);		// c = (int)(a/(float)b)
+			op3("v_mul_u32_u24", d, c, b);	// d = c * b
+			op3("v_sub_u32", d, a, d);		// d = a - c * b
+		}
+
 #pragma endregion
 
 #pragma region GAS_REGION

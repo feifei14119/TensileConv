@@ -2,6 +2,7 @@
 
 #include "ProblemControl.h"
 #include "ConvFwd1x1Config.h"
+#include "ConvFwd1x1KernelWriter.h"
 
 /************************************************************************/
 /* solution¿ØÖÆ                                                          */
@@ -32,6 +33,7 @@ private:
 	int sig_num_per_cu,size_sig;
 	T_KernelArgu d_signal;
 	RuntimeCtrl * preKernel;
+	std::list<T_KernelArgu> * preArgus;
 
 public:
 	ConvFwd1x1Solution() :SolutionCtrlBase()
@@ -182,7 +184,7 @@ public:
 		T_ExtConvFwd1x1SolutionConfig * extSolu = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
 		int i = 0;
-		for (args = extSolu->preArgus->begin(); args != extSolu->preArgus->end(); args++)
+		for (args = preArgus->begin(); args != preArgus->end(); args++)
 		{
 			if ((*args).isVal == true)
 			{

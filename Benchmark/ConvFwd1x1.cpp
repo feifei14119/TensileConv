@@ -8,7 +8,7 @@
 /************************************************************************/
 #define		MultSolution	(0)
 #define		EnSimuIndex		(0)
-#define		EnSaveSource	(0)
+#define		EnSaveSource	(1)
 
 /************************************************************************/
 /* 根据problem参数成solution参数空间                                      */
@@ -72,7 +72,7 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 
 		// ----------------------------------------------------------------------
 		// 添加solution
-		SolutionConfigList->push_back(solutionConfig);
+		//SolutionConfigList->push_back(solutionConfig);
 	}
 
 	// ======================================================================
@@ -132,7 +132,7 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 #endif
 		// ----------------------------------------------------------------------
 		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
+		SolutionConfigList->push_back(solutionConfig);
 	}
 
 	return E_ReturnState::SUCCESS;
@@ -336,11 +336,11 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 		h_signal = (int*)HstMalloc(size_sig * sizeof(int));
 		// prefetch kernel
 		preKernel = new RuntimeCtrlOcl();
-		extSol->preArgus = new std::list<T_KernelArgu>;
-		extSol->preArgus->push_back(d_in);
-		extSol->preArgus->push_back(d_wei);
-		extSol->preArgus->push_back(d_out);
-		extSol->preArgus->push_back(d_signal);
+		preArgus = new std::list<T_KernelArgu>;
+		preArgus->push_back(d_in);
+		preArgus->push_back(d_wei);
+		preArgus->push_back(d_out);
+		preArgus->push_back(d_signal);
 	}
 	else if (SolutionConfig->ConfigName == "TensileConv")
 	{
@@ -386,6 +386,8 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 		loop = divCeil(c_in_maps, c_in_maps_once);
 		pix_per_group = 64;
 		align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
+
+		extSol->c_in_maps_once = c_in_maps_once;
 	}
 
 	return E_ReturnState::SUCCESS;
@@ -593,10 +595,11 @@ E_ReturnState ConvFwd1x1Solution::generateSource()
 /************************************************************************/
 void ConvFwd1x1Solution::autoGenKernel()
 {		
-//	KernelWriterBase * kw = new KernelWriterConv1x1(ProblemConfig,SolutionConfig);		
-//	kw->GenKernelString();
+	KernelWriterConv1x1 * kw = new KernelWriterConv1x1(ProblemConfig,SolutionConfig);
+	kw->GenKernelString();
+	kw->PrintKernelString();
 #if EnSaveSource
-	kw->SaveKernelStr2File();
+	kw->SaveKernelString2File();
 #endif
 }
 

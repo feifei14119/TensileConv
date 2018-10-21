@@ -15,12 +15,11 @@ typedef struct ExtConvFwd1x1SolutionConfigTpye
 	int group_size;		// 每个workgroup有多少个thread
 	
 	// 调整参数
-	// c_in_maps_once:		 8:[8,16]
+	int c_in_maps_once;		 // 8:[8,16]
 	// wei_pingpang_ins:	 1:[1,2,4,8]
 	// en_in_pingpang:		 1:[0,1]
 	// wait_cnt_in_fetch:	 4:[1,2,4,8,16]
 
-	std::list<T_KernelArgu> * preArgus;
 }T_ExtConvFwd1x1SolutionConfig;
 
 typedef struct ExtConvFwd1x1ProblemConfigType

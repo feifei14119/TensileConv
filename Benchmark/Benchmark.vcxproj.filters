@@ -49,12 +49,18 @@
     <ClInclude Include="KernelWriter.h">
       <Filter>Includes</Filter>
     </ClInclude>
+    <ClInclude Include="ConvFwd1x1KernelWriter.h">
+      <Filter>TensileConv</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="RuntimeControl.cpp" />
     <ClCompile Include="ProblemControl.cpp" />
     <ClCompile Include="ConvFwd1x1.cpp">
+      <Filter>TensileConv</Filter>
+    </ClCompile>
+    <ClCompile Include="ConvFwd1x1KernelWriter.cpp">
       <Filter>TensileConv</Filter>
     </ClCompile>
   </ItemGroup>
