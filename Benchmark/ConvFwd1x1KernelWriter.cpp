@@ -24,6 +24,7 @@ KernelWriterConv1x1::KernelWriterConv1x1(T_ProblemConfig * probCfg, T_SolutionCo
 
 	en_input_offset = extProbCfg->W <= 28;
 	offset_grp_num = c_in_maps_once * 2 / 2;
+	en_wei_addr_offset = true;
 }
 
 void KernelWriterConv1x1::writeProgram()
@@ -219,9 +220,32 @@ void KernelWriterConv1x1::load_weight(Var * wei_buff)
 }
 void KernelWriterConv1x1::prefetch_weight()
 {
-	for (int i = 0; i < k_out_maps; i++)
+	if (en_wei_addr_offset == true)
 	{
-		s_load_dword(1, *s_prefetch + i, s_addr_wei, wei_chan_stride*i * 4);
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			s_load_dword(1, *s_prefetch + i, s_addr_wei, wei_chan_stride * i * 4);
+		}
+	}
+	else
+	{
+		Var * s_tmp = newSgpr("s_tmp", 2, 2);
+
+		op2("s_mov_b32", s_tmp, s_addr_wei);
+		op2("s_mov_b32", *s_tmp + 1, *s_addr_wei + 1);
+
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			s_load_dword(1, *s_prefetch + i, s_addr_wei, 0);
+
+			op3("s_add_u32", s_addr_wei, s_addr_wei, wei_chan_stride * 4);
+			op3("s_addc_u32", *s_addr_wei + 1, *s_addr_wei + 1, 0);
+		}
+
+		op2("s_mov_b32", s_addr_wei, s_tmp);
+		op2("s_mov_b32", *s_addr_wei + 1, *s_tmp + 1);
+
+		delVar(s_tmp);
 	}
 }
 void KernelWriterConv1x1::save_output()
@@ -229,8 +253,8 @@ void KernelWriterConv1x1::save_output()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		//op2("v_mov_b32", *v_acc + i, v_posId);
-		//op2("v_cvt_f32_u32", *v_acc + i, *v_acc + i);
+		//op2("v_mov_b32", *v_acc_buff + i, 1.234);
+		//op2("v_cvt_f32_u32", *v_acc_buff + i, *v_acc + i);
 
 		flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
 		op4("v_add_co_u32", v_addr_out, "vcc", out_chan_stride*4, v_addr_out);
@@ -244,6 +268,9 @@ void KernelWriterConv1x1::save_output()
 /************************************************************************************/
 void KernelWriterConv1x1::main_conv()
 {
+	// -------------------------------------------------------------------------------
+	// 数据存储区域声明:
+	// -------------------------------------------------------------------------------
 	v_in_buff_a = newVgpr("v_in_a", c_in_maps_once);
 	v_in_buff_b = newVgpr("v_in_b", c_in_maps_once);
 	s_wei_buff_a = newSgpr("s_wei_a", c_in_maps_once, 8);
@@ -252,17 +279,14 @@ void KernelWriterConv1x1::main_conv()
 	s_prefetch = newSgpr("s_prefetch", k_out_maps);
 
 	// -------------------------------------------------------------------------------
+	// 卷积计算:
+	// -------------------------------------------------------------------------------
 	// 初始化:
-	// -------------------------------------------------------------------------------
 	for (int i = 0; i < k_out_maps; i++)
-	{
 		op2("v_mov_b32", *v_acc_buff + i, 0);
-	}
 
-	// -------------------------------------------------------------------------------
-	// 卷积循环
-	// -------------------------------------------------------------------------------
 	// 循环填充
+	wei_offset = 0;
 	prefetch_weight();
 	load_input(v_in_buff_a);
 
@@ -283,7 +307,7 @@ void KernelWriterConv1x1::main_conv()
 	conv_last_loop(v_in_buff_b);
 
 	// -------------------------------------------------------------------------------
-	// 存储 :
+	// 存储结果:
 	// -------------------------------------------------------------------------------
 	save_output();
 
@@ -331,6 +355,11 @@ void KernelWriterConv1x1::conv_one_loop(Var * in_buff, bool is_pang_buff)
 	}
 
 	s_wait_lgkmcnt(0);			// wait s_wei_buff_b
+	// 为下一轮循环预读取
+	if (is_pang_buff == true)
+	{
+		prefetch_weight();
+	}
 	conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (k_out_maps - 1));
 }
 void KernelWriterConv1x1::conv_last_loop(Var * in_buff)

@@ -35,6 +35,7 @@ private:
 	int conv_loop;			// LOOP
 
 	bool en_input_offset;
+	bool en_wei_addr_offset;
 	int offset_grp_num;
 	krnelWriter::Var * v_global_offset;
 	int wei_offset;

@@ -80,22 +80,22 @@
     <Filter Include="TensileConv\kernels">
       <UniqueIdentifier>{03ef0283-3e71-4cfc-a5a1-3f72f7a318a8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Includes\asmTool">
+    <Filter Include="TensileConv\kernels\asmTool">
       <UniqueIdentifier>{d36ee4ff-ece6-40a8-bb59-6919ddd8c246}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="Kernels\gpr_alloc.inc">
-      <Filter>Includes\asmTool</Filter>
+      <Filter>TensileConv\kernels\asmTool</Filter>
     </None>
     <None Include="Kernels\inst_wrappers.inc">
-      <Filter>Includes\asmTool</Filter>
+      <Filter>TensileConv\kernels\asmTool</Filter>
     </None>
     <None Include="Kernels\common.inc">
-      <Filter>Includes\asmTool</Filter>
+      <Filter>TensileConv\kernels\asmTool</Filter>
     </None>
     <None Include="Kernels\conv_sizes.inc">
-      <Filter>Includes\asmTool</Filter>
+      <Filter>TensileConv\kernels\asmTool</Filter>
     </None>
     <None Include="Kernels\ConvFwd1x1_Jasm.s">
       <Filter>TensileConv\kernels</Filter>

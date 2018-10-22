@@ -6,7 +6,7 @@
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
-#define		MultSolution	(0)
+#define		MultSolution	(1)
 #define		EnSimuIndex		(0)
 #define		EnSaveSource	(1)
 
@@ -119,7 +119,7 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 		searchParam->ValueArray.push_back(4);
 		searchParam->ValueArray.push_back(8);
 		searchParam->ValueArray.push_back(16);
-		searchParam->ValueArray.push_back(32);
+		//searchParam->ValueArray.push_back(32);
 		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 		//--------------------------------
 		searchParam = new T_SearchParam("group_size");
@@ -369,7 +369,7 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 		}
 		if (extSol->group_size == 0)
 		{
-			extSol->group_size = 64;
+			extSol->group_size = 256;
 		}
 
 		printf("----------------------------------------------------------------------\n");
@@ -398,8 +398,11 @@ E_ReturnState ConvFwd1x1Solution::generateCompilerOption()
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
-	SolutionConfig->extCompilerOpt = "";
-	if (SolutionConfig->ConfigName == "MIOpenOcl")
+	if (SolutionConfig->ConfigName == "TensileConv")
+	{
+		SolutionConfig->extCompilerOpt = "";
+	}
+	else if (SolutionConfig->ConfigName == "MIOpenOcl")
 	{
 		SolutionConfig->extCompilerOpt =
 			std::string(" -DMLO_FILTER_STRIDE0=1") +
@@ -597,7 +600,7 @@ void ConvFwd1x1Solution::autoGenKernel()
 {		
 	KernelWriterConv1x1 * kw = new KernelWriterConv1x1(ProblemConfig,SolutionConfig);
 	kw->GenKernelString();
-	kw->PrintKernelString();
+//	kw->PrintKernelString();
 #if EnSaveSource
 	kw->SaveKernelString2File();
 #endif
@@ -611,11 +614,11 @@ void ConvFwd1x1Solution::ReportProblemPerformence()
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
-	LOG("------------------------------------------------\n");
-	LOG("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
+	printf("------------------------------------------------\n");
+	printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
 
-	LOG("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
-	LOG("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
+	printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
+	printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
 
 	while (true)
 	{
@@ -626,7 +629,7 @@ void ConvFwd1x1Solution::ReportProblemPerformence()
 			break;
 		}
 
-		LOG("%s = %d\n", param->Name.c_str(), param->BestValue);
+		printf("%s = %d\n", param->Name.c_str(), param->BestValue);
 	}
 }
 	
@@ -771,9 +774,47 @@ void ConvFwd1x1Solution::simulateIndex()
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-#define		SingleProblem	(1)
 #define		SkipHost		(0)
-	
+
+void ConvFwd1x1Problem::RunProblem(int W, int H, int C, int K, int N)
+{
+	printf("************************************************************************\n");
+	printf("* Problem Name: %s.\n", ProblemName.c_str());
+	printf("************************************************************************\n");
+
+	// ======================================================================
+	// 生成问题空间
+	// ======================================================================
+	INFO("generate problem config list.");
+	ProblemConfigList->clear();
+	GenerateProblemConfigs(W, H, C, K, N);
+
+	// ======================================================================
+	// 遍历problem参数空间,搜索参数空间
+	// ======================================================================
+	std::list<T_ProblemConfig*>::iterator problemCfgIt;
+	for (problemCfgIt = ProblemConfigList->begin();
+		problemCfgIt != ProblemConfigList->end();
+		problemCfgIt++)
+	{
+		ProblemConfig = *problemCfgIt;
+
+		printf("************************************************************************\n");
+		printf("* Problem Name: %s.\n", ProblemName.c_str());
+		printf("* Problem Config: %s.\n", ProblemConfig->ConfigName.c_str());
+		printf("************************************************************************\n");
+
+		if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
+		{
+			RunOneProblemConfig();
+		}
+		else
+		{
+			RunProblemOnce();
+		}
+	}
+}
+
 /************************************************************************/
 /* 生成问题空间													        */
 /************************************************************************/
@@ -784,17 +825,6 @@ E_ReturnState ConvFwd1x1Problem::GenerateProblemConfigs()
 
 	T_SearchParam * searchParam;
 
-#if	SingleProblem	
-	probCfg = new T_ProblemConfig("convolution 1x1");
-
-	exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
-	exProbCfg->W = 28;		exProbCfg->H = 28;
-	exProbCfg->C = 2048;		exProbCfg->K = 64;
-	exProbCfg->N = 1;
-	probCfg->extConfig = exProbCfg;
-
-	ProblemConfigList->push_back(probCfg);
-#else
 	probCfg = new T_ProblemConfig("convolution 1x1");
 	exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 	probCfg->extConfig = exProbCfg;
@@ -832,7 +862,22 @@ E_ReturnState ConvFwd1x1Problem::GenerateProblemConfigs()
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
 	ProblemConfigList->push_back(probCfg);
-#endif
+}
+E_ReturnState ConvFwd1x1Problem::GenerateProblemConfigs(int W, int H, int C, int K, int N)
+{
+	T_ProblemConfig * probCfg;
+	T_ExtConvFwd1x1ProblemConfig * exProbCfg;
+
+	T_SearchParam * searchParam;
+	probCfg = new T_ProblemConfig("convolution 1x1");
+
+	exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
+	exProbCfg->W = W;		exProbCfg->H = H;
+	exProbCfg->C = C;		exProbCfg->K = K;
+	exProbCfg->N = N;
+	probCfg->extConfig = exProbCfg;
+
+	ProblemConfigList->push_back(probCfg);
 }
 	
 /************************************************************************/
@@ -1026,7 +1071,7 @@ E_ReturnState ConvFwd1x1Problem::Verify()
 }
 	 
 /************************************************************************/
-/* 释放                                                                  */
+/* 释放                                                                 */
 /************************************************************************/
 void ConvFwd1x1Problem::ReleaseHost()
 {
