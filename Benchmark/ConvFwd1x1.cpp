@@ -776,49 +776,10 @@ void ConvFwd1x1Solution::simulateIndex()
 /************************************************************************/
 #define		SkipHost		(0)
 
-void ConvFwd1x1Problem::RunProblem(int W, int H, int C, int K, int N)
-{
-	printf("************************************************************************\n");
-	printf("* Problem Name: %s.\n", ProblemName.c_str());
-	printf("************************************************************************\n");
-
-	// ======================================================================
-	// 生成问题空间
-	// ======================================================================
-	INFO("generate problem config list.");
-	ProblemConfigList->clear();
-	GenerateProblemConfigs(W, H, C, K, N);
-
-	// ======================================================================
-	// 遍历problem参数空间,搜索参数空间
-	// ======================================================================
-	std::list<T_ProblemConfig*>::iterator problemCfgIt;
-	for (problemCfgIt = ProblemConfigList->begin();
-		problemCfgIt != ProblemConfigList->end();
-		problemCfgIt++)
-	{
-		ProblemConfig = *problemCfgIt;
-
-		printf("************************************************************************\n");
-		printf("* Problem Name: %s.\n", ProblemName.c_str());
-		printf("* Problem Config: %s.\n", ProblemConfig->ConfigName.c_str());
-		printf("************************************************************************\n");
-
-		if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
-		{
-			RunOneProblemConfig();
-		}
-		else
-		{
-			RunProblemOnce();
-		}
-	}
-}
-
 /************************************************************************/
 /* 生成问题空间													        */
 /************************************************************************/
-E_ReturnState ConvFwd1x1Problem::GenerateProblemConfigs()
+E_ReturnState ConvFwd1x1Problem::RunDemo()
 {
 	T_ProblemConfig * probCfg;
 	T_ExtConvFwd1x1ProblemConfig * exProbCfg;
@@ -862,22 +823,22 @@ E_ReturnState ConvFwd1x1Problem::GenerateProblemConfigs()
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
 	ProblemConfigList->push_back(probCfg);
+
+	RunProblem();
 }
-E_ReturnState ConvFwd1x1Problem::GenerateProblemConfigs(int W, int H, int C, int K, int N)
+E_ReturnState ConvFwd1x1Problem::TurnProblem(int W, int H, int C, int K, int N)
 {
-	T_ProblemConfig * probCfg;
-	T_ExtConvFwd1x1ProblemConfig * exProbCfg;
+	T_ProblemConfig * probCfg = new T_ProblemConfig("convolution 1x1");
+	T_ExtConvFwd1x1ProblemConfig * exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 
-	T_SearchParam * searchParam;
-	probCfg = new T_ProblemConfig("convolution 1x1");
-
-	exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
 	exProbCfg->W = W;		exProbCfg->H = H;
 	exProbCfg->C = C;		exProbCfg->K = K;
 	exProbCfg->N = N;
 	probCfg->extConfig = exProbCfg;
 
 	ProblemConfigList->push_back(probCfg);
+
+	RunProblem();
 }
 	
 /************************************************************************/
@@ -1082,4 +1043,47 @@ void ConvFwd1x1Problem::ReleaseHost()
 	HstFree(exProbCfg->h_out);
 	HstFree(exProbCfg->out_ref);
 }
+
+
+
+T_SolutionConfig * ConvFwd1x1Problem::NewSolutionConfig(std::string name)
+{
+	T_SolutionConfig * solutionConfig = new T_SolutionConfig(name);
+	T_ExtConvFwd1x1SolutionConfig * extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
+	solutionConfig->extConfig = extSolutionConfig;
+
+	Solution->SolutionConfigList->push_back(solutionConfig);
+
+	return solutionConfig;
+}
+
+E_ReturnState ConvFwd1x1Problem::NewTurnParam(T_SolutionConfig * solCfg, E_TurnParam param, std::vector<int> turnVal)
+{
+	T_SearchParam * searchParam;
+	if (param == E_TurnParam::TURN_PARAM_K_OUT_MAPS)
+	{
+		searchParam = new T_SearchParam("k_out_maps");
+	}
+	else if (param == E_TurnParam::TURN_PARAM_GROUP_SIZE)
+	{
+		searchParam = new T_SearchParam("group_size");
+	}
+	else
+	{
+		return E_ReturnState::FAIL;
+	}
+
+	for (int i = 0; i < turnVal.size(); i++)
+	{
+		int val = turnVal[i];
+		searchParam->ValueArray.push_back(val);
+	}
+
+	solCfg->KernelSearchSpace.AddOneParam(searchParam);
+
+	return E_ReturnState::SUCCESS;
+}
+
+
+
 #pragma endregion

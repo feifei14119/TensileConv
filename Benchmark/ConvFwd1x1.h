@@ -45,6 +45,7 @@ public:
 	/************************************************************************/
 	E_ReturnState GenerateSolutionConfigs();
 
+
 	/************************************************************************/
 	/* 申请显存                                                            */
 	/************************************************************************/
@@ -296,14 +297,8 @@ public:
 	/************************************************************************/
 	/* 运行问题														        */
 	/************************************************************************/
-	void RunProblem() { ProblemCtrlBase::RunProblem(); }
-	void RunProblem(int W, int H, int C, int K, int N);
-
-	/************************************************************************/
-	/* 生成问题空间													        */
-	/************************************************************************/
-	E_ReturnState GenerateProblemConfigs();
-	E_ReturnState GenerateProblemConfigs(int W, int H, int C, int K, int N);
+	E_ReturnState RunDemo();
+	E_ReturnState TurnProblem(int W, int H, int C, int K, int N);
 	
 	/************************************************************************/
 	/* 参数初始化                                                            */
@@ -354,6 +349,17 @@ public:
 			}
 		}
 	}
+
+
+	T_SolutionConfig * NewSolutionConfig(std::string name);
+
+	typedef enum TuneParamEnum
+	{
+		TURN_PARAM_K_OUT_MAPS = 1,
+		TURN_PARAM_GROUP_SIZE = 2
+	}E_TurnParam;
+
+	E_ReturnState NewTurnParam(T_SolutionConfig * solCfg, E_TurnParam param, std::vector<int> turnVal);
 };
 
 

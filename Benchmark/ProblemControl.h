@@ -95,7 +95,7 @@ public:
 	void printIndex(int *index, char* name);
 	
 	virtual E_ReturnState InitDev() = 0;
-	virtual E_ReturnState GenerateSolutionConfigs() = 0;
+	//virtual E_ReturnState GenerateSolutionConfigs() = 0;
 	virtual E_ReturnState GenerateSolution() = 0;
 	virtual E_ReturnState GetBackResult() = 0;
 	virtual void ReleaseDev() = 0;
@@ -133,7 +133,7 @@ public:
 
 	E_ReturnState RunProblemOnce();
 
-	virtual E_ReturnState GenerateProblemConfigs() = 0;
+	//virtual E_ReturnState GenerateProblemConfigs() = 0;
 	virtual E_ReturnState InitHost() = 0;
 	virtual E_ReturnState Host() = 0;
 	virtual E_ReturnState Verify() = 0;

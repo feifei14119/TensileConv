@@ -11,6 +11,7 @@ SolutionCtrlBase::SolutionCtrlBase()
 {
 	RepeatTime = 1;
 	SolutionConfigList = new std::list<T_SolutionConfig*>;
+	SolutionConfigList->clear();
 }
 
 void SolutionCtrlBase::RunSolution(T_ProblemConfig *problem)
@@ -20,9 +21,9 @@ void SolutionCtrlBase::RunSolution(T_ProblemConfig *problem)
 	// ======================================================================
 	// 生成解决方案空间
 	// ======================================================================
-	INFO("generate solution config list.");
-	SolutionConfigList->clear();
-	GenerateSolutionConfigs();
+	//INFO("generate solution config list.");
+	//SolutionConfigList->clear();
+	//GenerateSolutionConfigs();
 
 	// ======================================================================
 	// 遍历每个problem的solution参数空间
@@ -252,12 +253,14 @@ void SolutionCtrlBase::printIndex(int *index, char* name)
 ProblemCtrlBase::ProblemCtrlBase()
 {
 	ProblemConfigList = new std::list<T_ProblemConfig*>;
+	ProblemConfigList->clear();
 }
 
 ProblemCtrlBase::ProblemCtrlBase(std::string name)
 {
 	ProblemName = name;
 	ProblemConfigList = new std::list<T_ProblemConfig*>;
+	ProblemConfigList->clear();
 }
 
 void ProblemCtrlBase::RunProblem()
@@ -265,14 +268,7 @@ void ProblemCtrlBase::RunProblem()
 	printf("************************************************************************\n");
 	printf("* Problem Name: %s.\n", ProblemName.c_str());
 	printf("************************************************************************\n");
-
-	// ======================================================================
-	// 生成问题空间
-	// ======================================================================
-	INFO("generate problem config list.");
-	ProblemConfigList->clear();
-	GenerateProblemConfigs();
-
+	
 	// ======================================================================
 	// 遍历problem参数空间,搜索参数空间
 	// ======================================================================
