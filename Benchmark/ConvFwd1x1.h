@@ -10,21 +10,10 @@
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:
-	size_t align;
 	T_KernelArgu d_in, d_wei, d_out;
 
 	// -------------------------------------------------------------------
-	// K划分
-	int k_out_group;	// 一个像素的所有输出特征值分给几个CU计算
-	// C划分
-	int c_in_maps;		// 每个CU计算多少个输入通道C
-	int c_in_group;		// 一个像素的所有输入通道分给几个CU计算
-	// W,H划分
-	int pix_per_group;	// 每个CU计算多少个输入像素
-	// thread规划
-	int pix_maps;	// 每个thread负责多少个输出像素
-	// 程序规划
-	int c_in_maps_once;	// 每轮循环计算多少个输入通道C
+	size_t align;
 	int loop;			// 循环次数
 
 	// -------------------------------------------------------------------
@@ -297,7 +286,7 @@ public:
 	/************************************************************************/
 	/* 运行问题														        */
 	/************************************************************************/
-	E_ReturnState RunDemo();
+	E_ReturnState TurnProblem();
 	E_ReturnState TurnProblem(int W, int H, int C, int K, int N);
 	
 	/************************************************************************/
@@ -355,8 +344,9 @@ public:
 
 	typedef enum TuneParamEnum
 	{
-		TURN_PARAM_K_OUT_MAPS = 1,
-		TURN_PARAM_GROUP_SIZE = 2
+		TURN_PARAM_GROUP_SIZE = 1,
+		TURN_PARAM_C_IN_GROUP = 2,
+		TURN_PARAM_K_OUT_MAPS = 3
 	}E_TurnParam;
 
 	E_ReturnState NewTurnParam(T_SolutionConfig * solCfg, E_TurnParam param, std::vector<int> turnVal);

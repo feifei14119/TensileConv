@@ -14,16 +14,18 @@ SolutionCtrlBase::SolutionCtrlBase()
 	SolutionConfigList->clear();
 }
 
-void SolutionCtrlBase::RunSolution(T_ProblemConfig *problem)
+void SolutionCtrlBase::RunAllSolution(T_ProblemConfig *problem)
 {
 	ProblemConfig = problem;
 
 	// ======================================================================
 	// 生成解决方案空间
 	// ======================================================================
-	//INFO("generate solution config list.");
-	//SolutionConfigList->clear();
-	//GenerateSolutionConfigs();
+	if (SolutionConfigList->size() == 0)
+	{
+		INFO("generate solution config list.");
+		GenerateSolutionConfigs();
+	}
 
 	// ======================================================================
 	// 遍历每个problem的solution参数空间
@@ -38,19 +40,11 @@ void SolutionCtrlBase::RunSolution(T_ProblemConfig *problem)
 		printf("======================================================================\n");
 		printf("Solution Name: %s.\n", SolutionConfig->ConfigName.c_str());
 		printf("======================================================================\n");
-			
-		if (SolutionConfig->KernelSearchSpace.ParamNum > 0)
-		{
-			RunOneSolutionConfig();
-		}
-		else
-		{
-			RunSolutionOnce();
-		}
+		RunOneSolution();
 	}
 }
 
-E_ReturnState SolutionCtrlBase::RunOneSolutionConfig()
+E_ReturnState SolutionCtrlBase::RunOneSolution()
 {
 	while (true)
 	{
@@ -65,29 +59,23 @@ E_ReturnState SolutionCtrlBase::RunOneSolutionConfig()
 		INFO("release device.");						ReleaseDev();
 		INFO("search kernel parameters.");
 	CONTINUE_SEARCH:
-		if (SolutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+		if (SolutionConfig->KernelSearchSpace.ParamNum > 0)
 		{
-			INFO("search kernel parameters finished.");
-			ReportProblemPerformence();
+			if (SolutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+			{
+				INFO("search kernel parameters finished.");
+				ReportProblemPerformence();
+				return E_ReturnState::SUCCESS;
+			}
+		}
+		else
+		{
+			delete runtime;
 			return E_ReturnState::SUCCESS;
 		}
 
-		delete runtime;
-		//sleep(1);
+		sleep(0.01);
 	}
-}
-
-E_ReturnState SolutionCtrlBase::RunSolutionOnce()
-{
-	runtime = new RuntimeCtrlOcl(false);
-	INFO("initialize device.");						InitDev();
-	INFO("generate source, compiler, worksize.");	GenerateSolution();
-	INFO("compiler kernel and program.");			SetupSolution();
-	INFO("set arg and launch kernel.");				LaunchSolution(false);
-	INFO("collect performence.");					GetPerformence();
-	INFO("copy result back to cpu.");				GetBackResult();
-	INFO("release device.");						ReleaseDev();
-	delete runtime;
 }
 
 E_ReturnState SolutionCtrlBase::LaunchSolution(bool isWarmup)
@@ -263,7 +251,7 @@ ProblemCtrlBase::ProblemCtrlBase(std::string name)
 	ProblemConfigList->clear();
 }
 
-void ProblemCtrlBase::RunProblem()
+void ProblemCtrlBase::RunAllProblem()
 {
 	printf("************************************************************************\n");
 	printf("* Problem Name: %s.\n", ProblemName.c_str());
@@ -283,46 +271,35 @@ void ProblemCtrlBase::RunProblem()
 		printf("* Problem Name: %s.\n", ProblemName.c_str());
 		printf("* Problem Config: %s.\n", ProblemConfig->ConfigName.c_str());
 		printf("************************************************************************\n");
-
-		if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
-		{
-			RunOneProblemConfig();
-		}
-		else
-		{
-			RunProblemOnce();
-		}
+		RunOneProblem();
 	}
 }
 
-E_ReturnState ProblemCtrlBase::RunOneProblemConfig()
+E_ReturnState ProblemCtrlBase::RunOneProblem()
 {
 	while (true)
 	{
 		Solution->ProblemBestTime = -1;
-		INFO("initialize host.");			InitHost();
-		INFO("run host calculate.");		Host();
-		INFO("solve this problem.");		Solution->RunSolution(ProblemConfig);
-		INFO("verify device calculation.");	Verify();
-		INFO("release host.");				ReleaseHost();
+		INFO("initialize host.");				InitHost();
+		INFO("run host calculate.");			Host();
+		INFO("solve this problem.");			Solution->RunAllSolution(ProblemConfig);
+		INFO("verify device calculation.");		Verify();
+		INFO("release host.");					ReleaseHost();
 
-		INFO("search problem parameters.");
-		if (ProblemConfig->ProblemParamSpace.GetNexComb() == E_ReturnState::FAIL)
+		if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
 		{
-			INFO("search problem parameters finished.");
+			INFO("search problem parameters.");
+			if (ProblemConfig->ProblemParamSpace.GetNexComb() == E_ReturnState::FAIL)
+			{
+				INFO("search problem parameters finished.");
+				break;
+			}
+		}
+		else
+		{
 			break;
 		}
 	}
-}
-
-E_ReturnState ProblemCtrlBase::RunProblemOnce()
-{
-	Solution->ProblemBestTime = -1;
-	INFO("initialize host.");				InitHost();
-	INFO("run host calculate.");			Host();
-	INFO("solve this problem.");			Solution->RunSolution(ProblemConfig);
-	INFO("verify device calculation.");		Verify();
-	INFO("release host.");					ReleaseHost();
 
 	return E_ReturnState::SUCCESS;
 }

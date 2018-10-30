@@ -2,6 +2,9 @@
 
 #include "ConvFwd1x1.h"
 
+using namespace AutoGen;
+using namespace AutoTune;
+
 #pragma region SOLUTION
 /************************************************************************/
 /* solution控制                                                          */
@@ -128,6 +131,15 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 		searchParam->ValueArray.push_back(256);
 		searchParam->ValueArray.push_back(512);
 		//searchParam->ValueArray.push_back(1024);
+		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+		//--------------------------------
+		searchParam = new T_SearchParam("c_in_group");
+		searchParam->ValueArray.push_back(1);
+		searchParam->ValueArray.push_back(2);
+		searchParam->ValueArray.push_back(4);
+		searchParam->ValueArray.push_back(8);
+		searchParam->ValueArray.push_back(16);
+		searchParam->ValueArray.push_back(32);
 		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 #endif
 		// ----------------------------------------------------------------------
@@ -266,49 +278,49 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 		align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
 		N_OUT_GROUPS = (extProb->K / extSol->k_out_maps);
 
-		k_out_group = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
+		extSol->k_out_group = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
 	}
 	else if (SolutionConfig->ConfigName == "SQC")
 	{
 		extSol->group_size = WAVE_SIZE;
 		extSol->k_out_maps = 16;
-		k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		c_in_maps = extProb->C;
-		c_in_group = divCeil(extProb->C, c_in_maps);
+		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
+		extSol->c_in_maps = extProb->C;
+		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
 
-		pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
-		c_in_maps_once = 8;
-		loop = c_in_maps / c_in_maps_once;
+		extSol->pix_per_group = 64;
+		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
+		extSol->c_in_maps_once = 8;
+		loop = extSol->c_in_maps / extSol->c_in_maps_once;
 	}
 	else if (SolutionConfig->ConfigName == "C_MULT")
 	{
 		extSol->group_size = WAVE_SIZE;
 		extSol->k_out_maps = 16;
-		k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		c_in_maps = extProb->C / 16;
-		c_in_group = divCeil(extProb->C, c_in_maps);
+		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
+		extSol->c_in_maps = extProb->C / 16;
+		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
 
-		pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
-		c_in_maps_once = 8;
-		loop = c_in_maps / c_in_maps_once;
+		extSol->pix_per_group = 64;
+		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
+		extSol->c_in_maps_once = 8;
+		loop = extSol->c_in_maps / extSol->c_in_maps_once;
 	}
 	else if (SolutionConfig->ConfigName == "PreFetch_Single")
 	{
 		extSol->group_size = WAVE_SIZE;
 		extSol->k_out_maps = 16;
-		k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		c_in_maps = extProb->C;
-		c_in_group = divCeil(extProb->C, c_in_maps);
+		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
+		extSol->c_in_maps = extProb->C;
+		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
 
-		c_in_maps_once = 8;
-		loop = c_in_maps / c_in_maps_once;
-		pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
+		extSol->c_in_maps_once = 8;
+		loop = extSol->c_in_maps / extSol->c_in_maps_once;
+		extSol->pix_per_group = 64;
+		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
 			
 		// signal space
-		sig_num_per_cu = c_in_maps / CACHE_LINE;
+		sig_num_per_cu = extSol->c_in_maps / CACHE_LINE;
 		size_sig = sig_num_per_cu * CU_NUM;
 		h_signal = (int*)HstMalloc(size_sig * sizeof(int));
 		DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
@@ -319,14 +331,14 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 	{
 		extSol->group_size = WAVE_SIZE;
 		extSol->k_out_maps = 16;
-		k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		c_in_maps = extProb->C;
-		c_in_group = divCeil(extProb->C, c_in_maps);
+		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
+		extSol->c_in_maps = extProb->C;
+		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
 
-		c_in_maps_once = 8;
-		loop = c_in_maps / c_in_maps_once;
-		pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group);
+		extSol->c_in_maps_once = 8;
+		loop = extSol->c_in_maps / extSol->c_in_maps_once;
+		extSol->pix_per_group = 64;
+		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group);
 
 		// signal mem
 		size_sig = loop / 2 * CU_NUM;
@@ -353,6 +365,10 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 				break;
 			}
 
+			if (param->Name == "c_in_group")
+			{
+				extSol->c_in_group = param->CurrValue;
+			}
 			if (param->Name == "k_out_maps")
 			{
 				extSol->k_out_maps = param->CurrValue;
@@ -363,31 +379,33 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 			}
 		}
 
+		if (extSol->c_in_group == 0)
+		{
+			extSol->c_in_group = 4;
+		}
 		if (extSol->k_out_maps == 0)
 		{
 			extSol->k_out_maps = 16;
 		}
 		if (extSol->group_size == 0)
 		{
-			extSol->group_size = 256;
+			extSol->group_size = 64;
 		}
 
 		printf("----------------------------------------------------------------------\n");
 		printf("Kernel Param:\n");
+		printf("	c_in_group=[%d]\n", extSol->c_in_group);
 		printf("	k_out_maps=[%d]\n", extSol->k_out_maps);
 		printf("	group_size=[%d]\n", extSol->group_size);
 		printf("----------------------------------------------------------------------\n");
 
-		k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		c_in_maps = extProb->C;
-		c_in_group = divCeil(extProb->C, c_in_maps);
+		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
+		extSol->c_in_maps = extProb->C / extSol->c_in_group;
 
-		c_in_maps_once = 8;
-		loop = divCeil(c_in_maps, c_in_maps_once);
-		pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, pix_per_group) * pix_per_group;
-
-		extSol->c_in_maps_once = c_in_maps_once;
+		extSol->c_in_maps_once = 8;
+		loop = divCeil(extSol->c_in_maps, extSol->c_in_maps_once);
+		extSol->pix_per_group = 64;
+		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
 	}
 
 	return E_ReturnState::SUCCESS;
@@ -444,13 +462,13 @@ E_ReturnState ConvFwd1x1Solution::generateCompilerOption()
 			std::string(" -Wa,-defsym,C=") + std::to_string(extProb->C) +
 			std::string(" -Wa,-defsym,K=") + std::to_string(extProb->K) +
 			std::string(" -Wa,-defsym,N=") + std::to_string(extProb->N) +
-			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS=") + std::to_string(k_out_group) +
-			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_LOG2=") + std::to_string(log2(k_out_group)) +
-			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_DIV_MASK=") + std::to_string(k_out_group-1) +
-			std::string(" -Wa,-defsym,MLO_N_LCL_IN_MAPS=") + std::to_string(c_in_maps) +
-			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS=") + std::to_string(c_in_group) +
-			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_LOG2=") + std::to_string(log2(c_in_group)) +
-			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_DIV_MASK=") + std::to_string(c_in_group-1) +
+			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS=") + std::to_string(extSol->k_out_group) +
+			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_LOG2=") + std::to_string(log2(extSol->k_out_group)) +
+			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_DIV_MASK=") + std::to_string(extSol->k_out_group-1) +
+			std::string(" -Wa,-defsym,MLO_N_LCL_IN_MAPS=") + std::to_string(extSol->c_in_maps) +
+			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS=") + std::to_string(extSol->c_in_group) +
+			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_LOG2=") + std::to_string(log2(extSol->c_in_group)) +
+			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_DIV_MASK=") + std::to_string(extSol->c_in_group-1) +
 
 			std::string(" -Wa,-defsym,GRP_NUM_SE=") + std::to_string(grpNumPerSe) +
 			std::string(" -Wa,-defsym,GRP_NUM_CU_MIN=") + std::to_string(grpNumPerCUMin) +
@@ -483,7 +501,7 @@ E_ReturnState ConvFwd1x1Solution::generateWorkLoad()
 		SolutionConfig->l_wk0 = extSol->group_size;
 		SolutionConfig->l_wk1 = 1;
 		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
+		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
 		SolutionConfig->g_wk1 = 1;
 		SolutionConfig->g_wk2 = 1;
 
@@ -495,7 +513,7 @@ E_ReturnState ConvFwd1x1Solution::generateWorkLoad()
 		SolutionConfig->l_wk0 = extSol->group_size;
 		SolutionConfig->l_wk1 = 1;
 		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
+		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
 		SolutionConfig->g_wk1 = 1;
 		SolutionConfig->g_wk2 = 1;
 	}
@@ -504,7 +522,7 @@ E_ReturnState ConvFwd1x1Solution::generateWorkLoad()
 		SolutionConfig->l_wk0 = extSol->group_size;
 		SolutionConfig->l_wk1 = 1;
 		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
+		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
 		SolutionConfig->g_wk1 = 1;
 		SolutionConfig->g_wk2 = 1;
 
@@ -518,7 +536,7 @@ E_ReturnState ConvFwd1x1Solution::generateWorkLoad()
 		SolutionConfig->l_wk0 = extSol->group_size;
 		SolutionConfig->l_wk1 = 1;
 		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
+		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
 		SolutionConfig->g_wk1 = 1;
 		SolutionConfig->g_wk2 = 1;
 
@@ -530,7 +548,7 @@ E_ReturnState ConvFwd1x1Solution::generateWorkLoad()
 		SolutionConfig->l_wk0 = extSol->group_size;
 		SolutionConfig->l_wk1 = 1;
 		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * c_in_group * k_out_group;
+		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
 		SolutionConfig->g_wk1 = 1;
 		SolutionConfig->g_wk2 = 1;
 			
@@ -638,69 +656,40 @@ void ConvFwd1x1Solution::ReportProblemPerformence()
 /************************************************************************/
 void ConvFwd1x1Solution::simulateIndex()
 {
-	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+	T_ExtConvFwd1x1SolutionConfig * extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
-	int k_blk_size = extSol->k_out_maps;
-	align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
-	int in_pix_groups = align / extSol->group_size;
-	int k_out_groups = (extProb->K + k_blk_size - 1) / k_blk_size;
-
-	printf("in_pix_groups = %d\n", in_pix_groups);
-	printf("k_out_groups = %d\n", k_out_groups);
-
-	int *testGrpId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 	int *testId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 	int *testPixBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
-	int *testWeiBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
+	int *testCInBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
+	int *testKOutBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 	int *testPosId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 	int *testBatchId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 	int *testOutId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
 
-	uint W = extProb->W;
-	uint H = extProb->H;
-	uint C = extProb->C;
-	uint K = extProb->K;
+	uint in_chan_stride = extProbCfg->W * extProbCfg->H;
+	uint in_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->C;
+	uint wei_chan_stride = extProbCfg->C;
+	uint out_chan_stride = extProbCfg->W * extProbCfg->H;
+	uint out_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->K;
 
-	uint IN_CHANNEL_STRIDE = W * H;
-	uint IN_BATCH_STRIDE = W * H * C;
-	uint WEI_CHANNEL_STRIDE = C;
-	uint OUT_CHANNEL_STRIDE = W * H;
-	uint OUT_BATCH_STRIDE = W * H * K;
+	uint c_in_maps = extSolCfg->c_in_maps;
+	uint c_in_group = extSolCfg->c_in_group;
+	uint k_out_maps = extSolCfg->k_out_maps;
+	uint k_out_group = extSolCfg->k_out_group;
 
-	uint GROUP_SIZE = 64;
-	uint PIX_MAPS = 64;
-	uint K_OUT_GROUPS = k_out_groups;
-
-	uint CHUNK_NUMBER = SolutionConfig->b_wk0 / CU_NUM;
-	uint CHUNK_LEFT = CHUNK_NUMBER * CU_NUM;
-	uint Z_ROUND_NUM = SolutionConfig->b_wk0 / (CU_NUM * K_OUT_GROUPS);
-	uint INBLOCK_LEFT = Z_ROUND_NUM * CU_NUM;
-
-	int pix_z_size = 8;
-	int wei_z_size = 4;
-	int pix_z_group = in_pix_groups / pix_z_size;
-	int wei_z_group = k_out_groups / wei_z_size;
-
-	int groupNum = in_pix_groups * k_out_groups;
-	int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
-	int grpNumPerCUMin = groupNum / CU_NUM;
-	int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
-	int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
-	int grpNumPerSe = groupNum / SE_NUM;
-
+	uint wave_per_group = SolutionConfig->l_wk0 / WAVE_SIZE;
+	uint conv_loop = extProbCfg->C / extSolCfg->c_in_maps_once / 2;
+	
 	for (int grp = 0; grp < SolutionConfig->b_wk0; grp++)
 	{
-		uint local_id0 = 0;
-		uint group_id0 = grp;
-		uint pixBlkId, weiBlkId;
+		uint tid_x = 0;
+		uint gid_x = grp;
+		uint pixBlkId, kOutBlkId, cInBlkId;
+		uint pos_id, batch_id, out_id;
+		uint gbl_in_off, wei_off, gbl_out_off;
 
 		// =====================================================================
-		// old organization
-		//weiBlkId = group_id0 % K_OUT_GROUPS;
-		//pixBlkId = group_id0 / K_OUT_GROUPS;
-
-		// --------------------------------------------------------------------
 		// tensile fix input 
 		//uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
 		//
@@ -714,56 +703,40 @@ void ConvFwd1x1Solution::simulateIndex()
 		//	pixBlkId = leftGrpId / 4 + INBLOCK_LEFT;
 		//	weiBlkId = leftGrpId % 4;
 		//}
-
-		// --------------------------------------------------------------------
-		// tensile fix weight
-		uint col_id = group_id0 / CU_NUM;
-		uint se_id = group_id0 % SE_NUM;				// SE编号
-		uint cu_id = (group_id0 % CU_NUM) / SE_NUM;		// 一个SE内的CU编号
-		uint raw_id = CU_PER_SE * se_id + cu_id;
-
-		int cu_id2 = cu_id / 2 * 2;
-		uint sr_id = grpNumPerSe * se_id;	// 前继SE上所有wave
-		sr_id += grpNumPerCUMin * cu_id2;		// 前继CU上所有wave
-		sr_id += maxGrpCUNum;
-		if (cu_id < maxGrpCUNum)
-			sr_id -= (maxGrpCUNum - cu_id2);
-
-		sr_id = col_id * 2 + cu_id % 2 + sr_id;
-		pixBlkId = sr_id % in_pix_groups;
-		weiBlkId = sr_id / in_pix_groups;
-
 		// =====================================================================
-		// same
-		uint pos = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) % IN_CHANNEL_STRIDE;
-		uint batch_id = (pixBlkId * GROUP_SIZE + local_id0 % GROUP_SIZE) / IN_CHANNEL_STRIDE;
-		uint out_id = weiBlkId * k_blk_size;
+		pixBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group / c_in_group;
+		cInBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group % c_in_group;
+		kOutBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) % k_out_group;
 
-		uint gbl_in_off = batch_id * IN_BATCH_STRIDE + pos;
-		uint wei_off = out_id * WEI_CHANNEL_STRIDE;
-		uint gbl_out_off = batch_id * OUT_BATCH_STRIDE + out_id * OUT_CHANNEL_STRIDE + pos;
+		pos_id   = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE) % in_chan_stride;
+		batch_id = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE) / in_chan_stride;
+		out_id   = kOutBlkId * k_out_maps;
 
-		testId[group_id0] = 0;
-		testGrpId[group_id0] = group_id0;
-		testPixBlkId[group_id0] = pixBlkId;
-		testWeiBlkId[group_id0] = weiBlkId;
-		testPosId[group_id0] = pos;
-		testBatchId[group_id0] = batch_id;
-		testOutId[group_id0] = out_id;
+		gbl_in_off  = (batch_id * in_batch_stride) + (cInBlkId * c_in_maps * in_chan_stride) + pos_id;
+		wei_off = (out_id * wei_chan_stride) + (cInBlkId * c_in_maps);
+		gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
+
+		testId[grp] = gbl_in_off;
+		testPixBlkId[grp] = pixBlkId;
+		testCInBlkId[grp] = cInBlkId;
+		testKOutBlkId[grp] = kOutBlkId;
+		testPosId[grp] = pos_id;
+		testBatchId[grp] = batch_id;
+		testOutId[grp] = out_id;
 	}
 
-	//printIndex(testGrpId, "group id");
-	//printIndex(testId, "test temp id");
-	printIndex(testPixBlkId, "input block id");
-	printIndex(testWeiBlkId, "weight block id");
+	printIndex(testId, "test temp id");
+	//printIndex(testPixBlkId, "pix block id");
+	//printIndex(testCInBlkId, "c_in block id");
+	//printIndex(testKOutBlkId, "k_out block id");
 	//printIndex(testBatchId, "batch id");
 	//printIndex(testOutId, "out id");
 	//printIndex(testPosId, "pos id");
 
-	free(testGrpId);
 	free(testId);
 	free(testPixBlkId);
-	free(testWeiBlkId);
+	free(testCInBlkId);
+	free(testKOutBlkId);
 	free(testPosId);
 	free(testBatchId);
 	free(testOutId);
@@ -774,12 +747,12 @@ void ConvFwd1x1Solution::simulateIndex()
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-#define		SkipHost		(0)
+#define		SkipHost		(1)
 
 /************************************************************************/
 /* 生成问题空间													        */
 /************************************************************************/
-E_ReturnState ConvFwd1x1Problem::RunDemo()
+E_ReturnState ConvFwd1x1Problem::TurnProblem()
 {
 	T_ProblemConfig * probCfg;
 	T_ExtConvFwd1x1ProblemConfig * exProbCfg;
@@ -791,10 +764,10 @@ E_ReturnState ConvFwd1x1Problem::RunDemo()
 	probCfg->extConfig = exProbCfg;
 
 	searchParam = new T_SearchParam("C");
-	searchParam->ValueArray.push_back(64);
-	searchParam->ValueArray.push_back(128);
-	searchParam->ValueArray.push_back(256);
-	searchParam->ValueArray.push_back(512);
+//	searchParam->ValueArray.push_back(64);
+//	searchParam->ValueArray.push_back(128);
+//	searchParam->ValueArray.push_back(256);
+//	searchParam->ValueArray.push_back(512);
 	searchParam->ValueArray.push_back(1024);
 	searchParam->ValueArray.push_back(2048);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
@@ -808,11 +781,11 @@ E_ReturnState ConvFwd1x1Problem::RunDemo()
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 	searchParam = new T_SearchParam("N");
 	searchParam->ValueArray.push_back(1);
-	searchParam->ValueArray.push_back(2);
-	searchParam->ValueArray.push_back(4);
-	searchParam->ValueArray.push_back(8);
-	searchParam->ValueArray.push_back(16);
-	searchParam->ValueArray.push_back(32);
+//	searchParam->ValueArray.push_back(2);
+//	searchParam->ValueArray.push_back(4);
+//	searchParam->ValueArray.push_back(8);
+//	searchParam->ValueArray.push_back(16);
+//	searchParam->ValueArray.push_back(32);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 	searchParam = new T_SearchParam("WH");
 	searchParam->ValueArray.push_back(7);
@@ -824,7 +797,7 @@ E_ReturnState ConvFwd1x1Problem::RunDemo()
 
 	ProblemConfigList->push_back(probCfg);
 
-	RunProblem();
+	RunAllProblem();
 }
 E_ReturnState ConvFwd1x1Problem::TurnProblem(int W, int H, int C, int K, int N)
 {
@@ -838,7 +811,7 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem(int W, int H, int C, int K, int N)
 
 	ProblemConfigList->push_back(probCfg);
 
-	RunProblem();
+	RunAllProblem();
 }
 	
 /************************************************************************/
@@ -1031,7 +1004,7 @@ E_ReturnState ConvFwd1x1Problem::Verify()
 	return E_ReturnState::SUCCESS;
 }
 	 
-/************************************************************************/
+/***********************************************************************/
 /* 释放                                                                 */
 /************************************************************************/
 void ConvFwd1x1Problem::ReleaseHost()
@@ -1060,7 +1033,11 @@ T_SolutionConfig * ConvFwd1x1Problem::NewSolutionConfig(std::string name)
 E_ReturnState ConvFwd1x1Problem::NewTurnParam(T_SolutionConfig * solCfg, E_TurnParam param, std::vector<int> turnVal)
 {
 	T_SearchParam * searchParam;
-	if (param == E_TurnParam::TURN_PARAM_K_OUT_MAPS)
+	if (param == E_TurnParam::TURN_PARAM_C_IN_GROUP)
+	{
+		searchParam = new T_SearchParam("c_in_group");
+	}
+	else if (param == E_TurnParam::TURN_PARAM_K_OUT_MAPS)
 	{
 		searchParam = new T_SearchParam("k_out_maps");
 	}

@@ -10,7 +10,7 @@
 
 #include <sys/stat.h>
 
-namespace krnelWriter
+namespace AutoGen
 {
 	class KernelWriter : public KernelWriterBasic
 	{
@@ -114,7 +114,7 @@ namespace krnelWriter
 		}
 		// 需要根据arg列表自动生成,暂时写成固定的
 		virtual void writeMetadata()
-		{
+		{ 
 			setTable(0);
 			wrLine(".amd_amdgpu_hsa_metadata");
 			wrLine("{ Version: [1, 0],");

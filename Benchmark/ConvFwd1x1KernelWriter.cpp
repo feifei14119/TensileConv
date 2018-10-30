@@ -1,39 +1,7 @@
 
 #include "ConvFwd1x1KernelWriter.h"
 
-using namespace krnelWriter;
-
-#define	FIX_BLK_SIZE (64)	// PIX_BLK_SIZE
-
-KernelWriterConv1x1::KernelWriterConv1x1(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg) :
-	KernelWriter(probCfg, solCfg)
-{
-	extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
-	extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
-
-	c_in_maps_once = extSolCfg->c_in_maps_once;
-	k_out_maps = extSolCfg->k_out_maps;
-	k_out_group = (extProbCfg->K + extSolCfg->k_out_maps - 1) / extSolCfg->k_out_maps;
-	blk_per_group = solutionConfig->l_wk0 / FIX_BLK_SIZE;
-	in_chan_stride = extProbCfg->W * extProbCfg->H;
-	in_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->C;
-	wei_chan_stride = extProbCfg->C;
-	out_chan_stride = extProbCfg->W * extProbCfg->H;
-	out_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->K;
-	conv_loop = extProbCfg->C / c_in_maps_once / 2;
-
-	en_input_offset = extProbCfg->W <= 28;
-	offset_grp_num = c_in_maps_once * 2 / 2;
-	en_wei_addr_offset = true;
-}
-
-void KernelWriterConv1x1::writeProgram()
-{	
-	calcuIndex();
-	main_conv();
-
-	clrVar();
-}
+using namespace AutoGen;
 
 /************************************************************************************/
 /* ¼ÆËãÏÂ±ê																			*/
@@ -86,15 +54,15 @@ void KernelWriterConv1x1::calcuBlkIndex()
 	Var * v_tmp1 = newVgpr("v_tmp1");
 
 	// -------------------------------------------------------------------------------
-	// weiBlkId = (gid * PIX_BLK_PER_GROUP + tid / PIX_BLK_SIZE) % MLO_N_OUT_GROUPS;
-	// pixBlkId = (gid * PIX_BLK_PER_GROUP + tid / PIX_BLK_SIZE) / MLO_N_OUT_GROUPS;
+	// weiBlkId = (gid * FIX_BLK_PER_GROUP + tid / FIX_BLK_SIZE) % MLO_N_OUT_GROUPS;
+	// pixBlkId = (gid * FIX_BLK_PER_GROUP + tid / FIX_BLK_SIZE) / MLO_N_OUT_GROUPS;
 	// -------------------------------------------------------------------------------
-	op3("s_lshl_b32", s_tmp1, s_gid_x, log2(blk_per_group));
-	op3("v_lshrrev_b32", v_tmp1, log2(FIX_BLK_SIZE), v_tid_x);
+	op3("s_lshl_b32", s_tmp1, s_gid_x, log2(blk_per_group));					// s_tmp1 = gid_x * block_per_group
+	op3("v_lshrrev_b32", v_tmp1, log2(FIX_BLK_SIZE), v_tid_x);					// v_tmp1 = tid_x / 
 	//isa->inst2("v_readfirstlane_b32", s[s_block_id], vgpr(v_tmp1), "");
-	op4("v_add_co_u32", v_tmp1, "vcc", v_tmp1, s_tmp1);
-	op3("v_and_b32", v_weiBlkId, modMask(k_out_group), v_tmp1);
-	op3("v_lshrrev_b32", v_pixBlkId, log2(k_out_group), v_tmp1);
+	op4("v_add_co_u32", v_tmp1, "vcc", v_tmp1, s_tmp1);							// v_tmp1 = (gid * FIX_BLK_PER_GROUP + tid / FIX_BLK_SIZE
+	op3("v_and_b32", v_weiBlkId, modMask(k_out_group), v_tmp1);					// v_weiBlkId = weiBlkId (in_grp_block)
+	op3("v_lshrrev_b32", v_pixBlkId, log2(k_out_group), v_tmp1);				// v_pixBlkId = pixBlkId (grp_id0_faked)
 
 	delVar(s_tmp1);
 	delVar(v_tmp1);
@@ -113,8 +81,8 @@ void KernelWriterConv1x1::calcuPosIndex()
 	op3("v_and_b32", v_tmp2, modMask(FIX_BLK_SIZE), v_tid_x);
 	op4("v_add_co_u32", v_tmp1, "vcc", v_tmp2, v_tmp1);
 	op2("v_mov_b32", v_tmp2, in_chan_stride);
-	fv_div_u32(v_tmp1, v_tmp2, v_batchId, v_posId);
-	op3("v_lshlrev_b32", v_outId, log2(k_out_maps), v_weiBlkId);
+	fv_div_u32(v_tmp1, v_tmp2, v_batchId, v_posId);								// v_batchId = batch_id; v_posId = pos
+	op3("v_lshlrev_b32", v_outId, log2(k_out_maps), v_weiBlkId);				// v_outId = out_id
 
 	// -------------------------------------------------------------------------------
 	// if (batch_id >= BATCHSIZE)
@@ -209,7 +177,7 @@ void KernelWriterConv1x1::load_input(Var * in_buff)
 		{
 			flat_load_dword(1, in_buff, v_addr_in, "off");
 			op4("v_add_co_u32", v_addr_in, "vcc", in_chan_stride * 4, v_addr_in);
-			op4("v_addc_co_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+			op5("v_addc_co_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
 		}
 	}
 }
@@ -261,6 +229,35 @@ void KernelWriterConv1x1::save_output()
 		op5("v_addc_co_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 	}
 
+}
+void KernelWriterConv1x1::atomic_add(int n, Var * addr_out, Var * accum)
+{
+	Var * v_src_cmp = newVgpr("v_src_cmp", 2, 2);
+	Var * v_rtn = newVgpr("v_rtn");
+
+	Var * l_atomic_add = newLaber("ATOMIC_ADD_" + d2s(n));
+	Var * s_exec_save = newSgpr("s_exec_save");
+
+
+	// v_prevVal = v_src_cmp + 1
+	// v_newVal = v_src_cmp
+
+	wrLaber(l_atomic_add);
+	flat_load_dword(1, *v_src_cmp + 1, addr_out, "off", 0, true);
+	s_wait_vmcnt(0);
+	op3("v_add_f32", v_src_cmp, *v_src_cmp + 1, accum);
+	op4("global_atomic_cmpswap", v_rtn, *addr_out ^ 2, *v_src_cmp ^ 2, "off", true);
+	s_wait_vmcnt(0);
+	op3("v_cmpx_neq_f32", "vcc", *v_src_cmp + 1, v_rtn);
+	op2("v_mov_b32", *v_src_cmp + 1, v_rtn);
+	op1("s_cbranch_execnz", l_atomic_add);
+	op0("s_barrier");
+	op2("s_mov_b64", "exec", *s_exec_save ^ 2);
+	op4("v_add_co_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
+	op5("v_addc_co_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+
+	delVar(v_src_cmp);
+	delVar(v_rtn);
 }
 
 /************************************************************************************/
@@ -394,6 +391,7 @@ void KernelWriterConv1x1::conv_one_accum(Var * in_buff, Var * wei_buff, Var * ac
 		// debug
 		//op2("v_mov_b32", *in_buff + i, 1.23);
 
-		op4("v_fma_f32", accum, *in_buff + i, *wei_buff + i, accum);
+		//op4("v_fma_f32", accum, *in_buff + i, *wei_buff + i, accum);
+		op3("v_mac_f32", accum, *in_buff + i, *wei_buff + i);
 	}
 }

@@ -4,10 +4,11 @@
 #include <vector>
 #include "BasicClass.h"
 #include "RuntimeControl.h"
+#include "AutoTuning.h"
 
 #include "unistd.h"
 
-using namespace AutoTune;
+//using namespace AutoTune;
 
 /************************************************************************/
 /* solution得分                                                         */
@@ -26,7 +27,7 @@ typedef struct ScoreTypde
 typedef struct SolutionConfigTpye
 {
 	std::string ConfigName;				// 解决方案名称
-	SearchSpace KernelSearchSpace;		// 解决方案参数搜索空间
+	AutoTune::SearchSpace KernelSearchSpace;		// 解决方案参数搜索空间
 	void * extConfig;
 
 	std::string KernelName;			// kernel function name, will used to find source file
@@ -56,7 +57,7 @@ typedef struct SolutionConfigTpye
 typedef struct ProblemConfigType
 {
 	std::string ConfigName;				// 问题配置名称
-	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
+	AutoTune::SearchSpace ProblemParamSpace;		// 问题参数搜索空间
 	void * extConfig;
 
 	double Calculation;					// 计算量
@@ -80,22 +81,17 @@ public:
 	SolutionCtrlBase();
 
 public:
-	void RunSolution(T_ProblemConfig *problem);
-
-	E_ReturnState RunOneSolutionConfig();
-
-	E_ReturnState RunSolutionOnce();
+	void RunAllSolution(T_ProblemConfig *problem);
+	E_ReturnState RunOneSolution();
 
 	virtual E_ReturnState LaunchSolution(bool isWarmup);
-
 	virtual E_ReturnState SetupSolution();
-
 	E_ReturnState GetPerformence();
 
 	void printIndex(int *index, char* name);
 	
 	virtual E_ReturnState InitDev() = 0;
-	//virtual E_ReturnState GenerateSolutionConfigs() = 0;
+	virtual E_ReturnState GenerateSolutionConfigs() = 0;
 	virtual E_ReturnState GenerateSolution() = 0;
 	virtual E_ReturnState GetBackResult() = 0;
 	virtual void ReleaseDev() = 0;
@@ -127,13 +123,9 @@ public:
 	ProblemCtrlBase(std::string name);
 
 public:
-	void RunProblem();
+	void RunAllProblem();
+	E_ReturnState RunOneProblem();
 
-	E_ReturnState RunOneProblemConfig();
-
-	E_ReturnState RunProblemOnce();
-
-	//virtual E_ReturnState GenerateProblemConfigs() = 0;
 	virtual E_ReturnState InitHost() = 0;
 	virtual E_ReturnState Host() = 0;
 	virtual E_ReturnState Verify() = 0;

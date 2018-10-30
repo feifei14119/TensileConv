@@ -52,15 +52,15 @@
     <ClInclude Include="ConvFwd1x1KernelWriter.h">
       <Filter>TensileConv</Filter>
     </ClInclude>
+    <ClInclude Include="AutoTuning.h">
+      <Filter>Includes</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="RuntimeControl.cpp" />
     <ClCompile Include="ProblemControl.cpp" />
     <ClCompile Include="ConvFwd1x1.cpp">
-      <Filter>TensileConv</Filter>
-    </ClCompile>
-    <ClCompile Include="ConvFwd1x1KernelWriter.cpp">
       <Filter>TensileConv</Filter>
     </ClCompile>
   </ItemGroup>

@@ -6,7 +6,7 @@
 
 #include "BasicClass.h"
 
-namespace krnelWriter
+namespace AutoGen
 {
 #define	PARAM_START_COL		(44)
 #define	FLAG_START_COL		(85)
