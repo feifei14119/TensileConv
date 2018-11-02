@@ -14,6 +14,8 @@
 #include <math.h>
 #include <stdarg.h>
 
+#include <map>
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -140,6 +142,8 @@ struct Option
 /************************************************************************/
 /* 硬件信息																*/
 /************************************************************************/
+//#define ISA_GFX800			(1)
+#define	ISA_GFX900			(1)
 #define	SE_NUM				(4)
 #define	CU_PER_SE			(16)
 #define CU_NUM				(CU_PER_SE * SE_NUM)

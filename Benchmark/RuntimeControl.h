@@ -200,15 +200,10 @@ public:
 
 	void GetComplier()
 	{
-#ifdef RUNTIME_OCL
 		//complier = "/opt/rocm/bin/clang-ocl ";
-		//complier = "/opt/rocm/opencl/bin/x86_64/clang ";
+		//complier = "/opt/rocm/bin/hcc ";
 		//complier = "llvm-mc ";
 		complier = "clang ";
-#else
-		complier = "/opt/rocm/opencl/bin/x86_64/clang ";
-#endif;
-		//complier = "/opt/rocm/bin/hcc ";
 	}
 
 	void GetBuildClOptions()
@@ -223,7 +218,12 @@ public:
 		//buildAsmOption = extCompilerOpt + " -target amdgcn--amdhsa -mcpu=gfx900 -I/home/feifei/projects/Benchmark/Kernels/ ";
 		//buildAsmOption = " -x assembler -mcpu=gfx900 ";
 		//buildAsmOption = " clrxasm -b amdcl2 -g GFX900 -A GFX9 -6 -o gfx800_va.o gfx800_va.s";
+#ifdef ISA_GFX900
 		buildAsmOption = extCompilerOpt + " -x assembler -target amdgcn--amdhsa -mcpu=gfx900 -I/home/feifei/projects/Benchmark/Kernels/ ";
+#endif
+#ifdef ISA_GFX800
+		buildAsmOption = extCompilerOpt + " -x assembler -target amdgcn--amdhsa -mcpu=gfx803 -I/home/feifei/projects/Benchmark/Kernels/ ";
+#endif
 	}
 	
 public:

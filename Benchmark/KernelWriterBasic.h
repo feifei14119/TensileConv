@@ -1893,7 +1893,7 @@ namespace AutoGen
 			wrLine(str);
 		}
 		template <typename T1, typename T2, typename T3>
-		void op3(std::string op, T1 dst, T2 src0, T3 src1)
+		void op3(std::string op, T1 dst, T2 src0, T3 src1, bool glc = false)
 		{
 			int tmpIdx;
 			std::string str = "";
@@ -1908,6 +1908,14 @@ namespace AutoGen
 			str.append(getVar(src0));
 			str.append(", ");
 			str.append(getVar(src1));
+
+			tmpIdx = FLAG_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
+			if (glc == true)
+			{
+				str.append("glc");
+			}
 
 			wrLine(str);
 		}
@@ -2375,7 +2383,14 @@ namespace AutoGen
 			op3("v_mul_f32", d, c, d);		// d = a/(float)b
 			op2("v_cvt_u32_f32", c, d);		// c = (int)(a/(float)b)
 			op3("v_mul_u32_u24", d, c, b);	// d = c * b
-			op3("v_sub_u32", d, a, d);		// d = a - c * b
+			if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op3("v_sub_u32", d, a, d);		// d = a - c * b
+			}
+			else if (IsaArch == E_IsaArch::Gfx800)
+			{
+				op4("v_sub_u32", d, "vcc", a, d);		// d = a - c * b
+			}
 		}
 
 #pragma endregion

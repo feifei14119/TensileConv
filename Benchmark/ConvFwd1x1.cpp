@@ -12,6 +12,7 @@ using namespace AutoTune;
 #define		MultSolution	(1)
 #define		EnSimuIndex		(0)
 #define		EnSaveSource	(1)
+#define		EnPrintSource	(0)
 
 /************************************************************************/
 /* 根据problem参数成solution参数空间                                      */
@@ -117,22 +118,6 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 #if MultSolution
 		// ----------------------------------------------------------------------
 		// 生成搜索空间
-		searchParam = new T_SearchParam("k_out_maps");
-		searchParam->ValueArray.push_back(2);
-		searchParam->ValueArray.push_back(4);
-		searchParam->ValueArray.push_back(8);
-		searchParam->ValueArray.push_back(16);
-		//searchParam->ValueArray.push_back(32);
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
-		//--------------------------------
-		searchParam = new T_SearchParam("group_size");
-		searchParam->ValueArray.push_back(64);
-		searchParam->ValueArray.push_back(128);
-		searchParam->ValueArray.push_back(256);
-		searchParam->ValueArray.push_back(512);
-		//searchParam->ValueArray.push_back(1024);
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
-		//--------------------------------
 		searchParam = new T_SearchParam("c_in_group");
 		searchParam->ValueArray.push_back(1);
 		searchParam->ValueArray.push_back(2);
@@ -140,6 +125,22 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 		searchParam->ValueArray.push_back(8);
 		searchParam->ValueArray.push_back(16);
 		searchParam->ValueArray.push_back(32);
+		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+		//--------------------------------
+		searchParam = new T_SearchParam("k_out_maps");
+		searchParam->ValueArray.push_back(2);
+		searchParam->ValueArray.push_back(4);
+		searchParam->ValueArray.push_back(8);
+		searchParam->ValueArray.push_back(16);
+		searchParam->ValueArray.push_back(32);
+		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+		//--------------------------------
+		searchParam = new T_SearchParam("group_size");
+		searchParam->ValueArray.push_back(64);
+		searchParam->ValueArray.push_back(128);
+		searchParam->ValueArray.push_back(256);
+		searchParam->ValueArray.push_back(512);
+//		searchParam->ValueArray.push_back(1024);
 		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 #endif
 		// ----------------------------------------------------------------------
@@ -381,7 +382,7 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 
 		if (extSol->c_in_group == 0)
 		{
-			extSol->c_in_group = 4;
+			extSol->c_in_group = 1;
 		}
 		if (extSol->k_out_maps == 0)
 		{
@@ -389,23 +390,24 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 		}
 		if (extSol->group_size == 0)
 		{
-			extSol->group_size = 64;
+			extSol->group_size = 512;
 		}
 
-		printf("----------------------------------------------------------------------\n");
-		printf("Kernel Param:\n");
-		printf("	c_in_group=[%d]\n", extSol->c_in_group);
-		printf("	k_out_maps=[%d]\n", extSol->k_out_maps);
-		printf("	group_size=[%d]\n", extSol->group_size);
-		printf("----------------------------------------------------------------------\n");
-
-		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
 		extSol->c_in_maps = extProb->C / extSol->c_in_group;
+		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
 
 		extSol->c_in_maps_once = 8;
 		loop = divCeil(extSol->c_in_maps, extSol->c_in_maps_once);
 		extSol->pix_per_group = 64;
 		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
+
+		printf("----------------------------------------------------------------------\n");
+		printf("Kernel Param:\n");
+		printf("	c_in_maps =[%d], c_in_group =[%d]\n", extSol->c_in_maps, extSol->c_in_group);
+		printf("	k_out_maps=[%d], k_out_group=[%d]\n", extSol->k_out_maps, extSol->k_out_group);
+		printf("	group_size=[%d]\n", extSol->group_size);
+		printf("	align=[%d]\n", align);
+		printf("----------------------------------------------------------------------\n");
 	}
 
 	return E_ReturnState::SUCCESS;
@@ -618,7 +620,9 @@ void ConvFwd1x1Solution::autoGenKernel()
 {		
 	KernelWriterConv1x1 * kw = new KernelWriterConv1x1(ProblemConfig,SolutionConfig);
 	kw->GenKernelString();
-//	kw->PrintKernelString();
+#if EnPrintSource
+	kw->PrintKernelString();
+#endif
 #if EnSaveSource
 	kw->SaveKernelString2File();
 #endif
@@ -716,7 +720,7 @@ void ConvFwd1x1Solution::simulateIndex()
 		wei_off = (out_id * wei_chan_stride) + (cInBlkId * c_in_maps);
 		gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
 
-		testId[grp] = gbl_in_off;
+		testId[grp] = wei_off;
 		testPixBlkId[grp] = pixBlkId;
 		testCInBlkId[grp] = cInBlkId;
 		testKOutBlkId[grp] = kOutBlkId;
@@ -725,7 +729,7 @@ void ConvFwd1x1Solution::simulateIndex()
 		testOutId[grp] = out_id;
 	}
 
-	printIndex(testId, "test temp id");
+	//printIndex(testId, "test temp id");
 	//printIndex(testPixBlkId, "pix block id");
 	//printIndex(testCInBlkId, "c_in block id");
 	//printIndex(testKOutBlkId, "k_out block id");
@@ -747,7 +751,7 @@ void ConvFwd1x1Solution::simulateIndex()
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-#define		SkipHost		(1)
+#define		SkipHost		(0)
 
 /************************************************************************/
 /* 生成问题空间													        */
@@ -764,10 +768,10 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 	probCfg->extConfig = exProbCfg;
 
 	searchParam = new T_SearchParam("C");
-//	searchParam->ValueArray.push_back(64);
-//	searchParam->ValueArray.push_back(128);
-//	searchParam->ValueArray.push_back(256);
-//	searchParam->ValueArray.push_back(512);
+	searchParam->ValueArray.push_back(64);
+	searchParam->ValueArray.push_back(128);
+	searchParam->ValueArray.push_back(256);
+	searchParam->ValueArray.push_back(512);
 	searchParam->ValueArray.push_back(1024);
 	searchParam->ValueArray.push_back(2048);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
@@ -789,10 +793,10 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 	searchParam = new T_SearchParam("WH");
 	searchParam->ValueArray.push_back(7);
-	searchParam->ValueArray.push_back(14);
-	searchParam->ValueArray.push_back(28);
-	searchParam->ValueArray.push_back(56);
-	searchParam->ValueArray.push_back(112);
+//	searchParam->ValueArray.push_back(14);
+//	searchParam->ValueArray.push_back(28);
+//	searchParam->ValueArray.push_back(56);
+//	searchParam->ValueArray.push_back(112);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
 	ProblemConfigList->push_back(probCfg);
@@ -863,7 +867,7 @@ E_ReturnState ConvFwd1x1Problem::InitHost()
 	exProbCfg->size_in = exProbCfg->W * exProbCfg->H * exProbCfg->C * exProbCfg->N;
 	exProbCfg->size_wei = exProbCfg->X * exProbCfg->Y * exProbCfg->C * exProbCfg->K;
 	exProbCfg->size_out = exProbCfg->W * exProbCfg->H * exProbCfg->K * exProbCfg->N;
-
+	
 	ProblemConfig->Calculation = 1.0 * exProbCfg->W * exProbCfg->H * exProbCfg->C * exProbCfg->N * exProbCfg->K * exProbCfg->X * exProbCfg->Y; // */stride_R/stride_S
 	//ProblemConfig->TheoryElapsedTime = ProblemConfig->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
 	ProblemConfig->TheoryElapsedTime = ProblemConfig->Calculation / (64*64*1.5*1000*1000*1000);
@@ -887,24 +891,24 @@ E_ReturnState ConvFwd1x1Problem::InitHost()
 	{
 		exProbCfg->h_in[i] = 1;
 		//exProbCfg->h_in[i] = (float)(i % 7) + 1.0f;
-		//exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
+		exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
 		//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < exProbCfg->size_wei; i++)
 	{
 		exProbCfg->h_wei[i] = 1;
-		//exProbCfg->h_wei[i] = (float)(i % 13) + 1.0f;
-		//exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
+		//exProbCfg->h_wei[i] = (float)(i % 3);
+		exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
 		//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < exProbCfg->size_out; i++)
 	{
-		exProbCfg->h_out[i] = 0;
+		exProbCfg->h_out[i] = 555.555;
 	}
 
 	//printTensor("input", h_in, exProbCfg->W, exProbCfg->H, exProbCfg->C, exProbCfg->N);
 	//printTensor("weight", h_wei, exProbCfg->X, exProbCfg->Y, exProbCfg->C, exProbCfg->K);
-		
+	
 	return E_ReturnState::SUCCESS;
 }
 

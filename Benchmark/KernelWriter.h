@@ -16,7 +16,12 @@ namespace AutoGen
 	{
 	public:
 		KernelWriter(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg)
+#ifdef ISA_GFX800
+			: KernelWriterBasic(E_IsaArch::Gfx800)
+#endif
+#ifdef ISA_GFX900
 			: KernelWriterBasic(E_IsaArch::Gfx900)
+#endif
 		{
 			problemConfig = probCfg;
 			solutionConfig = solCfg;
@@ -95,7 +100,14 @@ namespace AutoGen
 		{
 			setTable(0);
 			wrLine(".hsa_code_object_version 2, 1");
-			wrLine(".hsa_code_object_isa 9, 0, 0, \"AMD\", \"AMDGPU\"");
+			if (IsaArch == E_IsaArch::Gfx900)
+			{
+				wrLine(".hsa_code_object_isa 9, 0, 0, \"AMD\", \"AMDGPU\"");
+			}
+			else if (IsaArch == E_IsaArch::Gfx800)
+			{
+				wrLine(".hsa_code_object_isa 8, 0, 3, \"AMD\", \"AMDGPU\"");
+			}
 			wrLine("");
 			wrLine(".text");
 			wrLine(".globl " + kernelName);
@@ -165,8 +177,8 @@ namespace AutoGen
 			wrLine("enable_vgpr_workitem_id = 2");
 			wrLine("is_ptr64 = 1");
 			wrLine("float_mode = 240");
-			wrLine("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax - 1) / 4));
-			wrLine("granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
+			wrLine("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax) / 8 - 1));
+			wrLine("granulated_workitem_vgpr_count = " + d2s((vgprCountMax) / 4 - 1));
 			wrLine("user_sgpr_count = 6");
 			wrLine("wavefront_sgpr_count = " + d2s(sgprCountMax));
 			wrLine("workitem_vgpr_count = " + d2s(vgprCountMax));

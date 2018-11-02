@@ -190,7 +190,7 @@ namespace AutoGen
 				conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + (i * 2 + 2));
 			}
 
-			// 调整weight地址
+			// 调整input buff地址
 			if (is_pang_buff == true)
 			{
 				op3("s_add_u32", s_addr_wei, s_addr_wei, c_in_maps_once * 2 * 4);
@@ -235,9 +235,11 @@ namespace AutoGen
 			for (int i = 0; i < c_in_maps_once; i++)
 			{
 				// debug
-				//op2("v_mov_b32", *in_buff + i, 1.23);
+				//op2("v_mov_b32", *in_buff + i, 1.0001);
+				//op2("s_mov_b32", *wei_buff + i, 1.0001);
 
 				op3("v_mac_f32", accum, *in_buff + i, *wei_buff + i);
+//				op4("v_fma_f32", accum, *in_buff + i, *wei_buff + i, accum);
 			}
 		}
 
@@ -307,7 +309,7 @@ namespace AutoGen
 			op3("s_lshl_b32", s_tmp1, s_gid_x, log2(wave_per_group));					// s_tmp1 = gid_x * block_per_group
 			op3("v_lshrrev_b32", v_tmp1, log2(WAVE_SIZE), v_tid_x);						// v_tmp1 = tid_x / 
 			//isa->inst2("v_readfirstlane_b32", s[s_block_id], vgpr(v_tmp1), "");
-			op4("v_add_co_u32", v_tmp1, "vcc", v_tmp1, s_tmp1);							// v_tmp1 = (gid * FIX_BLK_PER_GROUP + tid / FIX_BLK_SIZE)
+			op4("v_add_u32", v_tmp1, "vcc", v_tmp1, s_tmp1);							// v_tmp1 = (gid * FIX_BLK_PER_GROUP + tid / FIX_BLK_SIZE)
 			op3("v_lshrrev_b32", v_tmp2, log2(k_out_group), v_tmp1);					// v_tmp2 = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group
 			op3("v_lshrrev_b32", v_pixBlkId, log2(c_in_group), v_tmp2);					// v_pixBlkId = pixBlkId
 			op3("v_and_b32", v_cInBlkId, modMask(c_in_group), v_tmp2);					// v_cInBlkId = cInBlkId
@@ -329,7 +331,7 @@ namespace AutoGen
 			// -------------------------------------------------------------------------------
 			op3("v_lshlrev_b32", v_tmp1, log2(WAVE_SIZE), v_pixBlkId);
 			op3("v_and_b32", v_tmp2, modMask(WAVE_SIZE), v_tid_x);
-			op4("v_add_co_u32", v_tmp1, "vcc", v_tmp2, v_tmp1);							// v_tmp1 = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE)
+			op4("v_add_u32", v_tmp1, "vcc", v_tmp2, v_tmp1);							// v_tmp1 = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE)
 			op2("v_mov_b32", v_tmp2, in_chan_stride);
 			fv_div_u32(v_tmp1, v_tmp2, v_batchId, v_posId);								// v_batchId = batch_id; v_posId = pos
 			op3("v_lshlrev_b32", v_outId, log2(k_out_maps), v_kOutBlkId);				// v_outId = out_id
@@ -359,7 +361,10 @@ namespace AutoGen
 			op3("v_lshlrev_b32", v_tmp2, log2(c_in_maps), v_cInBlkId);
 			op2("v_mov_b32", v_tmp3, in_chan_stride);
 			op3("v_mul_u32_u24", v_tmp2, v_tmp2, v_tmp3);							// v_tmp2 = (cInBlkId * c_in_maps * in_chan_stride)
-			op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_posId);						// v_tmp3 = gbl_in_off
+			//op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_posId);						// v_tmp3 = gbl_in_off
+			op4("v_add_u32", v_tmp3, "vcc", v_tmp1, v_tmp2);
+			op1("s_nop", 1);
+			op5("v_addc_u32", v_tmp3, "vcc", v_tmp3, v_posId, "vcc");
 			op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);								// v_tmp3 = gbl_in_off (BYTE)
 
 			if (en_input_offset == true)
@@ -368,15 +373,15 @@ namespace AutoGen
 				op2("v_mov_b32", v_tmp1, in_chan_stride * 2 * 4);
 				for (int i = 0; i < offset_grp_num; i++)
 				{
-					op4("v_add_co_u32", *v_global_offset + 2 * (i + 1), "vcc", *v_global_offset + 2 * i, v_tmp1);
+					op4("v_add_u32", *v_global_offset + 2 * (i + 1), "vcc", *v_global_offset + 2 * i, v_tmp1);
 				}
 			}
 			else
 			{
 				s_wait_lgkmcnt(0);
+				op4("v_add_u32", v_addr_in, "vcc", s_ptr_in, v_tmp3);
 				op2("v_mov_b32", *v_addr_in + 1, *s_ptr_in + 1);
-				op4("v_add_co_u32", v_addr_in, "vcc", s_ptr_in, v_tmp3);
-				op5("v_addc_co_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+				op5("v_addc_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
 			}
 
 			// -------------------------------------------------------------------------------
@@ -385,9 +390,10 @@ namespace AutoGen
 			op2("v_mov_b32", v_tmp1, wei_chan_stride);
 			op3("v_mul_u32_u24", v_tmp1, v_outId, v_tmp1);							// v_tmp1 = (out_id * wei_chan_stride)
 			op3("v_lshlrev_b32", v_tmp2, log2(c_in_maps), v_cInBlkId);				// v_tmp2 = (cInBlkId * c_in_maps)
-			op3("v_add_u32", v_tmp1, v_tmp1, v_tmp2);
+			//op3("v_add_u32", v_tmp1, v_tmp1, v_tmp2);
+			op4("v_add_u32", v_tmp1, "vcc", v_tmp1, v_tmp2);
 			op2("v_readfirstlane_b32", s_tmp1, v_tmp1);								// s_tmp1 = wei_off
-			op1("s_nop", 5);			
+			op1("s_nop", 4);
 			op3("s_lshl_b32", s_tmp1, s_tmp1, 2);									// s_tmp1 = wei_off (BYTE)
 			s_wait_lgkmcnt(0);
 			op3("s_add_u32", s_addr_wei, s_ptr_wei, s_tmp1);
@@ -400,17 +406,20 @@ namespace AutoGen
 			op3("v_mul_u32_u24", v_tmp1, v_batchId, v_tmp1);						// v_tmp1 = (batch_id * out_batch_stride)
 			op2("v_mov_b32", v_tmp2, out_chan_stride);
 			op3("v_mul_u32_u24", v_tmp2, v_outId, v_tmp2);							// v_tmp2 = (out_id * out_chan_stride)
-			op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_posId);						// v_tmp3 = gbl_out_off
+			//op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_posId);						// v_tmp3 = gbl_out_off
+			op4("v_add_u32", v_tmp3, "vcc", v_tmp1, v_tmp2);
+			op1("s_nop", 1);
+			op5("v_addc_u32", v_tmp3, "vcc", v_tmp3, v_posId, "vcc");
 			op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);								// v_tmp3 = gbl_out_off (BYTE)
+			op4("v_add_u32", v_addr_out, "vcc", s_ptr_out, v_tmp3);
 			op2("v_mov_b32", *v_addr_out + 1, *s_ptr_out + 1);
-			op4("v_add_co_u32", v_addr_out, "vcc", s_ptr_out, v_tmp3);
-			op5("v_addc_co_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+			op5("v_addc_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 
 			delVar(s_tmp1);
 			delVar(v_tmp1);
 			delVar(v_tmp2);
 			delVar(v_tmp3);
-		}
+		} 
 
 		/************************************************************************************/
 		/* 数据读取与存储																		*/
@@ -425,15 +434,20 @@ namespace AutoGen
 					flat_load_dword(1, *(*in_buff + 2 * i) + 1, *v_global_offset + 2 * i, s_ptr_in, in_chan_stride * 4);
 				}
 				op3("s_add_u32", s_ptr_in, s_ptr_in, in_chan_stride * c_in_maps_once * 4);
+				op1("s_nop", 1);
 				op3("s_addc_u32", *s_ptr_in + 1, 0, *s_ptr_in + 1);
+				op1("s_nop", 5);
 			}
 			else
 			{
 				for (int i = 0; i < c_in_maps_once; i++)
 				{
-					flat_load_dword(1, in_buff, v_addr_in, "off");
-					op4("v_add_co_u32", v_addr_in, "vcc", in_chan_stride * 4, v_addr_in);
-					op5("v_addc_co_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+					flat_load_dword(1, *in_buff + i, v_addr_in, "off");
+					op4("v_add_u32", v_addr_in, "vcc", in_chan_stride * 4, v_addr_in);
+					op1("s_nop", 1);
+					op5("v_addc_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+					s_wait_lgkmcnt(0);
+					s_wait_vmcnt(0);
 				}
 			}
 		}
@@ -484,7 +498,7 @@ namespace AutoGen
 				Var * l_end_init = newLaber("END_INIT");
 
 				op2("v_readfirstlane_b32", s_cInBlkId, v_cInBlkId);
-				op1("s_nop", 5);
+				op1("s_nop", 4);
 				op2("s_cmpk_eq_i32", s_cInBlkId, 0);
 				op1("s_cbranch_scc0", l_end_init);
 				op2("v_mov_b32", v_addr_save, v_addr_out);
@@ -493,11 +507,12 @@ namespace AutoGen
 				for (int i = 0; i < k_out_maps; i++)
 				{
 					flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
-					op4("v_add_co_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
+					op4("v_add_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
 					op1("s_nop", 1);
-					op5("v_addc_co_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+					op5("v_addc_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 				}
 				op2("v_mov_b32", v_addr_out, v_addr_save);
+				op1("s_nop", 1);
 				op2("v_mov_b32", *v_addr_out + 1, *v_addr_save + 1);
 
 				wrLaber(l_end_init);
@@ -518,7 +533,7 @@ namespace AutoGen
 
 				for (int i = 0; i < k_out_maps; i++)
 				{
-					save_with_atomic(i, v_addr_out, *v_acc_buff + i);
+					save_with_atomic(i, v_addr_out, v_acc_buff);
 				}
 				delVar(s_exec_save);
 			}
@@ -528,13 +543,14 @@ namespace AutoGen
 			for (int i = 0; i < k_out_maps; i++)
 			{
 				// debug
-				//op2("v_mov_b32", *v_acc_buff + i, 1.234);
+				//op2("v_mov_b32", *v_acc_buff + i, 1.23);
+				//op2("v_mov_b32", *v_acc_buff + i, v_in_buff_a);
 
 				flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
-				op4("v_add_co_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
-				op5("v_addc_co_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+				op4("v_add_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
+				op1("s_nop", 1);
+				op5("v_addc_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 			}
-
 		}
 		void save_with_atomic(int n, Var * addr_out, Var * accum)
 		{
@@ -542,17 +558,22 @@ namespace AutoGen
 			// v_prevVal = v_src_cmp + 1
 			Var * v_src_cmp = newVgpr("v_src_cmp", 2, 2);
 			Var * v_rtn = newVgpr("v_rtn");
+
 			Var * l_atomic_add = newLaber("ATOMIC_ADD_" + d2s(n));
+			wrLaber(l_atomic_add);
 
 			// debug
-			//op2("v_mov_b32", accum, 1.0001);
+			//op2("v_mov_b32", accum, 1.1);
 
 			flat_load_dword(1, *v_src_cmp + 1, addr_out, "off", 0, true);
 			s_wait_vmcnt(0);
-			wrLaber(l_atomic_add);
-
 			op3("v_add_f32", v_src_cmp, *v_src_cmp + 1, accum);
-			op4("global_atomic_cmpswap", v_rtn, *addr_out ^ 2, *v_src_cmp ^ 2, "off", true);
+
+			// debug
+			//op2("v_mov_b32", v_src_cmp, 1.23);
+
+//			op4("global_atomic_cmpswap", v_rtn, *addr_out ^ 2, *v_src_cmp ^ 2, "off", true);
+			op3("flat_atomic_cmpswap", v_rtn, *addr_out ^ 2, *v_src_cmp ^ 2, true);
 			s_wait_vmcnt(0);
 			op3("v_cmpx_neq_f32", "vcc", *v_src_cmp + 1, v_rtn);
 			op2("v_mov_b32", *v_src_cmp + 1, v_rtn);
@@ -561,9 +582,9 @@ namespace AutoGen
 			op0("s_barrier");
 			op2("s_mov_b64", "exec", *s_exec_save ^ 2);
 			op1("s_nop", 5);
-			op4("v_add_co_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
+			op4("v_add_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
 			op1("s_nop", 1);
-			op5("v_addc_co_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+			op5("v_addc_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 
 			delVar(v_src_cmp);
 			delVar(v_rtn);
