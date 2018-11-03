@@ -386,11 +386,11 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 		}
 		if (extSol->k_out_maps == 0)
 		{
-			extSol->k_out_maps = 16;
+			extSol->k_out_maps = 8;
 		}
 		if (extSol->group_size == 0)
 		{
-			extSol->group_size = 512;
+			extSol->group_size = 64;
 		}
 
 		extSol->c_in_maps = extProb->C / extSol->c_in_group;
@@ -399,7 +399,7 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 		extSol->c_in_maps_once = 8;
 		loop = divCeil(extSol->c_in_maps, extSol->c_in_maps_once);
 		extSol->pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
+		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->group_size) * extSol->group_size;
 
 		printf("----------------------------------------------------------------------\n");
 		printf("Kernel Param:\n");
@@ -558,9 +558,9 @@ E_ReturnState ConvFwd1x1Solution::generateWorkLoad()
 		//SolutionConfig->g_wk0 = 64*64;
 	}
 
-	SolutionConfig->b_wk0 = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
-	SolutionConfig->b_wk1 = SolutionConfig->g_wk1 / SolutionConfig->l_wk1;
-	SolutionConfig->b_wk2 = SolutionConfig->g_wk2 / SolutionConfig->l_wk2;
+	SolutionConfig->b_wk0 = (SolutionConfig->g_wk0 + SolutionConfig->l_wk0 - 1) / SolutionConfig->l_wk0;
+	SolutionConfig->b_wk1 = (SolutionConfig->g_wk1 + SolutionConfig->l_wk1 - 1) / SolutionConfig->l_wk1;
+	SolutionConfig->b_wk2 = (SolutionConfig->g_wk2 + SolutionConfig->l_wk2 - 1) / SolutionConfig->l_wk2;
 
 	if (SolutionConfig->b_wk0 == 0)
 		return E_ReturnState::FAIL;
@@ -687,39 +687,32 @@ void ConvFwd1x1Solution::simulateIndex()
 	
 	for (int grp = 0; grp < SolutionConfig->b_wk0; grp++)
 	{
-		uint tid_x = 0;
+		uint tid_x = 5*64+40;
 		uint gid_x = grp;
-		uint pixBlkId, kOutBlkId, cInBlkId;
-		uint pos_id, batch_id, out_id;
-		uint gbl_in_off, wei_off, gbl_out_off;
+		int waveId = -1, tidInWave = -1;
+		int pixBlkId = -1, kOutBlkId = -1, cInBlkId = -1;
+		int pos_id = -1, batch_id = -1, out_id = -1;
+		int gbl_in_off = -1, wei_off = -1, gbl_out_off = -1;
 
-		// =====================================================================
-		// tensile fix input 
-		//uint z_round = group_id0 / (CU_NUM * k_out_groups);	// 第几轮Z格子
-		//
-		//pixBlkId = z_round * CU_NUM + group_id0 % CU_NUM;		// 即 grp_id0_faked
-		//weiBlkId = group_id0 / CU_NUM % k_out_groups;		// 即 out_grp_block
-		//
-		//if (group_id0 >= CHUNK_LEFT)
-		//{
-		//	uint leftGrpId = 0;
-		//	leftGrpId = group_id0 - CHUNK_LEFT;
-		//	pixBlkId = leftGrpId / 4 + INBLOCK_LEFT;
-		//	weiBlkId = leftGrpId % 4;
-		//}
-		// =====================================================================
-		pixBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group / c_in_group;
-		cInBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group % c_in_group;
-		kOutBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) % k_out_group;
+		waveId = gid_x * wave_per_group + tid_x / WAVE_SIZE;
+		tidInWave = tid_x % WAVE_SIZE;
 
-		pos_id   = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE) % in_chan_stride;
-		batch_id = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE) / in_chan_stride;
+		cInBlkId = waveId / k_out_group % c_in_group;
+		pixBlkId = waveId / k_out_group / c_in_group;
+		kOutBlkId = waveId % k_out_group;
+
+		pos_id   = (pixBlkId * WAVE_SIZE + tidInWave) % in_chan_stride;
+		batch_id = (pixBlkId * WAVE_SIZE + tidInWave) / in_chan_stride;
 		out_id   = kOutBlkId * k_out_maps;
+
+		if (batch_id >= extProbCfg->N)
+			goto STORE_IDX;
 
 		gbl_in_off  = (batch_id * in_batch_stride) + (cInBlkId * c_in_maps * in_chan_stride) + pos_id;
 		wei_off = (out_id * wei_chan_stride) + (cInBlkId * c_in_maps);
 		gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
 
+	STORE_IDX:
 		testId[grp] = wei_off;
 		testPixBlkId[grp] = pixBlkId;
 		testCInBlkId[grp] = cInBlkId;
@@ -733,7 +726,7 @@ void ConvFwd1x1Solution::simulateIndex()
 	//printIndex(testPixBlkId, "pix block id");
 	//printIndex(testCInBlkId, "c_in block id");
 	//printIndex(testKOutBlkId, "k_out block id");
-	//printIndex(testBatchId, "batch id");
+	printIndex(testBatchId, "batch id");
 	//printIndex(testOutId, "out id");
 	//printIndex(testPosId, "pos id");
 

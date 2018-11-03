@@ -2381,7 +2381,7 @@ namespace AutoGen
 			op2("v_cvt_f32_u32", d, b);		// d = (float)b
 			op2("v_rcp_f32", d, d);			// d = 1/(float)b
 			op3("v_mul_f32", d, c, d);		// d = a/(float)b
-			op2("v_cvt_u32_f32", c, d);		// c = (int)(a/(float)b)
+			op2("v_cvt_flr_i32_f32", c, d);		// c = (int)(a/(float)b)
 			op3("v_mul_u32_u24", d, c, b);	// d = c * b
 			if (IsaArch == E_IsaArch::Gfx900)
 			{

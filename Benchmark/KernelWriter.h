@@ -177,8 +177,8 @@ namespace AutoGen
 			wrLine("enable_vgpr_workitem_id = 2");
 			wrLine("is_ptr64 = 1");
 			wrLine("float_mode = 240");
-			wrLine("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax) / 8 - 1));
-			wrLine("granulated_workitem_vgpr_count = " + d2s((vgprCountMax) / 4 - 1));
+			wrLine("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax + 8  - 1) / 8 - 1));
+			wrLine("granulated_workitem_vgpr_count = " + d2s((vgprCountMax + 4 - 1) / 4 - 1));
 			wrLine("user_sgpr_count = 6");
 			wrLine("wavefront_sgpr_count = " + d2s(sgprCountMax));
 			wrLine("workitem_vgpr_count = " + d2s(vgprCountMax));

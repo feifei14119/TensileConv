@@ -20,17 +20,22 @@ namespace AutoGen
 			out_chan_stride = extProbCfg->W * extProbCfg->H;
 			out_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->K;
 
-			c_in_maps_once = extSolCfg->c_in_maps_once;
 			c_in_maps = extSolCfg->c_in_maps;
 			c_in_group = extSolCfg->c_in_group;
 			k_out_maps = extSolCfg->k_out_maps;
 			k_out_group = extSolCfg->k_out_group;
 
+			c_in_maps_once = extSolCfg->c_in_maps_once;
+			if (c_in_maps_once <= c_in_maps / unroll_time)
+				c_in_maps_once_real = c_in_maps_once;
+			else
+				c_in_maps_once_real = c_in_maps / unroll_time;
+			conv_loop = c_in_maps / c_in_maps_once_real / 2;
+			
 			wave_per_group = solutionConfig->l_wk0 / WAVE_SIZE;
-			conv_loop = c_in_maps / c_in_maps_once / 2;
 
 			en_input_offset = ((extProbCfg->W <= 28) && (IsaArch == E_IsaArch::Gfx900));
-			offset_grp_num = c_in_maps_once * 2 / 2;
+			offset_grp_num = c_in_maps_once_real * 2 / 2;
 			en_wei_addr_offset = true;
 		}
 
@@ -45,6 +50,9 @@ namespace AutoGen
 		}E_PingPang;
 
 		int c_in_maps_once;
+		int unroll_time = 2;
+		int c_in_maps_once_real;
+
 		int c_in_maps;
 		int c_in_group;
 		int k_out_maps;
@@ -68,6 +76,9 @@ namespace AutoGen
 		Var * s_ptr_wei;
 		Var * s_ptr_out;
 
+
+		Var * v_waveId;
+		Var * v_tidInWave;
 		Var * v_pixBlkId;		// grp_id0_faked
 		Var * v_cInBlkId;		// in_grp_block
 		Var * v_kOutBlkId;		// out_grp_block
@@ -104,10 +115,10 @@ namespace AutoGen
 			// -------------------------------------------------------------------------------
 			// 数据存储区域声明:
 			// -------------------------------------------------------------------------------
-			v_in_buff_a = newVgpr("v_in_a", c_in_maps_once);
-			v_in_buff_b = newVgpr("v_in_b", c_in_maps_once);
-			s_wei_buff_a = newSgpr("s_wei_a", c_in_maps_once, 8);
-			s_wei_buff_b = newSgpr("s_wei_b", c_in_maps_once, 8);
+			v_in_buff_a = newVgpr("v_in_a", c_in_maps_once_real);
+			v_in_buff_b = newVgpr("v_in_b", c_in_maps_once_real);
+			s_wei_buff_a = newSgpr("s_wei_a", c_in_maps_once_real, c_in_maps_once_real);
+			s_wei_buff_b = newSgpr("s_wei_b", c_in_maps_once_real, c_in_maps_once_real);
 			v_acc_buff = newVgpr("v_accum", k_out_maps);
 			s_prefetch = newSgpr("s_prefetch", k_out_maps);
 
@@ -145,7 +156,7 @@ namespace AutoGen
 			}
 			else
 			{
-				wei_offset -= (c_in_maps_once - wei_chan_stride * k_out_maps) * 4;
+				wei_offset -= (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
 				conv_last_loop(v_in_buff_a);
 			}
 
@@ -166,7 +177,7 @@ namespace AutoGen
 			// 调整weight buff偏移量
 			if (is_pang_buff == true)
 			{
-				wei_offset += (c_in_maps_once - wei_chan_stride * k_out_maps) * 4;
+				wei_offset += (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
 			}
 			else
 			{
@@ -176,7 +187,7 @@ namespace AutoGen
 			load_weight(s_wei_buff_a);
 			s_wait_lgkmcnt(0);				// wait s_wei_buff_a
 			load_weight(s_wei_buff_b);
-			s_wait_vmcnt(8);				// wait in_buff
+			s_wait_vmcnt(c_in_maps_once_real);				// wait in_buff
 			conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + 0);
 
 			int loop = k_out_maps / 2 - 1;
@@ -193,7 +204,7 @@ namespace AutoGen
 			// 调整weight地址
 			if (is_pang_buff == true)
 			{
-				op3("s_add_u32", s_addr_wei, s_addr_wei, c_in_maps_once * 2 * 4);
+				op3("s_add_u32", s_addr_wei, s_addr_wei, c_in_maps_once_real * 2 * 4);
 				op3("s_addc_u32", *s_addr_wei + 1, *s_addr_wei + 1, 0);
 			}
 
@@ -208,7 +219,7 @@ namespace AutoGen
 		void conv_last_loop(Var * in_buff)
 		{
 			// 调整weight buff偏移量
-			wei_offset += (c_in_maps_once - wei_chan_stride * k_out_maps) * 4;
+			wei_offset += (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
 
 			load_weight(s_wei_buff_a);
 			s_wait_lgkmcnt(0);				// wait s_wei_buff_a
@@ -232,10 +243,11 @@ namespace AutoGen
 		}
 		void conv_one_accum(Var * in_buff, Var * wei_buff, Var * accum)
 		{
-			for (int i = 0; i < c_in_maps_once; i++)
+			for (int i = 0; i < c_in_maps_once_real; i++)
 			{
 				// debug
-				//op2("v_mov_b32", *in_buff + i, 1.23);
+				//op2("v_mov_b32", *in_buff + i, 1.000001);
+				//op2("s_mov_b32", *wei_buff + i, 1.000001);
 
 				op3("v_mac_f32", accum, *in_buff + i, *wei_buff + i);
 			}
@@ -250,6 +262,8 @@ namespace AutoGen
 			s_ptr_wei = newSgpr("s_ptr_wei", 2, 2);
 			s_ptr_out = newSgpr("s_ptr_out", 2, 2);
 
+			v_waveId = newVgpr("v_waveId");
+			v_tidInWave = newVgpr("v_tidInWave");
 			v_pixBlkId = newVgpr("v_pixBlkId");
 			v_cInBlkId = newVgpr("v_cInBlkId");
 			v_kOutBlkId = newVgpr("v_kOutBlkId");
@@ -263,7 +277,7 @@ namespace AutoGen
 
 			if (en_input_offset == true)
 			{
-				v_global_offset = newVgpr("v_global_offset", c_in_maps_once * 2 / 2, 2);
+				v_global_offset = newVgpr("v_global_offset", c_in_maps_once_real * 2 / 2, 2);
 			}
 
 			// -------------------------------------------------------------------------------
@@ -283,6 +297,8 @@ namespace AutoGen
 			delVar(s_ptr_wei);
 			delVar(s_ptr_out);
 
+			delVar(v_waveId);
+			delVar(v_tidInWave);
 			delVar(v_pixBlkId);
 			if (c_in_group == 1)
 			{
@@ -300,18 +316,23 @@ namespace AutoGen
 			Var * v_tmp2 = newVgpr("v_tmp2");
 
 			// -------------------------------------------------------------------------------
-			// pixBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group / c_in_group;
-			// cInBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group % c_in_group;
-			// kOutBlkId = (gid_x * wave_per_group + tid_x / WAVE_SIZE) % k_out_group;
+			// waveId = (gid_x * wave_per_group) + (tid_x / WAVE_SIZE);
+			// tidInWave = tid_x % WAVE_SIZE;
 			// -------------------------------------------------------------------------------
 			op3("s_lshl_b32", s_tmp1, s_gid_x, log2(wave_per_group));					// s_tmp1 = gid_x * block_per_group
-			op3("v_lshrrev_b32", v_tmp1, log2(WAVE_SIZE), v_tid_x);						// v_tmp1 = tid_x / 
-			//isa->inst2("v_readfirstlane_b32", s[s_block_id], vgpr(v_tmp1), "");
-			op4("v_add_co_u32", v_tmp1, "vcc", v_tmp1, s_tmp1);							// v_tmp1 = (gid * FIX_BLK_PER_GROUP + tid / FIX_BLK_SIZE)
-			op3("v_lshrrev_b32", v_tmp2, log2(k_out_group), v_tmp1);					// v_tmp2 = (gid_x * wave_per_group + tid_x / WAVE_SIZE) / k_out_group
+			op3("v_lshrrev_b32", v_tmp1, log2(WAVE_SIZE), v_tid_x);						// v_tmp1 = tid_x / WAVE_SIZE
+			op3("v_add_u32", v_waveId, v_tmp1, s_tmp1);									// v_waveId = waveId
+			op3("v_and_b32", v_tidInWave, modMask(WAVE_SIZE), v_tid_x);					// v_tidInWave = tidInWave
+
+			// -------------------------------------------------------------------------------
+			// pixBlkId = waveId / k_out_group / c_in_group;
+			// cInBlkId = waveId / k_out_group % c_in_group;
+			// kOutBlkId = waveId % k_out_group;
+			// -------------------------------------------------------------------------------
+			op3("v_lshrrev_b32", v_tmp2, log2(k_out_group), v_waveId);					// v_tmp2 = waveId / k_out_group
 			op3("v_lshrrev_b32", v_pixBlkId, log2(c_in_group), v_tmp2);					// v_pixBlkId = pixBlkId
 			op3("v_and_b32", v_cInBlkId, modMask(c_in_group), v_tmp2);					// v_cInBlkId = cInBlkId
-			op3("v_and_b32", v_kOutBlkId, modMask(k_out_group), v_tmp1);				// v_kOutBlkId = kOutBlkId
+			op3("v_and_b32", v_kOutBlkId, modMask(k_out_group), v_waveId);				// v_kOutBlkId = kOutBlkId
 
 			delVar(s_tmp1);
 			delVar(v_tmp1);
@@ -323,23 +344,22 @@ namespace AutoGen
 			Var * v_tmp2 = newVgpr("v_tmp2");
 
 			// -------------------------------------------------------------------------------
-			// pos_id   = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE) % in_chan_stride;
-			// batch_id = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE) / in_chan_stride;
+			// pos_id   = (pixBlkId * WAVE_SIZE + tidInWave) % in_chan_stride;
+			// batch_id = (pixBlkId * WAVE_SIZE + tidInWave) / in_chan_stride;
 			// out_id   = kOutBlkId * k_out_maps;
 			// -------------------------------------------------------------------------------
 			op3("v_lshlrev_b32", v_tmp1, log2(WAVE_SIZE), v_pixBlkId);
-			op3("v_and_b32", v_tmp2, modMask(WAVE_SIZE), v_tid_x);
-			op4("v_add_co_u32", v_tmp1, "vcc", v_tmp2, v_tmp1);							// v_tmp1 = (pixBlkId * WAVE_SIZE + tid_x % WAVE_SIZE)
+			op3("v_add_u32", v_tmp1, v_tidInWave, v_tmp1);								// v_tmp1 = (pixBlkId * WAVE_SIZE + tidInWave)
 			op2("v_mov_b32", v_tmp2, in_chan_stride);
 			fv_div_u32(v_tmp1, v_tmp2, v_batchId, v_posId);								// v_batchId = batch_id; v_posId = pos
 			op3("v_lshlrev_b32", v_outId, log2(k_out_maps), v_kOutBlkId);				// v_outId = out_id
 
 			// -------------------------------------------------------------------------------
-			// if (batch_id >= BATCHSIZE)
+			// if (batch_id >= extProbCfg->N)
 			//		return;
 			// -------------------------------------------------------------------------------
 			op2("v_mov_b32", v_tmp1, extProbCfg->N);
-			op3("v_cmpx_lt_u32", "exec", v_batchId, v_tmp1);
+			op3("v_cmpx_lt_u32", "exec", v_batchId, v_tmp1); 
 
 			delVar(v_tmp1);
 			delVar(v_tmp2);
@@ -419,27 +439,41 @@ namespace AutoGen
 		{
 			if (en_input_offset == true)
 			{
-				for (int i = 0; i < c_in_maps_once / 2; i++)
+				if (c_in_maps_once_real >= 2)
 				{
-					flat_load_dword(1, *(*in_buff + 2 * i) + 0, *v_global_offset + 2 * i, s_ptr_in);
-					flat_load_dword(1, *(*in_buff + 2 * i) + 1, *v_global_offset + 2 * i, s_ptr_in, in_chan_stride * 4);
+					for (int i = 0; i < c_in_maps_once_real / 2; i++)
+					{
+						flat_load_dword(1, *(*in_buff + 2 * i) + 0, *v_global_offset + 2 * i, s_ptr_in);
+						flat_load_dword(1, *(*in_buff + 2 * i) + 1, *v_global_offset + 2 * i, s_ptr_in, in_chan_stride * 4);
+					}
 				}
-				op3("s_add_u32", s_ptr_in, s_ptr_in, in_chan_stride * c_in_maps_once * 4);
+				else
+				{
+					flat_load_dword(1, in_buff, v_global_offset, s_ptr_in);
+				}
+				op3("s_add_u32", s_ptr_in, s_ptr_in, in_chan_stride * c_in_maps_once_real * 4);
 				op3("s_addc_u32", *s_ptr_in + 1, 0, *s_ptr_in + 1);
 			}
 			else
 			{
-				for (int i = 0; i < c_in_maps_once; i++)
+				if (c_in_maps_once_real >= 2)
+				{
+					for (int i = 0; i < c_in_maps_once_real; i++)
+					{
+						flat_load_dword(1, in_buff, v_addr_in, "off");
+						op4("v_add_co_u32", v_addr_in, "vcc", in_chan_stride * 4, v_addr_in);
+						op5("v_addc_co_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+					}
+				}
+				else
 				{
 					flat_load_dword(1, in_buff, v_addr_in, "off");
-					op4("v_add_co_u32", v_addr_in, "vcc", in_chan_stride * 4, v_addr_in);
-					op5("v_addc_co_u32", *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
 				}
 			}
 		}
 		void load_weight(Var * wei_buff)
 		{
-			s_load_dword(8, wei_buff, s_addr_wei, wei_offset);
+			s_load_dword(c_in_maps_once_real, wei_buff, s_addr_wei, wei_offset);
 			wei_offset += wei_chan_stride * 4;
 		}
 		void prefetch_weight()
@@ -486,7 +520,7 @@ namespace AutoGen
 				op2("v_readfirstlane_b32", s_cInBlkId, v_cInBlkId);
 				op1("s_nop", 5);
 				op2("s_cmpk_eq_i32", s_cInBlkId, 0);
-				op1("s_cbranch_scc0", l_end_init);
+				op1("s_cbranch_scc0", l_end_init);   
 				op2("v_mov_b32", v_addr_save, v_addr_out);
 				op2("v_mov_b32", *v_addr_save + 1, *v_addr_out + 1);
 
@@ -528,13 +562,13 @@ namespace AutoGen
 			for (int i = 0; i < k_out_maps; i++)
 			{
 				// debug
-				//op2("v_mov_b32", *v_acc_buff + i, 1.234);
+				//op2("v_mov_b32", *v_acc_buff + i, 1.23);
+				//op2("v_cvt_f32_u32", *v_acc_buff + i, *v_acc_buff + i);
 
 				flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
 				op4("v_add_co_u32", v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
 				op5("v_addc_co_u32", *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 			}
-
 		}
 		void save_with_atomic(int n, Var * addr_out, Var * accum)
 		{
@@ -568,6 +602,5 @@ namespace AutoGen
 			delVar(v_src_cmp);
 			delVar(v_rtn);
 		}
-
 	};
 }

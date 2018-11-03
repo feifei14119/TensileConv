@@ -191,7 +191,7 @@ E_ReturnState SolutionCtrlBase::GetPerformence()
 
 void SolutionCtrlBase::printIndex(int *index, char* name)
 {
-	int groupNum = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
+	int groupNum = (SolutionConfig->g_wk0 + SolutionConfig->l_wk0 - 1) / SolutionConfig->l_wk0;
 	int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
 	int grpNumPerCUMin = groupNum / CU_NUM;
 	int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
