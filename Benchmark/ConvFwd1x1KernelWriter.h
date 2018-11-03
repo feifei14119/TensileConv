@@ -75,8 +75,7 @@ namespace AutoGen
 		Var * s_ptr_in;
 		Var * s_ptr_wei;
 		Var * s_ptr_out;
-
-
+		 
 		Var * v_waveId;
 		Var * v_tidInWave;
 		Var * v_pixBlkId;		// grp_id0_faked
