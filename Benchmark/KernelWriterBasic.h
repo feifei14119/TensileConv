@@ -24,7 +24,7 @@ namespace AutoGen
 		Gfx800 = 800,
 		Gfx900 = 900
 	}E_IsaArch;
-	
+
 	typedef enum VarTypeEnum
 	{
 		VAR_SGPR = 1,
@@ -120,7 +120,7 @@ namespace AutoGen
 		OP_SWAP = 12,
 		OP_CMPSWAP = 13,
 	}E_OpType;
-	
+
 	class KernelWriterBasic
 	{
 	public:
@@ -136,6 +136,19 @@ namespace AutoGen
 
 			idleVar = new Var;
 			idleVar->type = E_VarType::VAR_IDLE;
+
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				v_add_u32 = "v_add_u32";
+				v_addc_u32 = "v_add_u32";
+				v_addc_co_u32 = "v_addc_u32";
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				v_add_u32 = "v_add_u32";
+				v_addc_u32 = "v_add_co_u32";
+				v_addc_co_u32 = "v_addc_co_u32";
+			}
 		}
 		std::string * GetKernelString()
 		{
@@ -502,6 +515,10 @@ namespace AutoGen
 
 #pragma region ISA_REGION
 		E_IsaArch IsaArch = E_IsaArch::Gfx900;
+		std::string v_add_u32;
+		std::string v_addc_u32;
+		std::string v_addc_co_u32;
+
 		/************************************************************************************/
 		/* SMEM																				*/
 		/************************************************************************************/
@@ -838,11 +855,11 @@ namespace AutoGen
 		/************************************************************************************/
 		template <typename T>
 		E_ReturnState buffer_load_dword(
-			int num, Var * v_dst, 
-			T v_offset_idx, 
-			Var * s_desc, 
+			int num, Var * v_dst,
+			T v_offset_idx,
+			Var * s_desc,
 			Var * s_base_offset,
-			bool idx_en, bool off_en, 
+			bool idx_en, bool off_en,
 			uint i_offset)
 		{
 			int tmpIdx;
@@ -951,7 +968,7 @@ namespace AutoGen
 				wrLine(str);
 				return E_ReturnState::FAIL;
 			}
-			
+
 			return E_ReturnState::SUCCESS;
 		}
 
@@ -1114,7 +1131,7 @@ namespace AutoGen
 				wrLine(str);
 				return E_ReturnState::FAIL;
 			}
-			if ((v_offset_addr->vgpr.len != 2)&&(is64AddrMode == true))
+			if ((v_offset_addr->vgpr.len != 2) && (is64AddrMode == true))
 			{
 				str.append("base addr reg not 64-bit for 64-bit addr mode");
 				wrLine(str);
@@ -1324,7 +1341,7 @@ namespace AutoGen
 		}
 
 		template <typename T>
-		E_ReturnState flat_atomic_op(E_OpType op, Var* v_dst, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0,bool glc = false)
+		E_ReturnState flat_atomic_op(E_OpType op, Var* v_dst, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0, bool glc = false)
 		{
 			if (IsaArch >= E_IsaArch::Gfx900)
 			{
@@ -1336,7 +1353,7 @@ namespace AutoGen
 			}
 		}
 		template <typename T>
-		E_ReturnState flat_atomic_op_gfx900(E_OpType op, Var* v_dst, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0,bool glc = false)
+		E_ReturnState flat_atomic_op_gfx900(E_OpType op, Var* v_dst, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0, bool glc = false)
 		{
 			int tmpIdx;
 			std::string str = "";
@@ -1419,7 +1436,7 @@ namespace AutoGen
 
 			// s_address(32-bit) / "off"(64-bit)
 			str.append(getVar(s_addr));
-			
+
 			// imm_offset
 			tmpIdx = FLAG_START_COL - str.length();
 			for (int i = 0; i < tmpIdx; i++)
@@ -1661,14 +1678,14 @@ namespace AutoGen
 				str.append("invalid op");
 				return E_ReturnState::FAIL;
 			}
-			
+
 			str.append("x2");
 			tmpIdx = PARAM_START_COL - str.length();
 			for (int i = 0; i < tmpIdx; i++)
 				str.append(" ");
 
 			// return data
-			str.append(getVar(v_dst, 2));			
+			str.append(getVar(v_dst, 2));
 			str.append(", ");
 			// v_offset(32-bit) / v_address(64-bit)
 			bool is64AddrMode = false;
@@ -1741,7 +1758,7 @@ namespace AutoGen
 
 			return E_ReturnState::SUCCESS;
 		}
-		
+
 		/************************************************************************************/
 		/* DS																				*/
 		/************************************************************************************/
@@ -1756,7 +1773,7 @@ namespace AutoGen
 			std::string str = "";
 			str.append("ds_read_b");
 
-			str.append(d2s(num*32));
+			str.append(d2s(num * 32));
 			tmpIdx = PARAM_START_COL - str.length();
 			for (int i = 0; i < tmpIdx; i++)
 				str.append(" ");
@@ -1822,7 +1839,7 @@ namespace AutoGen
 			}
 
 			wrLine(str);
-			
+
 			// error check
 			if (v_addr->type != E_VarType::VAR_VGPR)
 			{
@@ -2174,7 +2191,7 @@ namespace AutoGen
 
 			return E_ReturnState::SUCCESS;
 		}
-		template<typename T1,typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
+		template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
 		E_ReturnState f_read_hw_reg_hw_id(
 			T1 s_wave_id,
 			T2 s_simd_id,
@@ -2285,7 +2302,7 @@ namespace AutoGen
 		}
 
 		template<typename T>
-		Var * f_s_loop(Var * s_cnt,T loopCnt, std::string loopName)
+		Var * f_s_loop(Var * s_cnt, T loopCnt, std::string loopName)
 		{
 			Var * t_lab = newLaber(loopName);
 			op2("s_mov_b32", s_cnt, loopCnt);
@@ -2314,7 +2331,7 @@ namespace AutoGen
 		{
 			if (addr->type == E_VarType::VAR_VGPR)
 			{
-				if (getVarType(offset) == E_VarType::VAR_IMM)					
+				if (getVarType(offset) == E_VarType::VAR_IMM)
 				{
 					int imm_offset = getVarVal(offset);
 					if ((imm_offset >= -16) && (imm_offset <= 64))
@@ -2330,7 +2347,7 @@ namespace AutoGen
 						op5("v_addc_co_u32", *addr + 1, "vcc", 0, *addr + 1, "vcc");
 						delVar(t_offset);
 					}
-				}				
+				}
 				else
 				{
 					op4("v_add_co_u32", addr, "vcc", addr, offset);
