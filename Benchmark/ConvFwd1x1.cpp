@@ -778,18 +778,18 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 	searchParam = new T_SearchParam("N");
 	searchParam->ValueArray.push_back(1);
-//	searchParam->ValueArray.push_back(2);
-//	searchParam->ValueArray.push_back(4);
-//	searchParam->ValueArray.push_back(8);
-//	searchParam->ValueArray.push_back(16);
-//	searchParam->ValueArray.push_back(32);
+	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(16);
+	searchParam->ValueArray.push_back(32);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 	searchParam = new T_SearchParam("WH");
 	searchParam->ValueArray.push_back(7);
-//	searchParam->ValueArray.push_back(14);
-//	searchParam->ValueArray.push_back(28);
-//	searchParam->ValueArray.push_back(56);
-//	searchParam->ValueArray.push_back(112);
+	searchParam->ValueArray.push_back(14);
+	searchParam->ValueArray.push_back(28);
+	searchParam->ValueArray.push_back(56);
+	searchParam->ValueArray.push_back(112);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
 	ProblemConfigList->push_back(probCfg);

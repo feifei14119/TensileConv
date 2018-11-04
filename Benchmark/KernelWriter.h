@@ -152,7 +152,7 @@ namespace AutoGen
 		/************************************************************************/
 		void initialDefaultGprs()
 		{
-			s_privateSeg = newSgpr("s_privateSeg", 4);
+			//s_privateSeg = newSgpr("s_privateSeg", 4);
 			s_kernelArg = newSgpr("s_kernelArg", 2);
 			s_gid_x = newSgpr("s_gid_x");
 			s_gid_y = newSgpr("s_gid_y");
@@ -169,20 +169,23 @@ namespace AutoGen
 			setTable(1);
 			wrLine(".amd_kernel_code_t");
 			indent();
-			wrLine("enable_sgpr_private_segment_buffer = 1");
+			//wrLine("enable_sgpr_private_segment_buffer = 1");
 			wrLine("enable_sgpr_kernarg_segment_ptr = 1");
 			wrLine("enable_sgpr_workgroup_id_x = 1");
 			wrLine("enable_sgpr_workgroup_id_y = 1");
 			wrLine("enable_sgpr_workgroup_id_z = 1");
 			wrLine("enable_vgpr_workitem_id = 2");
 			wrLine("is_ptr64 = 1");
-			wrLine("float_mode = 240");
-			wrLine("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax + 8 - 1) / 8 - 1));	// 使用(sgpr/16 - 1)会挂掉,不懂为啥???
-			wrLine("granulated_workitem_vgpr_count = " + d2s((vgprCountMax + 4 - 1) / 4 - 1));
-			wrLine("user_sgpr_count = 6");
-			wrLine("wavefront_sgpr_count = " + d2s(sgprCountMax));
+			//wrLine("float_mode = 240");
+			wrLine("float_mode = 192");
+			wrLine("granulated_wavefront_sgpr_count = " + d2s((sgprCountMax + 6 - 1) / 8));	// 使用(sgpr/16 - 1)会挂掉,不懂为啥???
+			wrLine("granulated_workitem_vgpr_count = " + d2s((vgprCountMax - 1) / 4));
+			//wrLine("user_sgpr_count = 6");	// private * 4 + kernel_arg * 2
+			wrLine("user_sgpr_count = 2");
+			wrLine("wavefront_sgpr_count = " + d2s(sgprCountMax + 6));
 			wrLine("workitem_vgpr_count = " + d2s(vgprCountMax));
-			wrLine("kernarg_segment_byte_size = 56");
+			//wrLine("kernarg_segment_byte_size = 56");
+			wrLine("kernarg_segment_byte_size = 64");
 			wrLine("workgroup_group_segment_byte_size = " + d2s(ldsByteCount));
 			backSpace();
 			wrLine(".end_amd_kernel_code_t");
