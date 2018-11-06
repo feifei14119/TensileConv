@@ -95,7 +95,8 @@ E_ReturnState SolutionCtrlBase::LaunchSolution(bool isWarmup)
 			}
 			else
 			{
-				DevCheckFunc(clSetKernelArg(runtime->kernel, i, (*args).size, (void*)((*args).ptr)));
+				//DevCheckFunc(clSetKernelArg(runtime->kernel, i, (*args).size, (void*)((*args).ptr)));
+				DevCheckFunc(clSetKernelArg(runtime->kernel, i, (*args).size, (*args).ptr));
 			}
 		}
 		else

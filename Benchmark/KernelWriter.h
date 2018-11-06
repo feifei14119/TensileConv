@@ -135,12 +135,13 @@ namespace AutoGen
 			wrLine("        SymbolName: " + kernelName + ",");
 			wrLine("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],");
 			wrLine("        Attrs: { ReqdWorkGroupSize: [ " + d2s(groupSize0) + ", " + d2s(groupSize1) + ", " + d2s(groupSize2) + " ] }");
-			wrLine("        CodeProps: { KernargSegmentSize: 32, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 512 }");
+			wrLine("        CodeProps: { KernargSegmentSize: 36, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : 512 }");
 			wrLine("        Args:");
 			wrLine("        - { Name: d_in  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 			wrLine("        - { Name: d_wei , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 			wrLine("        - { Name: d_bias , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 			wrLine("        - { Name: d_out , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
+			wrLine("        - { Name: d_nSlop , Size: 4, Align: 4, ValueKind: ByValue, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 			wrLine("      }");
 			wrLine("}");
 			wrLine(".end_amd_amdgpu_hsa_metadata");
@@ -184,7 +185,7 @@ namespace AutoGen
 			wrLine("user_sgpr_count = 2");
 			wrLine("wavefront_sgpr_count = " + d2s(sgprCountMax + 6));
 			wrLine("workitem_vgpr_count = " + d2s(vgprCountMax));
-			wrLine("kernarg_segment_byte_size = 32");
+			wrLine("kernarg_segment_byte_size = 36");
 			wrLine("workgroup_group_segment_byte_size = " + d2s(ldsByteCount));
 			backSpace();
 			wrLine(".end_amd_kernel_code_t");

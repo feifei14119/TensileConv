@@ -168,13 +168,16 @@ E_ReturnState ConvFwd1x1Solution::InitDev()
 	d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;
 	d_bias.size = sizeof(cl_mem);	d_bias.isVal = false;
 	d_out.size = sizeof(cl_mem);	d_out.isVal = false;
+	d_negSlop.size = sizeof(float);	d_negSlop.isVal = true;
+	negSlop = extProb->negSlop;	d_negSlop.ptr = &negSlop;
 
 	SolutionConfig->KernelArgus = new std::list<T_KernelArgu>;
 	SolutionConfig->KernelArgus->push_back(d_in);
 	SolutionConfig->KernelArgus->push_back(d_wei);
 	SolutionConfig->KernelArgus->push_back(d_bias);
 	SolutionConfig->KernelArgus->push_back(d_out);
-		
+	SolutionConfig->KernelArgus->push_back(d_negSlop);
+	
 	Copy2Dev((cl_mem)(d_in.ptr), extProb->h_in, extProb->size_in * sizeof(float));
 	Copy2Dev((cl_mem)(d_wei.ptr), extProb->h_wei, extProb->size_wei * sizeof(float));
 	Copy2Dev((cl_mem)(d_bias.ptr), extProb->h_bias, extProb->size_bias * sizeof(float));
@@ -387,7 +390,7 @@ E_ReturnState ConvFwd1x1Solution::generateParameters()
 
 		if (extSol->c_in_group == 0)
 		{
-			extSol->c_in_group = 1;
+			extSol->c_in_group = 2;
 		}
 		if (extSol->k_out_maps == 0)
 		{
@@ -801,7 +804,7 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 
 	RunAllProblem();
 }
-E_ReturnState ConvFwd1x1Problem::TurnProblem(int W, int H, int C, int K, int N, bool isBias)
+E_ReturnState ConvFwd1x1Problem::TurnProblem(int W, int H, int C, int K, int N, bool isBias, bool isRelu)
 {
 	T_ProblemConfig * probCfg = new T_ProblemConfig("convolution 1x1");
 	T_ExtConvFwd1x1ProblemConfig * exProbCfg = new T_ExtConvFwd1x1ProblemConfig();
@@ -810,6 +813,7 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem(int W, int H, int C, int K, int N, 
 	exProbCfg->C = C;		exProbCfg->K = K;
 	exProbCfg->N = N;
 	exProbCfg->enBias = isBias;
+	exProbCfg->enRelu = isRelu;
 	probCfg->extConfig = exProbCfg;
 
 	ProblemConfigList->push_back(probCfg);
@@ -888,24 +892,25 @@ E_ReturnState ConvFwd1x1Problem::InitHost()
 	printf("init tensor weight = %d = %.3f KByte.\n", exProbCfg->size_wei / sizeof(float), exProbCfg->size_wei / 1024.0);
 	printf("init tensor output = %d = %.3f MByte.\n", exProbCfg->size_out / sizeof(float), exProbCfg->size_out / 1024 / 1024.0);
 
+	exProbCfg->negSlop = 0.5;
 	for (int i = 0; i < exProbCfg->size_in; i++)
 	{
 		exProbCfg->h_in[i] = 1;
 		//exProbCfg->h_in[i] = (float)(i % 7) + 1.0f;
-		exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
+		//exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
 		//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < exProbCfg->size_wei; i++)
 	{
 		exProbCfg->h_wei[i] = 1;
 		//exProbCfg->h_wei[i] = (float)(i % 3);
-		exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
+		//exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
 		//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < exProbCfg->size_bias; i++)
 	{
 		exProbCfg->h_bias[i] = 1;
-		exProbCfg->h_bias[i] = (float)(rand() % 100 - 50);
+		//exProbCfg->h_bias[i] = (float)(rand() % 100 - 50);
 	}
 	for (int i = 0; i < exProbCfg->size_out; i++)
 	{
@@ -978,7 +983,14 @@ E_ReturnState ConvFwd1x1Problem::Host()
 							}
 						}
 					}
-					exProbCfg->out_ref[o * stride_n_out + w * stride_k_out + i * exProbCfg->OutW + j] = acc;
+					if (exProbCfg->enRelu == true)
+					{
+						exProbCfg->out_ref[o * stride_n_out + w * stride_k_out + i * exProbCfg->OutW + j] = acc * exProbCfg->negSlop;
+					}
+					else
+					{
+						exProbCfg->out_ref[o * stride_n_out + w * stride_k_out + i * exProbCfg->OutW + j] = acc;
+					}
 				}
 			}
 		}

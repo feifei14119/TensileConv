@@ -77,6 +77,7 @@ namespace AutoGen
 		Var * s_ptr_wei;
 		Var * s_ptr_bias;
 		Var * s_ptr_out;
+		Var * s_slop;
 
 		Var * v_waveId;
 		Var * v_tidInWave;
@@ -182,6 +183,10 @@ namespace AutoGen
 				//delVar(s_addr_bias);
 				delVar(v_addr_bias);
 			}
+			if (extProbCfg->enRelu == true)
+			{
+				delVar(s_slop);
+			}
 			delVar(v_addr_out);
 
 			delVar(v_in_buff_a);
@@ -284,6 +289,10 @@ namespace AutoGen
 				s_ptr_bias = newSgpr("s_ptr_bias", 2, 2);
 			}
 			s_ptr_out = newSgpr("s_ptr_out", 2, 2);
+			if (extProbCfg->enRelu == true)
+			{
+				s_slop = newSgpr("s_slop");
+			}
 
 			// -------------------------------------------------------------------------------
 			v_waveId = newVgpr("v_waveId");
@@ -320,6 +329,10 @@ namespace AutoGen
 				s_load_dword(2, s_ptr_bias, s_kernelArg, 0x10);
 			}
 			s_load_dword(2, s_ptr_out, s_kernelArg, 0x18);
+			if (extProbCfg->enRelu == true)
+			{
+				s_load_dword(1, s_slop, s_kernelArg, 0x20);
+			}
 
 			// -------------------------------------------------------------------------------
 			calcuBlkIndex();
@@ -632,7 +645,10 @@ namespace AutoGen
 				// debug
 				//op2("v_mov_b32", *v_acc_buff + i, v_in_buff_b);
 				//op2("v_cvt_f32_u32", *v_acc_buff + i, *v_acc_buff + i);
-
+				if (extProbCfg->enRelu)
+				{					
+					op3("v_mul_f32", *v_acc_buff + i, *v_acc_buff + i, s_slop);
+				}
 				flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
 				op4(v_addc_u32, v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
 				op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
@@ -653,7 +669,14 @@ namespace AutoGen
 			s_wait_vmcnt(0);
 			wrLaber(l_atomic_add);
 
-			op3("v_add_f32", v_src_cmp, *v_src_cmp + 1, accum);
+			if (extProbCfg->enRelu)
+			{
+				op4("v_fma_f32", v_src_cmp, accum, s_slop, *v_src_cmp + 1);
+			}
+			else
+			{
+				op3("v_add_f32", v_src_cmp, *v_src_cmp + 1, accum);
+			}
 			op4("global_atomic_cmpswap", v_rtn, *addr_out ^ 2, *v_src_cmp ^ 2, "off", true);
 			s_wait_vmcnt(0);
 			op3("v_cmpx_neq_f32", "vcc", *v_src_cmp + 1, v_rtn);
