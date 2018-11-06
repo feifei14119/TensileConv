@@ -582,13 +582,16 @@ namespace AutoGen
 		{
 			for (int i = 0; i < k_out_maps; i++)
 				op2("v_mov_b32", *v_acc_buff + i, 0);
-			
-			if (extProbCfg->enBias == true)
+
+			if (c_in_group == 1)
 			{
-				//s_load_dword(k_out_maps, s_wei_buff_a, s_addr_bias, "off");
-				for (int i = 0; i < k_out_maps; i++)
+				if (extProbCfg->enBias == true)
 				{
-					flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off", i * 4);
+					//s_load_dword(k_out_maps, s_wei_buff_a, s_addr_bias, "off");
+					for (int i = 0; i < k_out_maps; i++)
+					{
+						flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off", i * 4);
+					}
 				}
 			}
 
@@ -603,21 +606,43 @@ namespace AutoGen
 				op2("s_cmpk_eq_i32", s_cInBlkId, 0);
 				op1("s_cbranch_scc0", l_end_init);
 				op2("v_mov_b32", v_addr_save, v_addr_out);
-				op2("v_mov_b32", *v_addr_save + 1, *v_addr_out + 1);
+				op2("v_mov_b32", *v_addr_save + 1, *v_addr_out + 1); 
+				
+				Var * v_init = newVgpr("v_init");
+				op2("v_mov_b32", v_init, 0);
 
 				for (int i = 0; i < k_out_maps; i++)
 				{
-					flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
+					if (extProbCfg->enBias == true)
+					{
+						flat_store_dword(1, v_addr_out, v_init, "off");
+					}
+					else
+					{
+						flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
+					}
 					op4(v_addc_u32, v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
 					op1("s_nop", 1);
 					op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 				}
+
+				if (extProbCfg->enBias == true)
+				{
+					for (int i = 0; i < k_out_maps; i++)
+					{
+						flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off");
+						op4(v_addc_u32, v_addr_bias, "vcc", 4, v_addr_bias);
+						op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
+					}
+				}
+
 				op2("v_mov_b32", v_addr_out, v_addr_save);
 				op2("v_mov_b32", *v_addr_out + 1, *v_addr_save + 1);
 
 				wrLaber(l_end_init);
 				delVar(s_cInBlkId);
-				delVar(v_addr_save);
+				delVar(v_addr_save); 
+				delVar(v_init);			// you yinhuan !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			}
 		}
 		void save_result()

@@ -9,7 +9,7 @@ using namespace AutoTune;
 /************************************************************************/
 /* solution¿ØÖÆ                                                          */
 /************************************************************************/
-#define		MultSolution	(0)
+#define		MultSolution	(1)
 #define		EnSimuIndex		(0)
 #define		EnSaveSource	(1)
 #define		EnPrintSource	(0)
