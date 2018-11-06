@@ -35,9 +35,10 @@ typedef struct ExtConvFwd1x1ProblemConfigType
 	int R, S;			// padding 
 	int U, V;			// stride
 	int OutW, OutH;		// output size
+	bool enBias;
 
-	float* h_in, *h_wei, *h_out;
+	float* h_in, *h_wei, *h_bias, *h_out;
 	float *out_ref, *h_dbg;
-	int size_in, size_wei, size_out;
+	int size_in, size_wei, size_bias, size_out;
 	int size_dbg;
 }T_ExtConvFwd1x1ProblemConfig;

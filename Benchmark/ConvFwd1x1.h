@@ -10,7 +10,7 @@
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:
-	T_KernelArgu d_in, d_wei, d_out;
+	T_KernelArgu d_in, d_wei, d_bias, d_out;
 
 	// -------------------------------------------------------------------
 	size_t align;
@@ -287,7 +287,7 @@ public:
 	/* 运行问题														        */
 	/************************************************************************/
 	E_ReturnState TurnProblem();
-	E_ReturnState TurnProblem(int W, int H, int C, int K, int N);
+	E_ReturnState TurnProblem(int W, int H, int C, int K, int N, bool isBias = false);
 	
 	/************************************************************************/
 	/* 参数初始化                                                            */

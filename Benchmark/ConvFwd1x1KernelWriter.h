@@ -66,6 +66,7 @@ namespace AutoGen
 		int out_batch_stride;	// OUT_BATCH_STRIDE
 		int conv_loop;			// LOOP
 
+		bool en_bias = false;
 		bool en_input_offset;
 		bool en_wei_addr_offset;
 		int offset_grp_num;
@@ -74,6 +75,7 @@ namespace AutoGen
 
 		Var * s_ptr_in;
 		Var * s_ptr_wei;
+		Var * s_ptr_bias;
 		Var * s_ptr_out;
 
 		Var * v_waveId;
@@ -87,6 +89,8 @@ namespace AutoGen
 
 		Var * v_addr_in;
 		Var * s_addr_wei;
+		Var * s_addr_bias;
+		Var * v_addr_bias;
 		Var * v_addr_out;
 
 		Var * v_in_buff_a;
@@ -118,7 +122,7 @@ namespace AutoGen
 			v_in_buff_b = newVgpr("v_in_b", c_in_maps_once_real);
 			s_wei_buff_a = newSgpr("s_wei_a", c_in_maps_once_real, c_in_maps_once_real);
 			s_wei_buff_b = newSgpr("s_wei_b", c_in_maps_once_real, c_in_maps_once_real);
-			v_acc_buff = newVgpr("v_accum", k_out_maps);
+			v_acc_buff = newVgpr("v_accum", k_out_maps, k_out_maps);
 			s_prefetch = newSgpr("s_prefetch", k_out_maps + 1);
 
 			// -------------------------------------------------------------------------------
@@ -129,8 +133,8 @@ namespace AutoGen
 
 			// Ñ­»·Ìî³ä
 			wei_offset = 0;
-			prefetch_weight();
 			load_input(v_in_buff_a);
+			prefetch_weight();
 
 			// Ñ­»·Ìå
 			if (conv_loop > 1)
@@ -173,6 +177,11 @@ namespace AutoGen
 				delVar(v_addr_in);
 			}
 			delVar(s_addr_wei);
+			if (extProbCfg->enBias == true)
+			{
+				//delVar(s_addr_bias);
+				delVar(v_addr_bias);
+			}
 			delVar(v_addr_out);
 
 			delVar(v_in_buff_a);
@@ -270,8 +279,13 @@ namespace AutoGen
 		{
 			s_ptr_in = newSgpr("s_ptr_in", 2, 2);
 			s_ptr_wei = newSgpr("s_ptr_wei", 2, 2);
+			if (extProbCfg->enBias == true)
+			{
+				s_ptr_bias = newSgpr("s_ptr_bias", 2, 2);
+			}
 			s_ptr_out = newSgpr("s_ptr_out", 2, 2);
 
+			// -------------------------------------------------------------------------------
 			v_waveId = newVgpr("v_waveId");
 			v_tidInWave = newVgpr("v_tidInWave");
 			v_pixBlkId = newVgpr("v_pixBlkId");
@@ -281,6 +295,7 @@ namespace AutoGen
 			v_batchId = newVgpr("v_batchId");
 			v_outId = newVgpr("v_outId");
 
+			// -------------------------------------------------------------------------------
 			if (en_input_offset == true)
 			{
 				v_global_offset = newVgpr("v_global_offset", c_in_maps_once_real * 2 / 2, 2);
@@ -290,16 +305,27 @@ namespace AutoGen
 				v_addr_in = newVgpr("v_addr_in", 2, 2);
 			}
 			s_addr_wei = newSgpr("s_addr_wei", 2, 2);
+			if (extProbCfg->enBias == true)
+			{
+				//s_addr_bias = newSgpr("s_addr_bias", 2, 2);
+				v_addr_bias = newVgpr("v_addr_bias", 2, 2);
+			}
 			v_addr_out = newVgpr("v_addr_out", 2, 2);
 
 			// -------------------------------------------------------------------------------
 			s_load_dword(2, s_ptr_in, s_kernelArg, 0x00);
 			s_load_dword(2, s_ptr_wei, s_kernelArg, 0x08);
-			s_load_dword(2, s_ptr_out, s_kernelArg, 0x10);
+			if (extProbCfg->enBias == true)
+			{
+				s_load_dword(2, s_ptr_bias, s_kernelArg, 0x10);
+			}
+			s_load_dword(2, s_ptr_out, s_kernelArg, 0x18);
 
+			// -------------------------------------------------------------------------------
 			calcuBlkIndex();
 			calcuPosIndex();
 			calcuOffset();
+
 			// -------------------------------------------------------------------------------
 
 			if (en_input_offset == false)
@@ -307,6 +333,10 @@ namespace AutoGen
 				delVar(s_ptr_in);
 			}
 			delVar(s_ptr_wei);
+			if (extProbCfg->enBias == true)
+			{
+				delVar(s_ptr_bias);
+			}
 			delVar(s_ptr_out);
 
 			delVar(v_waveId);
@@ -427,6 +457,19 @@ namespace AutoGen
 			op3("s_addc_u32", *s_addr_wei + 1, 0, *s_ptr_wei + 1);
 
 			// -------------------------------------------------------------------------------
+			// bias_off = out_id
+			// -------------------------------------------------------------------------------
+			if (extProbCfg->enBias == true)
+			{
+				//op3("s_add_u32", s_addr_bias, s_ptr_bias, s_tmp1);
+				//op3("s_addc_u32", *s_addr_bias + 1, 0, *s_ptr_bias + 1);
+				op3("v_lshlrev_b32", v_tmp1, 2, v_outId);
+				op2("v_mov_b32", *v_addr_bias + 1, *s_ptr_bias + 1);
+				op4(v_addc_u32, v_addr_bias, "vcc", s_ptr_bias, v_tmp1);
+				op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
+			}			
+
+			// -------------------------------------------------------------------------------
 			// gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
 			// -------------------------------------------------------------------------------
 			op2("v_mov_b32", v_tmp1, out_batch_stride);
@@ -526,6 +569,15 @@ namespace AutoGen
 		{
 			for (int i = 0; i < k_out_maps; i++)
 				op2("v_mov_b32", *v_acc_buff + i, 0);
+			
+			if (extProbCfg->enBias == true)
+			{
+				//s_load_dword(k_out_maps, s_wei_buff_a, s_addr_bias, "off");
+				for (int i = 0; i < k_out_maps; i++)
+				{
+					flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off", i * 4);
+				}
+			}
 
 			if (c_in_group > 1)
 			{
