@@ -1762,11 +1762,12 @@ namespace AutoGen
 		/************************************************************************************/
 		/* DS																				*/
 		/************************************************************************************/
-		E_ReturnState ds_read_dword(int num, Var* v_dst, Var* v_addr, int i_offset = 0, bool setM0 = false)
+		E_ReturnState ds_read_dword(int num, Var* v_dst, Var* v_addr, int i_offset = 0, bool gds = false, bool setM0 = false)
 		{
 			if (setM0 == true)
 			{
 				op2("s_mov_b32", "m0", -1);
+				op1("s_nop", 3);
 			}
 
 			int tmpIdx;
@@ -1782,13 +1783,18 @@ namespace AutoGen
 			str.append(", ");
 			str.append(getVar(v_addr));
 
+			tmpIdx = FLAG_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
 			if (i_offset != 0)
 			{
-				tmpIdx = FLAG_START_COL - str.length();
-				for (int i = 0; i < tmpIdx; i++)
-					str.append(" ");
 				str.append("offset:");
 				str.append(getVar(i_offset));
+				str.append(" ");
+			}
+			if (gds == true)
+			{
+				str.append("gds");
 			}
 
 			wrLine(str);
@@ -1809,11 +1815,12 @@ namespace AutoGen
 
 			return E_ReturnState::SUCCESS;
 		}
-		E_ReturnState ds_write_dword(int num, Var* v_addr, Var* v_dat, int i_offset = 0, bool setM0 = false)
+		E_ReturnState ds_write_dword(int num, Var* v_addr, Var* v_dat, int i_offset = 0, bool gds = false, bool setM0 = false)
 		{
 			if (setM0 == true)
 			{
 				op2("s_mov_b32", "m0", -1);
+				op1("s_nop", 3);
 			}
 
 			int tmpIdx;
@@ -1829,13 +1836,18 @@ namespace AutoGen
 			str.append(", ");
 			str.append(getVar(v_dat, num));
 
+			tmpIdx = FLAG_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
 			if (i_offset != 0)
 			{
-				tmpIdx = FLAG_START_COL - str.length();
-				for (int i = 0; i < tmpIdx; i++)
-					str.append(" ");
 				str.append("offset:");
 				str.append(getVar(i_offset));
+				str.append(" ");
+			}
+			if (gds == true)
+			{
+				str.append("gds");
 			}
 
 			wrLine(str);
@@ -1856,7 +1868,7 @@ namespace AutoGen
 
 			return E_ReturnState::SUCCESS;
 		}
-
+		
 		/************************************************************************************/
 		/* 通用操作																			*/
 		/************************************************************************************/
@@ -1892,6 +1904,26 @@ namespace AutoGen
 
 			wrLine(str);
 		}
+		template <typename T1>
+		void op1(std::string op, T1 dst, std::string flag)
+		{
+			int tmpIdx;
+			std::string str = "";
+			str.append(op);
+
+			tmpIdx = PARAM_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
+
+			str.append(getVar(dst));
+
+			tmpIdx = FLAG_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
+			str.append(flag.c_str());
+
+			wrLine(str);
+		}
 		template <typename T1, typename T2>
 		void op2(std::string op, T1 dst, T2 src)
 		{
@@ -1906,6 +1938,28 @@ namespace AutoGen
 			str.append(getVar(dst));
 			str.append(", ");
 			str.append(getVar(src));
+
+			wrLine(str);
+		}
+		template <typename T1, typename T2>
+		void op2(std::string op, T1 dst, T2 src, std::string flag)
+		{
+			int tmpIdx;
+			std::string str = "";
+			str.append(op);
+
+			tmpIdx = PARAM_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
+
+			str.append(getVar(dst));
+			str.append(", ");
+			str.append(getVar(src));
+
+			tmpIdx = FLAG_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
+			str.append(flag.c_str());
 
 			wrLine(str);
 		}
@@ -1989,6 +2043,24 @@ namespace AutoGen
 			wrLine(str);
 		}
 
+		E_ReturnState s_wait_cnt0()
+		{
+			int tmpIdx;
+
+			std::string str = "";
+			str.append("s_waitcnt");
+
+			tmpIdx = PARAM_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
+
+			str.append("0");
+
+			wrLine(str);
+
+			// error check
+			return E_ReturnState::SUCCESS;
+		}
 		E_ReturnState s_wait_lgkmcnt(uint cnt)
 		{
 			int tmpIdx;
@@ -2036,6 +2108,35 @@ namespace AutoGen
 			if (!((cnt >= 0) && (cnt <= 63)))
 			{
 				str.append("vmcnt is over 6-bit");
+				wrLine(str);
+				return E_ReturnState::FAIL;
+			}
+			return E_ReturnState::SUCCESS;
+		}
+		E_ReturnState s_wait_lgkm_exp_cnt(uint cnt)
+		{
+			int tmpIdx;
+
+			std::string str = "";
+			str.append("s_waitcnt");
+
+			tmpIdx = PARAM_START_COL - str.length();
+			for (int i = 0; i < tmpIdx; i++)
+				str.append(" ");
+
+			str.append("lgkmcnt");
+			str.append("(" + d2s(cnt) + ")");
+			str.append(" & ");
+			str.append("expcnt");
+			str.append("(" + d2s(cnt) + ")");
+
+			wrLine(str);
+
+			// error check
+			str = "";
+			if (!((cnt >= 0) && (cnt <= 15)))
+			{
+				str.append("lgkmcnt is over 4-bit");
 				wrLine(str);
 				return E_ReturnState::FAIL;
 			}
