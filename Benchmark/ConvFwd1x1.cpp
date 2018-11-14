@@ -9,7 +9,7 @@ using namespace AutoTune;
 /************************************************************************/
 /* solution¿ØÖÆ                                                          */
 /************************************************************************/
-#define		MultSolution	(1)
+#define		MultSolution	(0)
 #define		EnSimuIndex		(0)
 #define		EnSaveSource	(1)
 #define		EnPrintSource	(0)
@@ -892,25 +892,25 @@ E_ReturnState ConvFwd1x1Problem::InitHost()
 	printf("init tensor weight = %d = %.3f KByte.\n", exProbCfg->size_wei / sizeof(float), exProbCfg->size_wei / 1024.0);
 	printf("init tensor output = %d = %.3f MByte.\n", exProbCfg->size_out / sizeof(float), exProbCfg->size_out / 1024 / 1024.0);
 
-	exProbCfg->negSlop = 0.5;
+	exProbCfg->negSlop = 0.25;
 	for (int i = 0; i < exProbCfg->size_in; i++)
 	{
 		exProbCfg->h_in[i] = 1;
 		//exProbCfg->h_in[i] = (float)(i % 7) + 1.0f;
-		//exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
+		exProbCfg->h_in[i] = (float)(rand() % 100 - 50);
 		//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < exProbCfg->size_wei; i++)
 	{
 		exProbCfg->h_wei[i] = 1;
 		//exProbCfg->h_wei[i] = (float)(i % 3);
-		//exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
+		exProbCfg->h_wei[i] = (float)(rand() % 100 - 50);
 		//exProbCfg->h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < exProbCfg->size_bias; i++)
 	{
-		exProbCfg->h_bias[i] = 1;
-		//exProbCfg->h_bias[i] = (float)(rand() % 100 - 50);
+		exProbCfg->h_bias[i] = 0;
+		exProbCfg->h_bias[i] = (float)(rand() % 100 - 50);
 	}
 	for (int i = 0; i < exProbCfg->size_out; i++)
 	{
@@ -985,7 +985,10 @@ E_ReturnState ConvFwd1x1Problem::Host()
 					}
 					if (exProbCfg->enRelu == true)
 					{
-						exProbCfg->out_ref[o * stride_n_out + w * stride_k_out + i * exProbCfg->OutW + j] = acc * exProbCfg->negSlop;
+						if (acc < 0)
+							exProbCfg->out_ref[o * stride_n_out + w * stride_k_out + i * exProbCfg->OutW + j] = acc * exProbCfg->negSlop;
+						else
+							exProbCfg->out_ref[o * stride_n_out + w * stride_k_out + i * exProbCfg->OutW + j] = acc;
 					}
 					else
 					{
