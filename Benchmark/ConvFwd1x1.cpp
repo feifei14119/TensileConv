@@ -9,7 +9,7 @@ using namespace AutoTune;
 /************************************************************************/
 /* solution¿ØÖÆ                                                          */
 /************************************************************************/
-#define		MultSolution	(0)
+#define		MultSolution	(1)
 #define		EnSimuIndex		(0)
 #define		EnSaveSource	(1)
 #define		EnPrintSource	(0)
@@ -174,9 +174,11 @@ E_ReturnState ConvFwd1x1Solution::InitDev()
 	SolutionConfig->KernelArgus = new std::list<T_KernelArgu>;
 	SolutionConfig->KernelArgus->push_back(d_in);
 	SolutionConfig->KernelArgus->push_back(d_wei);
-	SolutionConfig->KernelArgus->push_back(d_bias);
+	if (extProb->enBias)
+		SolutionConfig->KernelArgus->push_back(d_bias);
 	SolutionConfig->KernelArgus->push_back(d_out);
-	SolutionConfig->KernelArgus->push_back(d_negSlop);
+	if (extProb->enRelu)
+		SolutionConfig->KernelArgus->push_back(d_negSlop);
 	
 	Copy2Dev((cl_mem)(d_in.ptr), extProb->h_in, extProb->size_in * sizeof(float));
 	Copy2Dev((cl_mem)(d_wei.ptr), extProb->h_wei, extProb->size_wei * sizeof(float));
@@ -791,15 +793,19 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
+	searchParam->ValueArray.push_back(64);
+	searchParam->ValueArray.push_back(128);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 	searchParam = new T_SearchParam("WH");
 	searchParam->ValueArray.push_back(7);
-	searchParam->ValueArray.push_back(14);
-	searchParam->ValueArray.push_back(28);
-	searchParam->ValueArray.push_back(56);
-	searchParam->ValueArray.push_back(112);
+//	searchParam->ValueArray.push_back(14);
+//	searchParam->ValueArray.push_back(28);
+//	searchParam->ValueArray.push_back(56);
+//	searchParam->ValueArray.push_back(112);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
+	exProbCfg->enBias = true;
+	exProbCfg->enRelu = true;
 	ProblemConfigList->push_back(probCfg);
 
 	RunAllProblem();
