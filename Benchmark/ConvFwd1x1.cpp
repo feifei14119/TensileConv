@@ -174,10 +174,10 @@ E_ReturnState ConvFwd1x1Solution::InitDev()
 	SolutionConfig->KernelArgus = new std::list<T_KernelArgu>;
 	SolutionConfig->KernelArgus->push_back(d_in);
 	SolutionConfig->KernelArgus->push_back(d_wei);
-	if (extProb->enBias)
+	//if (extProb->enBias)
 		SolutionConfig->KernelArgus->push_back(d_bias);
 	SolutionConfig->KernelArgus->push_back(d_out);
-	if (extProb->enRelu)
+	//if (extProb->enRelu)
 		SolutionConfig->KernelArgus->push_back(d_negSlop);
 	
 	Copy2Dev((cl_mem)(d_in.ptr), extProb->h_in, extProb->size_in * sizeof(float));
@@ -754,7 +754,7 @@ void ConvFwd1x1Solution::simulateIndex()
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-#define		SkipHost		(0)
+#define		SkipHost		(1)
 
 /************************************************************************/
 /* 生成问题空间													        */
@@ -798,14 +798,14 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 	searchParam = new T_SearchParam("WH");
 	searchParam->ValueArray.push_back(7);
-//	searchParam->ValueArray.push_back(14);
-//	searchParam->ValueArray.push_back(28);
-//	searchParam->ValueArray.push_back(56);
-//	searchParam->ValueArray.push_back(112);
+	searchParam->ValueArray.push_back(14);
+	searchParam->ValueArray.push_back(28);
+	searchParam->ValueArray.push_back(56);
+	searchParam->ValueArray.push_back(112);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
-	exProbCfg->enBias = true;
-	exProbCfg->enRelu = true;
+	exProbCfg->enBias = false;
+	exProbCfg->enRelu = false;
 	ProblemConfigList->push_back(probCfg);
 
 	RunAllProblem();

@@ -14,8 +14,8 @@ int main(int argc, char *argv[])
 	 
 	// 建立问题
 	ConvFwd1x1Problem *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");	
-//	conv1x1->TurnProblem();							// 搜索全部尺寸范围	
-	conv1x1->TurnProblem(7, 7, 1024, 128, 1, true, true);		// 运行 WH = 28, C = 2048, K = 64, N = 1 的问题
+	conv1x1->TurnProblem();							// 搜索全部尺寸范围	
+//	conv1x1->TurnProblem(7, 7, 1024, 128, 1, false, false);		// 运行 WH = 28, C = 2048, K = 64, N = 1 的问题
 
 //	// 对该问题创建一个solution
 //	T_SolutionConfig *solCfg = conv1x1->NewSolutionConfig("TensileConv");

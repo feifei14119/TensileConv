@@ -414,7 +414,8 @@ namespace AutoGen
 			//		return;
 			// -------------------------------------------------------------------------------
 			op2("v_mov_b32", v_tmp1, extProbCfg->N);
-			op3("v_cmpx_lt_u32", "exec", v_batchId, v_tmp1);
+			op3("v_cmpx_lt_u32", "vcc", v_batchId, v_tmp1);
+			op1("s_cbranch_execz", l_end_prg);
 
 			delVar(v_tmp1);
 			delVar(v_tmp2);
@@ -451,7 +452,7 @@ namespace AutoGen
 				s_wait_lgkmcnt(0);
 				op2("v_mov_b32", *v_addr_in + 1, *s_ptr_in + 1);
 				op4(v_addc_u32, v_addr_in, "vcc", s_ptr_in, v_tmp3);
-				op1("s_nop", 1);
+				//op1("s_nop", 1);
 				op5(v_addc_co_u32, *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
 			}
 
@@ -463,7 +464,7 @@ namespace AutoGen
 			op3("v_lshlrev_b32", v_tmp2, log2(c_in_maps), v_cInBlkId);				// v_tmp2 = (cInBlkId * c_in_maps)
 			op3(v_add_u32, v_tmp1, v_tmp1, v_tmp2);
 			op2("v_readfirstlane_b32", s_tmp1, v_tmp1);								// s_tmp1 = wei_off
-			op1("s_nop", 5);
+			//op1("s_nop", 5);
 			op3("s_lshl_b32", s_tmp1, s_tmp1, 2);									// s_tmp1 = wei_off (BYTE)
 			s_wait_lgkmcnt(0);
 			op3("s_add_u32", s_addr_wei, s_ptr_wei, s_tmp1);
@@ -602,7 +603,7 @@ namespace AutoGen
 				Var * l_end_init = newLaber("END_INIT");
 
 				op2("v_readfirstlane_b32", s_cInBlkId, v_cInBlkId);
-				op1("s_nop", 5);
+				//op1("s_nop", 5);
 				op2("s_cmpk_eq_i32", s_cInBlkId, 0);
 				op1("s_cbranch_scc0", l_end_init);
 				op2("v_mov_b32", v_addr_save, v_addr_out);
@@ -735,13 +736,13 @@ namespace AutoGen
 			s_wait_vmcnt(0);
 			op3("v_cmpx_neq_f32", "vcc", *v_src_cmp + 1, v_rtn);
 			op2("v_mov_b32", *v_src_cmp + 1, v_rtn);
-			op1("s_nop", 5);
+			//op1("s_nop", 5);
 			op1("s_cbranch_execnz", l_atomic_add);
 			op0("s_barrier");
 			op2("s_mov_b64", "exec", *s_exec_save ^ 2);
-			op1("s_nop", 5);
+			//op1("s_nop", 5);
 			op4(v_addc_u32, v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
-			op1("s_nop", 1);
+			//op1("s_nop", 1);
 			op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 
 			delVar(v_src_cmp);
