@@ -1,4 +1,4 @@
-__kernel void VectorAdd(__global  int * a, __global  int * b, __global  int * c)
+__kernel void VectorAdd(__global  float * a, __global  float * b, __global  float * c)
 {
     uint tid = get_global_id(0);
     

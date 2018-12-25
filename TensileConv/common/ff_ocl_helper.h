@@ -7,15 +7,16 @@
 
 namespace feifei
 {
-#define		clCheckFunc(val)				cl_checkFuncRet((val), #val, __FILE__, __LINE__)
+#define		clCheckFunc(val)			cl_checkFuncRet((val), #val, __FILE__, __LINE__)
 #define		clCheckErr(val)				cl_checkErrNum((val), __FILE__, __LINE__)
+#define		clErrInfo(val)				cl_printErrInfo((val), __FILE__, __LINE__)
 
 	typedef struct PlatformInfoType
 	{
 		char * version;
 		char * name;
 		char * vendor;
-	}t_PlatformInfo;
+	}T_PlatformInfo;
 
 	typedef struct DeviceInfoType
 	{
@@ -32,7 +33,7 @@ namespace feifei
 		cl_device_type type;
 		cl_uint cacheLineB;
 		cl_ulong cacheSizeB;
-	}t_DeviceInfo;
+	}T_DeviceInfo;
 
 	typedef enum ProgramTypeEnum
 	{
@@ -42,7 +43,7 @@ namespace feifei
 		PRO_GAS_STRING,
 		PRO_BIN_FILE,
 		PRO_BIN_STRING
-	}e_ProgramType;
+	}E_ProgramType;
 
 	static const char *clGetErrorInfo(cl_int error)
 	{
@@ -193,6 +194,14 @@ namespace feifei
 			fprintf(stderr, "OpenCL error at %s:%d code=%d(%s) \n", file, line, static_cast<unsigned int>(errNum), clGetErrorInfo(errNum));
 
 			exit(EXIT_FAILURE);
+		}
+	}
+
+	static void cl_printErrInfo(cl_int errNum, const char *const file, int const line)
+	{
+		if (errNum)
+		{
+			fprintf(stderr, "OpenCL error at %s:%d code=%d(%s) \n", file, line, static_cast<unsigned int>(errNum), clGetErrorInfo(errNum));
 		}
 	}
 }

@@ -9,4 +9,6 @@ namespace feifei
 	extern void dump2_bin_file(std::string file_name, std::vector<char> *binary);
 	extern void dump2_txt_file(std::string file_name, std::string str);
 	extern uint read_bin_file(std::string file_name, char * binary);
+	extern std::string get_file_path(std::string fileName);
+	extern std::string get_file_name(std::string fileName);
 }

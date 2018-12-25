@@ -47,6 +47,7 @@
   <ItemGroup>
     <None Include="..\kernel\VectorAdd.cl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <RemoteCopyFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</RemoteCopyFile>
     </None>
   </ItemGroup>
   <PropertyGroup Label="Globals">

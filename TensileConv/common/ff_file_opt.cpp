@@ -76,4 +76,37 @@ namespace feifei
 		free(buf);
 		return path;
 	}
+
+	std::string get_file_path(std::string fileName)
+	{
+		size_t p, p1, p2;
+		p1 = fileName.rfind('\\');
+		p2 = fileName.rfind('/');
+		if (p1 == std::string::npos)
+		{
+			p = p2;
+		}
+		else
+		{
+			p = (p1 > p2) ? p1 : p2;
+		}
+		return fileName.substr(0, p);
+	}
+
+	std::string get_file_name(std::string fileName)
+	{
+		size_t p1, p2;
+		p1 = fileName.rfind('\\');
+		p2 = fileName.rfind('/');
+		if (p1 == std::string::npos)
+		{
+			p1 = p2;
+		}
+		else if (p2 > p1)
+		{
+			p1 = p2;
+		}
+		p2 = fileName.rfind(".");
+		return fileName.substr(p1 + 1, p2 - p1 - 1);
+	}
 }

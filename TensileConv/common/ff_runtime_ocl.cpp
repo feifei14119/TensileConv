@@ -160,7 +160,7 @@ E_ReturnState CmdQueueOCL::CreatQueue(cl_context *ctx, bool enProf)
 	return E_ReturnState::SUCCESS;
 }
 
-KernelOCL * RuntimeOCL::CreatKernel(char * content, std::string kernelName, e_ProgramType type, int devNum)
+KernelOCL * RuntimeOCL::CreatKernel(char * content, std::string kernelName, E_ProgramType type, int devNum)
 {
 	DeviceOCL * dev;
 	if (devNum < 0)
@@ -208,19 +208,24 @@ E_ReturnState KernelOCL::creatKernelFromOclString(cl_context *ctx)
 	program = clCreateProgramWithSource(*ctx, 1, (const char**)&programSrc, NULL, &errNum);
 	if ((program == NULL) || (errNum != CL_SUCCESS))
 	{
-		ERR("Failed to create CL program from " + fileName);
+		ERR("Failed to create CL program from " + programFile);
 	}
 
-	return buildKernel();
+	if (buildKernel() != E_ReturnState::SUCCESS)
+		return E_ReturnState::FAIL;
+	if (dumpKernel() != E_ReturnState::SUCCESS)
+		return E_ReturnState::FAIL;
+
+	return E_ReturnState::SUCCESS;
 }
 E_ReturnState KernelOCL::creatKernelFromOclFile(cl_context *ctx)
 {
 	cl_int errNum;
 
-	std::ifstream kernelFile(fileName, std::ios::in);
+	std::ifstream kernelFile(programFile, std::ios::in);
 	if (!kernelFile.is_open())
 	{
-		ERR("Failed to open file for reading: " + fileName);
+		ERR("Failed to open file for reading: " + programFile);
 	}
 	std::ostringstream oss;
 	oss << kernelFile.rdbuf();
@@ -233,10 +238,10 @@ E_ReturnState KernelOCL::creatKernelFromBinString(cl_context *ctx)
 {
 	cl_int errNum;
 
-	program = clCreateProgramWithBinary(*ctx, 1, device->pDeviceId(), &programSizeB, (const unsigned char**)&programSrc, NULL, &errNum);
+	program = clCreateProgramWithBinary(*ctx, 1, device->pDeviceId(), &programSize, (const unsigned char**)&programSrc, NULL, &errNum);
 	if ((program == NULL) || (errNum != CL_SUCCESS))
 	{
-		ERR("Failed to create CL program from " + fileName);
+		ERR("Failed to create CL program from " + programFile);
 	}
 
 	return buildKernel();
@@ -245,34 +250,69 @@ E_ReturnState KernelOCL::creatKernelFromBinFile(cl_context *ctx)
 {
 	cl_int errNum;
 
-	FILE * fp = fopen(fileName.c_str(), "rb");
+	FILE * fp = fopen(programFile.c_str(), "rb");
 	if (fp == NULL)
 	{
-		ERR("can't open bin file: " + fileName);
+		ERR("can't open bin file: " + programFile);
 	}
 
 	fseek(fp, 0, SEEK_END);
-	programSizeB = ftell(fp);
+	programSize = ftell(fp);
 	rewind(fp);
 
-	programSrc = (char *)malloc(programSizeB);
-	fread(programSrc, 1, programSizeB, fp);
+	programSrc = (char *)malloc(programSize);
+	fread(programSrc, 1, programSize, fp);
 	fclose(fp);
 
 	return creatKernelFromBinString(ctx);
 }
-
-
 E_ReturnState KernelOCL::creatKernelFromGasFile(cl_context *ctx)
 {
-	std::string cmd = complier + buildAsmOption + "-o " + binFileFullName + " " + asmFileFullName;
+	std::string compiler = RuntimeOCL::GetInstance()->Compiler();
+	if (kernelFile == "")
+		kernelFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + get_file_name(programFile) + ".bin";
+
+	std::string cmd = compiler + " " + BuildOption + "-o " + kernelFile + " " + programFile;
 	exec_cmd(cmd);
+
+	// creatKernelFromBinString()
+	FILE * fp = fopen(kernelFile.c_str(), "rb");
+	if (fp == NULL)
+	{
+		ERR("can't open bin file: " + programFile);
+	}
+	fseek(fp, 0, SEEK_END);
+	programSize = ftell(fp);
+	rewind(fp);
+	programSrc = (char *)malloc(programSize);
+	fread(programSrc, 1, programSize, fp);
+	fclose(fp);
+
+	// creatKernelFromBinString()
+	cl_int errNum;
+	program = clCreateProgramWithBinary(*ctx, 1, device->pDeviceId(), &programSize, (const unsigned char**)&programSrc, NULL, &errNum);
+	if ((program == NULL) || (errNum != CL_SUCCESS))
+	{
+		ERR("Failed to create CL program from " + programFile);
+	}
+
+	return E_ReturnState::SUCCESS;
 }
 E_ReturnState KernelOCL::creatKernelFromGasString(cl_context *ctx)
 {
-	return E_ReturnState::SUCCESS;
-}
+	programFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + kernelName + ".s";
+	kernelFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + kernelName + ".bin";
 
+	std::ofstream fout(programFile.c_str(), std::ios::out);
+	if (!fout.is_open())
+	{
+		ERR("can't open save file: " + programFile);
+	}
+	fout.write(kernelFile.c_str(), sizeof(*programSrc)/sizeof(char));
+	fout.close();
+
+	return creatKernelFromGasFile(ctx);
+}
 E_ReturnState KernelOCL::buildKernel()
 {
 	cl_int errNum;
@@ -282,15 +322,126 @@ E_ReturnState KernelOCL::buildKernel()
 	errNum = clBuildProgram(program, 1, device->pDeviceId(), BuildOption.c_str(), NULL, NULL);
 	if (errNum != CL_SUCCESS)
 	{
-		ERR("Failed to build CL program from " + fileName);
+		ERR("Failed to build CL program from " + programFile);
 	}
 
 	clGetProgramBuildInfo(program, device->DeviceId(), CL_PROGRAM_BUILD_LOG, 0, NULL, &size);
 	tmpLog = (char*)alloca(size);
 	clGetProgramBuildInfo(program, device->DeviceId(), CL_PROGRAM_BUILD_LOG, size, tmpLog, NULL);
-	buildLog = std::string(tmpLog);
-	INFO("building log: " + buildLog);
+	INFO("building log: " + std::string(tmpLog));
+
+	kernel = clCreateKernel(program, kernelName.c_str(), &errNum);
+	if ((errNum != CL_SUCCESS)||(kernel == NULL))
+	{
+		ERR("Failed to create kernel " + kernelName);
+	}
+
+	return E_ReturnState::SUCCESS;
+}
+E_ReturnState KernelOCL::dumpKernel()
+{
+	if (programFile == "")
+	{
+		kernelFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + kernelName + ".bin";
+	}
+	else
+	{
+		kernelFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + get_file_name(programFile) + ".bin";
+	}
+	size_t binary_size;
+	clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &binary_size, nullptr);
+	std::vector<char> binary(binary_size);
+	char* src[1] = { binary.data() };
+	clGetProgramInfo(program, CL_PROGRAM_BINARIES, sizeof(src), &src, nullptr);
+
+	std::ofstream fout(kernelFile.c_str(), std::ios::out | std::ios::binary);
+	if (!fout.is_open())
+	{
+		ERR("can't open save file: " + kernelFile);
+	}
+	fout.write(binary.data(), binary.size());
+	fout.close();
+
+	return E_ReturnState::SUCCESS;
+}
+E_ReturnState KernelOCL::dumpProgram()
+{
+	if (programFile == "")
+	{
+		kernelFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + kernelName + ".cl";
+	}
+	else
+	{
+		kernelFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + get_file_name(programFile) + ".cl";
+	}
+
+	size_t src_size;
+	clGetProgramInfo(program, CL_PROGRAM_SOURCE, sizeof(size_t), &src_size, nullptr);
+	char clProgram[src_size];
+	clGetProgramInfo(program, CL_PROGRAM_SOURCE, sizeof(clProgram), &clProgram, nullptr);
+
+	std::ofstream fout(kernelFile.c_str(), std::ios::out);
+	if (!fout.is_open())
+	{
+		ERR("can't open save file: " + kernelFile);
+	}
+	fout.write(clProgram, src_size);
+	fout.close();
+
+	return E_ReturnState::SUCCESS;
+}
+E_ReturnState CmdQueueOCL::Launch(KernelOCL *k, size_t global_sz[3], size_t group_sz[3])
+{
+	cl_int errNum;
+
+	if (k->DeviceId() != this->DeviceId())
+	{
+		WARN("kernel device not match command queue device.");
+	}
+
+	errNum = clEnqueueNDRangeKernel(cmdQueue, k->Kernel(), 3, NULL, group_sz, global_sz, 0, NULL, NULL);
+	if(errNum != CL_SUCCESS)
+	{
+		ERR("Failed launch kernel: " + std::string(clGetErrorInfo(errNum)));
+	}
 
 	return E_ReturnState::SUCCESS;
 }
 
+cl_mem RuntimeOCL::DevMalloc(size_t byteNum)
+{
+	cl_int errNum;
+	cl_mem d_mem;
+
+	d_mem = clCreateBuffer(context, CL_MEM_READ_WRITE, byteNum, NULL, &errNum);
+	if ((errNum != CL_SUCCESS) || (d_mem == nullptr))
+	{
+		clErrInfo(errNum);
+		d_mem = nullptr;
+	}
+	return d_mem;
+}
+E_ReturnState CmdQueueOCL::MemCopyH2D(cl_mem d_mem, void * h_mem, size_t byteNum)
+{
+	cl_int errNum;
+
+	clEnqueueWriteBuffer(cmdQueue, d_mem, CL_TRUE, 0, byteNum, h_mem, 0, NULL, NULL);
+	if (errNum != CL_SUCCESS)
+	{
+		ERR("Failed to copy memory to device %d Byte", byteNum);
+	}
+
+	return E_ReturnState::SUCCESS;
+}
+E_ReturnState CmdQueueOCL::MemCopyD2H(void * h_mem, cl_mem d_mem, size_t byteNum)
+{
+	cl_int errNum;
+
+	clEnqueueReadBuffer(cmdQueue, d_mem, CL_TRUE, 0, byteNum, h_mem, 0, NULL, NULL);
+	if (errNum != CL_SUCCESS)
+	{
+		ERR("Failed to copy memory to device %d Byte", byteNum);
+	}
+
+	return E_ReturnState::SUCCESS;
+}
