@@ -51,6 +51,14 @@ namespace feifei
 		dim3(unsigned int vx = 1, unsigned int vy = 1, unsigned int vz = 1) : x(vx), y(vy), z(vz) {}
 	}dim3;
 
+	typedef struct KernelWriteHelpInfoType
+	{
+		dim3 local_size;
+		dim3 group_size;
+		dim3 global_size;
+		std::string kernel_name;
+	}T_KernelWriteHelpInfo;
+
 	static const char *clGetErrorInfo(cl_int error)
 	{
 		switch (error)

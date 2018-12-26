@@ -35,6 +35,7 @@
     <ClCompile Include="..\src\ConvFwd1x1.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\ProblemControl.cpp" />
+    <ClCompile Include="..\src\SolutionControl.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\common\ff_basic.h" />
@@ -49,6 +50,7 @@
     <ClInclude Include="..\src\ConvFwd1x1.h" />
     <ClInclude Include="..\src\ConvFwd1x1Config.h" />
     <ClInclude Include="..\src\ProblemControl.h" />
+    <ClInclude Include="..\src\SolutionControl.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\kernel\VectorAdd.cl">

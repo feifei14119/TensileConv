@@ -4,7 +4,6 @@
 #include "ConvFwd1x1Config.h"
 //#include "ConvFwd1x1KernelWriter.h"
 
-#if 0
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
@@ -27,9 +26,7 @@ private:
 	std::list<T_KernelArgu> * preArgus;
 
 public:
-	ConvFwd1x1Solution() :SolutionCtrlBase()
-	{
-	}
+	ConvFwd1x1Solution() :SolutionCtrlBase() {}
 
 	/************************************************************************/
 	/* 根据problem参数成solution参数空间                                      */
@@ -245,35 +242,7 @@ public:
 	/************************************************************************/
 	void simulateIndex();
 	
-	int next2pow(int n)
-	{
-		int base = 1;
-		for (int i = 0; i < 32; i++)
-		{
-			base = 1 << i;
-			if (n <= base)
-			{
-				break;
-			}
-		}
-		return base;
-	}
-	int log2(int value)
-	{
-		int log2 = 0;
-		while (value > 1)
-		{
-			value = value / 2;
-			log2++;
-		}
-		return log2;
-	}
-	int divCeil(int a, int b)
-	{
-		return ((a + b - 1) / b);
-	}
 };
-#endif
 
 /************************************************************************/
 /* 问题控制                                                             */
@@ -281,14 +250,8 @@ public:
 class ConvFwd1x1Problem : public ProblemCtrlBase
 {
 public:
-	ConvFwd1x1Problem() :ProblemCtrlBase()
-	{
-		//Solution = new ConvFwd1x1Solution();
-	}
-	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name)
-	{
-		//Solution = new ConvFwd1x1Solution();
-	}
+	ConvFwd1x1Problem() :ProblemCtrlBase() { Solution = new ConvFwd1x1Solution(); }
+	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name) { Solution = new ConvFwd1x1Solution(); }
 
 	/************************************************************************/
 	/* 运行问题														        */

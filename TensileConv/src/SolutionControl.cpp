@@ -5,15 +5,12 @@ using namespace feifei;
 using namespace AutoTune;
 
 
-void SolutionCtrlBase::RunSolution(T_ProblemConfig *problem)
+void SolutionCtrlBase::RunAllSolution()
 {
-	ProblemConfig = problem;
-
 	// ======================================================================
 	// 生成解决方案空间
 	// ======================================================================
 	INFO("generate solution config list.");
-	SolutionConfigList->clear();
 	GenerateSolutionConfigs();
 
 	// ======================================================================
@@ -26,61 +23,49 @@ void SolutionCtrlBase::RunSolution(T_ProblemConfig *problem)
 	{
 		SolutionConfig = *solutionCfgIt;
 
-		printf("======================================================================\n");
-		printf("Solution Name: %s.\n", SolutionConfig->ConfigName.c_str());
-		printf("======================================================================\n");
-		
-		if (SolutionConfig->KernelSearchSpace.ParamNum > 0)
-		{
-			RunOneSolutionConfig();
-		}
-		else
-		{
-			RunSolutionOnce();
-		}
+		PRINT_SEPARATOR1();
+		INFO("Solution Name: %s.\n", SolutionConfig->ConfigName.c_str());
+		PRINT_SEPARATOR1();
+
+		RunOneSolution();
 	}
 }
 
-E_ReturnState SolutionCtrlBase::RunOneSolutionConfig()
+#define TempDo(x)	do{if(x != E_ReturnState::SUCCESS) goto CONTINUE_SEARCH;}while(0)
+E_ReturnState SolutionCtrlBase::RunOneSolution()
 {
 	while (true)
 	{
 		//runtime = new RuntimeCtrlOcl();
 
-		INFO("generate source, compiler, worksize.");	if (GenerateSolution() != E_ReturnState::SUCCESS)	goto CONTINUE_SEARCH;
-		INFO("compiler kernel and program.");			SetupSolution();
-		INFO("initialize device.");						InitDev();
-		INFO("warmup.");								LaunchSolution(true);
-		INFO("launch kernel.");							LaunchSolution(false);
-		INFO("collect performence.");					GetPerformence();
-		INFO("copy result back to cpu.");				GetBackResult();
-		INFO("release device.");						ReleaseDev();
+		INFO("generate program and build kernel.");	TempDo(GenerateSolution());
+		INFO("initialize device.");					TempDo(InitDev());	// alloc dev mem and NOT create cmd queue
+		INFO("warmup.");							TempDo(LaunchSolution(true));
+		INFO("launch kernel.");						TempDo(LaunchSolution(false));
+		INFO("collect performence.");				TempDo(GetPerformence());
+		INFO("copy result back to cpu.");			TempDo(GetBackResult());
+		INFO("release resource.");					ReleaseDev();	// release dev mem and cmd queue
 		INFO("search kernel parameters.");
+
 	CONTINUE_SEARCH:
-		if (SolutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+		if (SolutionConfig->KernelSearchSpace.ParamNum > 0)
 		{
-			INFO("search kernel parameters finished.");
-			ReportProblemPerformence();
+			if (SolutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+			{
+				INFO("search kernel parameters finished.");
+				ReportProblemPerformence();
+				return E_ReturnState::SUCCESS;
+			}
+		}
+		else
+		{
 			return E_ReturnState::SUCCESS;
 		}
 
-		CleanSolution();
+		sleep(0.1);
 	}
 }
-
-E_ReturnState SolutionCtrlBase::RunSolutionOnce()
-{
-	INFO("generate source, compiler, worksize.");	GenerateSolution();
-	INFO("compiler kernel and program.");			SetupSolution();
-	INFO("initialize device.");						InitDev();
-	INFO("warmup.");								LaunchSolution(true);
-	INFO("launch kernel.");							LaunchSolution(false);
-	INFO("collect performence.");					GetPerformence();
-	INFO("copy result back to cpu.");				GetBackResult();
-	INFO("release device.");						ReleaseDev();
-
-	CleanSolution();
-}
+#undef TempDo(x)
 
 void SolutionCtrlBase::CleanSolution()
 {
@@ -91,31 +76,18 @@ E_ReturnState SolutionCtrlBase::LaunchSolution(bool isWarmup)
 {
 	if (isWarmup)
 	{
-		stream->SetupDispatch(&dispatch_param);
-		stream->Launch(1);
-		stream->Wait();
-		usleep(1);
+		runtime->LanchKernel();
+		usleep(0.1);
 	}
 	else
 	{
-		ElapsedTimes.clear();
-		stream->SetupDispatch(&dispatch_param);
-		stream->Launch(RepeatTime);
-		stream->Wait();
-		usleep(1);
+		for (int i = 0; i < RepeatTime; i++)
+		{
+			runtime->LanchKernel();
+			ElapsedTimes.push_back(runtime->ElapsedTime);
+			usleep(0.01);
+		}
 	}
-
-	return E_ReturnState::SUCCESS;
-}
-
-E_ReturnState SolutionCtrlBase::SetupSolution()
-{
-	stream = (OCLStream*)gpuDevice->CreateStream();
-
-	//code_obj = (*compiler)(SolutionConfig->KernelName, SolutionConfig->KernelFileFullName, gpuDevice);
-	code_obj = (*bcompiler)(SolutionConfig->KernelName, SolutionConfig->KernelFileFullName, gpuDevice);
-	kernel_obj = code_obj->CreateKernelObject(SolutionConfig->KernelName.c_str());	
-	dispatch_param.kernel_obj = kernel_obj;
 
 	return E_ReturnState::SUCCESS;
 }

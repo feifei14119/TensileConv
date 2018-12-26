@@ -7,6 +7,8 @@
 #include "../common/ff_utils.h"
 #include "AutoTuning.h"
 
+#include "unistd.h"
+
 using namespace AutoTune;
 
 /************************************************************************/
@@ -25,6 +27,9 @@ typedef struct ScoreTypde
 /************************************************************************/
 typedef struct SolutionConfigTpye
 {
+	SolutionConfigTpye() {}
+	SolutionConfigTpye(std::string name) { ConfigName = name; }
+
 	std::string ConfigName;				// 解决方案名称
 	SearchSpace KernelSearchSpace;		// 解决方案参数搜索空间
 	void * extConfig;
@@ -40,44 +45,36 @@ typedef struct SolutionConfigTpye
 	size_t l_wk0, l_wk1, l_wk2;
 	size_t g_wk0, g_wk1, g_wk2;
 	size_t b_wk0, b_wk1, b_wk2;
-
-	SolutionConfigTpye(std::string name)
-	{
-		ConfigName = name;
-	}
-	SolutionConfigTpye()
-	{
-	}
 }T_SolutionConfig;
 
+struct T_ProblemConfig;
 /************************************************************************/
 /* solution 控制 (so called generic solver)			                    */
 /************************************************************************/
 class SolutionCtrlBase
 {
 public:
+	// 此处可以把问题扩展配置传过来
 	SolutionCtrlBase()
 	{
 		RepeatTime = 1;
+		ProblemBestTime = -1;
 		cmdArgs = CmdArgs::GetCmdArgs();
 		pOclRt = RuntimeOCL::GetInstance();
-
+		stream = pOclRt->CreatCmdQueue(true);
 		SolutionConfigList = new std::list<T_SolutionConfig*>;
+		SolutionConfigList->clear();
 	}
+	~SolutionCtrlBase() { delete stream; }
+
 
 public:
-	void RunSolution(T_ProblemConfig *problem);
-
-	E_ReturnState RunOneSolutionConfig();
-
-	E_ReturnState RunSolutionOnce();
+	void RunAllSolution();
+	E_ReturnState RunOneSolution();
 
 	void CleanSolution();
 
 	virtual E_ReturnState LaunchSolution(bool isWarmup);
-
-	virtual E_ReturnState SetupSolution();
-
 	E_ReturnState GetPerformence();
 	
 	void printIndex(int *index, char* name);
@@ -109,5 +106,5 @@ protected:
 	int devId;
 
 	RuntimeOCL * pOclRt;
-	CmdQueueOCL* stream;	// command queue
+	CmdQueueOCL* stream;	// one command queue for whole solution configs
 };

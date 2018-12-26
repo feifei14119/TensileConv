@@ -95,8 +95,38 @@ struct Option
 #define	MAX_VGPR_COUNT		(256)
 #define	MAX_SGPR_COUNT		(800)
 
+namespace feifei
+{
+	int next2pow(int n)
+	{
+		int base = 1;
+		for (int i = 0; i < 32; i++)
+		{
+			base = 1 << i;
+			if (n <= base)
+			{
+				break;
+			}
+		}
+		return base;
+	}
 
+	int log2(int value)
+	{
+		int log2 = 0;
+		while (value > 1)
+		{
+			value = value / 2;
+			log2++;
+		}
+		return log2;
+	}
 
+	int divCeil(int a, int b)
+	{
+		return ((a + b - 1) / b);
+	}
+}
 
 
 

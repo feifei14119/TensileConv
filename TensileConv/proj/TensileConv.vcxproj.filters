@@ -36,6 +36,9 @@
     <ClCompile Include="..\src\ProblemControl.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\SolutionControl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\common\ff_basic.h">
@@ -72,6 +75,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\ConvFwd1x1Config.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\SolutionControl.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

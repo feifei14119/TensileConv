@@ -5,33 +5,27 @@
 #include <list>
 #include "../common/ff_utils.h"
 
-//#include "SolutionControl.h"
+#include "SolutionControl.h"
 #include "AutoTuning.h"
 
 #include "unistd.h"
 
 using namespace AutoTune;
 
-
 /************************************************************************/
 /* problem 配置				                                            */
 /************************************************************************/
 typedef struct ProblemConfigType
 {
+	ProblemConfigType(std::string name) { ConfigName = name; }
+	ProblemConfigType() {}
+
 	std::string ConfigName;				// 问题配置名称
 	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
 	void * extConfig;
 
 	double Calculation;					// 计算量
 	double TheoryElapsedTime;			// 理论执行时间
-
-	ProblemConfigType(std::string name)
-	{
-		ConfigName = name;
-	}
-	ProblemConfigType()
-	{
-	}
 }T_ProblemConfig;
 
 /************************************************************************/
@@ -64,7 +58,7 @@ public:
 	std::string ProblemName;
 	std::list<T_ProblemConfig*> *ProblemConfigList;	// 所有问题配置
 	T_ProblemConfig *ProblemConfig;					// 当前正在处理的问题配置
-//	SolutionCtrlBase * Solution;
+	SolutionCtrlBase * Solution;
 
 protected:
 	CmdArgs * cmdArgs;

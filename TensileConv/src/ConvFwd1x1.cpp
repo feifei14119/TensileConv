@@ -5,7 +5,6 @@
 //using namespace AutoGen;
 using namespace AutoTune;
 
-# if 0
 #pragma region SOLUTION
 /************************************************************************/
 /* solution¿ØÖÆ                                                          */
@@ -757,7 +756,7 @@ void ConvFwd1x1Solution::simulateIndex()
 	free(testOutId);
 }
 #pragma endregion
-#endif
+
 
 #pragma region PROBLEM
 /************************************************************************/

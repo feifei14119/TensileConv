@@ -29,10 +29,9 @@ E_ReturnState ProblemCtrlBase::RunOneProblem()
 {
 	while (true)
 	{
-//		Solution->ProblemBestTime = -1;
 		INFO("initialize host.");				InitHost();
 		INFO("run host calculate.");			Host();
-//		INFO("solve this problem.");			Solution->RunAllSolution(ProblemConfig);
+		INFO("solve this problem.");			Solution->RunAllSolution();
 		INFO("verify device calculation.");		Verify();
 		INFO("release host.");					ReleaseHost();
 

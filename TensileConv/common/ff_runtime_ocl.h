@@ -110,6 +110,10 @@ namespace feifei
 		{
 			device = dev;
 		}
+		~CmdQueueOCL()
+		{
+			clReleaseCommandQueue(cmdQueue);
+		}
 		cl_device_id DeviceId() { return device->DeviceId(); }
 		E_ReturnState CreatQueue(cl_context *ctx, bool enProf);
 		cl_command_queue Queue() { return cmdQueue; }
