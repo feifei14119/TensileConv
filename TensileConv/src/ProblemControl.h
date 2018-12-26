@@ -2,8 +2,10 @@
 
 #include <stdarg.h>
 #include <vector>
-#include "ff_utils.h"
-#include "SolutionControl.h"
+#include <list>
+#include "../common/ff_utils.h"
+
+//#include "SolutionControl.h"
 #include "AutoTuning.h"
 
 #include "unistd.h"
@@ -12,22 +14,48 @@ using namespace AutoTune;
 
 
 /************************************************************************/
+/* problem 配置				                                            */
+/************************************************************************/
+typedef struct ProblemConfigType
+{
+	std::string ConfigName;				// 问题配置名称
+	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
+	void * extConfig;
+
+	double Calculation;					// 计算量
+	double TheoryElapsedTime;			// 理论执行时间
+
+	ProblemConfigType(std::string name)
+	{
+		ConfigName = name;
+	}
+	ProblemConfigType()
+	{
+	}
+}T_ProblemConfig;
+
+/************************************************************************/
 /* 问题句柄																*/
 /************************************************************************/
 class ProblemCtrlBase
 {
 public:
-	ProblemCtrlBase();
-	ProblemCtrlBase(std::string name);
+	ProblemCtrlBase()
+	{
+		ProblemConfigList = new std::list<T_ProblemConfig*>;
+		cmdArgs = CmdArgs::GetCmdArgs();
+	}
+	ProblemCtrlBase(std::string name)
+	{
+		ProblemName = name;
+		ProblemConfigList = new std::list<T_ProblemConfig*>;
+		cmdArgs = CmdArgs::GetCmdArgs();
+	}
 
 public:
-	void RunProblem();
+	void RunAllProblem();
+	E_ReturnState RunOneProblem();
 
-	E_ReturnState RunOneProblemConfig();
-
-	E_ReturnState RunProblemOnce();
-
-	virtual E_ReturnState GenerateProblemConfigs() = 0;
 	virtual E_ReturnState InitHost() = 0;
 	virtual E_ReturnState Host() = 0;
 	virtual E_ReturnState Verify() = 0;
@@ -36,10 +64,9 @@ public:
 	std::string ProblemName;
 	std::list<T_ProblemConfig*> *ProblemConfigList;	// 所有问题配置
 	T_ProblemConfig *ProblemConfig;					// 当前正在处理的问题配置
-	SolutionCtrlBase * Solution;
+//	SolutionCtrlBase * Solution;
 
 protected:
 	CmdArgs * cmdArgs;
-	BackendEngineBase * hwBackend;
 };
 

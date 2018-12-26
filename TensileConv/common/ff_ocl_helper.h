@@ -45,6 +45,12 @@ namespace feifei
 		PRO_BIN_STRING
 	}E_ProgramType;
 
+	typedef struct dim3
+	{
+		unsigned int x, y, z;
+		dim3(unsigned int vx = 1, unsigned int vy = 1, unsigned int vz = 1) : x(vx), y(vy), z(vz) {}
+	}dim3;
+
 	static const char *clGetErrorInfo(cl_int error)
 	{
 		switch (error)

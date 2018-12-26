@@ -84,8 +84,6 @@ E_ReturnState SolutionCtrlBase::RunSolutionOnce()
 
 void SolutionCtrlBase::CleanSolution()
 {
-	delete code_obj;
-	delete kernel_obj;
 	delete stream;
 }
 

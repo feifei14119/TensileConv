@@ -12,13 +12,13 @@ namespace feifei
 	{
 		CMD_ARG_HELP,
 		CMD_ARG_DEVICE,
-		CMD_ARG_METHORD,
 		CMD_ARG_WH,
 		CMD_ARG_C,
 		CMD_ARG_K,
 		CMD_ARG_N,
-		CMD_ARG_CNT,
-		CMD_ARG_DUMMY
+		CMD_ARG_UV,
+		CMD_ARG_BIAS,
+		CMD_ARG_RELU
 	} E_ArgId;
 
 	typedef struct CmdArgType

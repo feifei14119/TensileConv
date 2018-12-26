@@ -6,90 +6,51 @@ using namespace AutoTune;
 /************************************************************************/
 /* 问题句柄																*/
 /************************************************************************/
-ProblemCtrlBase::ProblemCtrlBase()
+void ProblemCtrlBase::RunAllProblem()
 {
-	ProblemConfigList = new std::list<T_ProblemConfig*>;
-
-	cmdArgs = CmdArgs::GetCmdArgs();
-	hwBackend = BackendEngine::Get("OpenCL");
-}
-
-ProblemCtrlBase::ProblemCtrlBase(std::string name)
-{
-	ProblemName = name;
-	ProblemConfigList = new std::list<T_ProblemConfig*>;
-
-	cmdArgs = CmdArgs::GetCmdArgs();
-	hwBackend = BackendEngine::Get("OpenCL");
-}
-
-void ProblemCtrlBase::RunProblem()
-{
-	printf("************************************************************************\n");
-	printf("* Problem Name: %s.\n", ProblemName.c_str());
-	printf("************************************************************************\n");
-
-	// ======================================================================
-	// 生成问题空间
-	// ======================================================================
-	INFO("generate problem config list.");
-	ProblemConfigList->clear();
-	GenerateProblemConfigs();
-
 	// ======================================================================
 	// 遍历problem参数空间,搜索参数空间
 	// ======================================================================
 	std::list<T_ProblemConfig*>::iterator problemCfgIt;
-	for (problemCfgIt = ProblemConfigList->begin(); 
-		problemCfgIt != ProblemConfigList->end(); 
-		problemCfgIt++)
+	for (problemCfgIt = ProblemConfigList->begin(); problemCfgIt != ProblemConfigList->end(); problemCfgIt++)
 	{
 		ProblemConfig = *problemCfgIt;
 
-		printf("************************************************************************\n");
-		printf("* Problem Name: %s.\n", ProblemName.c_str());
-		printf("* Problem Config: %s.\n", ProblemConfig->ConfigName.c_str());
-		printf("************************************************************************\n");
+		PRINT_SEPARATOR1();
+		INFO(" Problem Name: %s.", ProblemName.c_str());
+		INFO(" Problem Config: %s.", ProblemConfig->ConfigName.c_str());
+		PRINT_SEPARATOR1();
 
-		if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
-		{
-			RunOneProblemConfig();
-		}
-		else
-		{
-			RunProblemOnce();
-		}
+		RunOneProblem();
 	}
 }
 
-E_ReturnState ProblemCtrlBase::RunOneProblemConfig()
+E_ReturnState ProblemCtrlBase::RunOneProblem()
 {
 	while (true)
 	{
-		Solution->ProblemBestTime = -1;
-		INFO("initialize host.");			InitHost();
-		INFO("run host calculate.");		Host();
-		INFO("solve this problem.");		Solution->RunSolution(ProblemConfig);
-		INFO("verify device calculation.");	Verify();
-		INFO("release host.");				ReleaseHost();
+//		Solution->ProblemBestTime = -1;
+		INFO("initialize host.");				InitHost();
+		INFO("run host calculate.");			Host();
+//		INFO("solve this problem.");			Solution->RunAllSolution(ProblemConfig);
+		INFO("verify device calculation.");		Verify();
+		INFO("release host.");					ReleaseHost();
 
-		INFO("search problem parameters.");
-		if (ProblemConfig->ProblemParamSpace.GetNexComb() == E_ReturnState::FAIL)
+		if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
 		{
-			INFO("search problem parameters finished.");
+			INFO("search problem parameters.");
+			if (ProblemConfig->ProblemParamSpace.GetNexComb() == E_ReturnState::FAIL)
+			{
+				INFO("search problem parameters finished.");
+				break;
+			}
+		}
+		else
+		{
 			break;
 		}
 	}
-}
-
-E_ReturnState ProblemCtrlBase::RunProblemOnce()
-{
-	Solution->ProblemBestTime = -1;
-	INFO("initialize host.");				InitHost();
-	INFO("run host calculate.");			Host();
-	INFO("solve this problem.");			Solution->RunSolution(ProblemConfig);
-	INFO("verify device calculation.");		Verify();
-	INFO("release host.");					ReleaseHost();
 
 	return E_ReturnState::SUCCESS;
 }
+#pragma endregion

@@ -26,7 +26,7 @@ namespace feifei
 		WEXITSTATUS(status);
 	}
 
-	void dump2_bin_file(std::string file_name, std::vector<char> *binary)
+	E_ReturnState dump2_bin_file(std::string file_name, std::vector<char> *binary)
 	{
 		std::ofstream fout(file_name.c_str(), std::ios::out | std::ios::binary);
 		if (!fout.is_open())
@@ -37,7 +37,7 @@ namespace feifei
 		fout.close();
 	}
 
-	void dump2_txt_file(std::string file_name, std::string str)
+	E_ReturnState dump2_txt_file(std::string file_name, std::string str)
 	{
 		std::ofstream fout(file_name.c_str(), std::ios::out);
 		if (!fout.is_open())

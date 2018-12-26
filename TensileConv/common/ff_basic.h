@@ -54,25 +54,6 @@ typedef enum DataTypeEnum
 	Int32
 } E_DataType;
 
-
-#if RUNTIME_OCL
-typedef struct dim3
-{
-	unsigned int x, y, z;
-	dim3(unsigned int vx = 1, unsigned int vy = 1, unsigned int vz = 1) : x(vx), y(vy), z(vz) {}
-}dim3;
-#endif
-
-typedef enum KernelTypeEnum
-{
-	KERNEL_TYPE_OCL_FILE = 1,
-	KERNEL_TYPE_HIP_FILE = 2,
-	KERNEL_TYPE_GAS_FILE = 3,
-	KERNEL_TYPE_BIN_FILE = 4,
-	KERNEL_TYPE_OCL_STR = 5,
-	KERNEL_TYPE_GAS_STR = 6
-}E_KernleType;
-
 typedef struct KernelArguType
 {
 	size_t size;

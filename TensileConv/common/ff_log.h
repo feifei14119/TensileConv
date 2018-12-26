@@ -4,8 +4,11 @@
 
 #define	INFO(fmt,...)		feifei::print_format_info(fmt,##__VA_ARGS__)
 #define WARN(fmt,...)		feifei::print_format_warn(__FILE__,__LINE__,fmt,##__VA_ARGS__)
-#define ERR(fmt,...)		feifei::print_format_err(__FILE__,__LINE__,fmt,##__VA_ARGS__)
+#define ERR(fmt,...)		do{feifei::print_format_err(__FILE__,__LINE__,fmt,##__VA_ARGS__);return E_ReturnState::FAIL;}while(0)
 #define FATAL(fmt,...)		feifei::print_format_fatal(__FILE__,__LINE__,fmt,##__VA_ARGS__)
+#define	PRINT_SEPARATOR1()	printf("************************************************************************\n");
+#define	PRINT_SEPARATOR2()	printf("========================================================================\n");
+#define	PRINT_SEPARATOR3()	printf("------------------------------------------------------------------------\n");
 
 namespace feifei
 {

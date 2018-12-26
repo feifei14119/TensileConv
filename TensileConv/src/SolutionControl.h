@@ -2,14 +2,12 @@
 
 #include <stdarg.h>
 #include <vector>
-#include "ff_utils.h"
-#include "AutoTuning.h"
-#include "BackendEngine.h"
+#include <list>
 
-#include "unistd.h"
+#include "../common/ff_utils.h"
+#include "AutoTuning.h"
 
 using namespace AutoTune;
-
 
 /************************************************************************/
 /* solution得分                                                         */
@@ -36,7 +34,7 @@ typedef struct SolutionConfigTpye
 	std::string KernelFile;			// 可以指定文件名，不使用KernelName推导.需要后缀
 	std::string KernelFileFullName;
 	std::string KernelString;
-	E_KernleType KernelSrcType;
+	E_ProgramType KernelSrcType;
 	std::string extCompilerOpt;
 
 	size_t l_wk0, l_wk1, l_wk2;
@@ -53,27 +51,6 @@ typedef struct SolutionConfigTpye
 }T_SolutionConfig;
 
 /************************************************************************/
-/* problem 配置				                                            */
-/************************************************************************/
-typedef struct ProblemConfigType
-{
-	std::string ConfigName;				// 问题配置名称
-	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
-	void * extConfig;
-
-	double Calculation;					// 计算量
-	double TheoryElapsedTime;			// 理论执行时间
-
-	ProblemConfigType(std::string name)
-	{
-		ConfigName = name;
-	}
-	ProblemConfigType()
-	{
-	}
-}T_ProblemConfig;
-
-/************************************************************************/
 /* solution 控制 (so called generic solver)			                    */
 /************************************************************************/
 class SolutionCtrlBase
@@ -82,16 +59,10 @@ public:
 	SolutionCtrlBase()
 	{
 		RepeatTime = 1;
-		SolutionConfigList = new std::list<T_SolutionConfig*>;
-
 		cmdArgs = CmdArgs::GetCmdArgs();
-		devId = *(int*)(cmdArgs->GetOneArg(E_ArgId::CMD_ARG_DEVICE));
+		pOclRt = RuntimeOCL::GetInstance();
 
-		platform = (BackendEngineOCL*)(BackendEngine::Get("OpenCL"));
-		gpuDevice = platform->GetDevice(devId);
-
-		compiler = (OCLASMCompiler*)BackendEngine::GetCompiler(platform, "asm");
-		bcompiler = (OCLBinaryCompiler*)BackendEngine::GetCompiler(platform, "bin");
+		SolutionConfigList = new std::list<T_SolutionConfig*>;
 	}
 
 public:
@@ -137,13 +108,6 @@ protected:
 	CmdArgs * cmdArgs;
 	int devId;
 
-	BackendEngineOCL * platform;		// 硬件平台相关
-	DeviceBase * gpuDevice;				// 指定设备
-	OCLASMCompiler * compiler;
-	OCLBinaryCompiler * bcompiler;
-
-	OCLStream * stream;	// command queue
-	CodeObject * code_obj;
-	KernelObject * kernel_obj;
-	DispatchParam dispatch_param;
+	RuntimeOCL * pOclRt;
+	CmdQueueOCL* stream;	// command queue
 };

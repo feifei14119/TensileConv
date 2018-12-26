@@ -6,6 +6,7 @@
 #include "ff_timer.h"
 #include "ff_cmd_args.h"
 
+#include "ff_ocl_helper.h"
 #include "ff_runtime_ocl.h"
 
 using namespace feifei;
