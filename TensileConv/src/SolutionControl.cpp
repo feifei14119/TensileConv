@@ -1,12 +1,14 @@
-
+#include <limits>
 #include "SolutionControl.h"
 
 using namespace feifei;
 using namespace AutoTune;
 
 
-void SolutionCtrlBase::RunAllSolution()
+void SolutionCtrlBase::RunAllSolution(T_ProblemConfig *problem)
 {
+	ProblemConfig = problem;
+
 	// ======================================================================
 	// 生成解决方案空间
 	// ======================================================================
@@ -24,7 +26,7 @@ void SolutionCtrlBase::RunAllSolution()
 		SolutionConfig = *solutionCfgIt;
 
 		PRINT_SEPARATOR1();
-		INFO("Solution Name: %s.\n", SolutionConfig->ConfigName.c_str());
+		INFO("Solution Name: %s.", SolutionConfig->ConfigName.c_str());
 		PRINT_SEPARATOR1();
 
 		RunOneSolution();
@@ -36,8 +38,6 @@ E_ReturnState SolutionCtrlBase::RunOneSolution()
 {
 	while (true)
 	{
-		//runtime = new RuntimeCtrlOcl();
-
 		INFO("generate program and build kernel.");	TempDo(GenerateSolution());
 		INFO("initialize device.");					TempDo(InitDev());	// alloc dev mem and NOT create cmd queue
 		INFO("warmup.");							TempDo(LaunchSolution(true));
@@ -67,24 +67,22 @@ E_ReturnState SolutionCtrlBase::RunOneSolution()
 }
 #undef TempDo(x)
 
-void SolutionCtrlBase::CleanSolution()
-{
-	delete stream;
-}
-
 E_ReturnState SolutionCtrlBase::LaunchSolution(bool isWarmup)
 {
 	if (isWarmup)
 	{
-		runtime->LanchKernel();
+		stream->Launch(kernel, SolutionConfig->global_sz, SolutionConfig->group_sz, &profEvt);
+		stream->Finish();
+		elapsedTimes.clear();
 		usleep(0.1);
 	}
 	else
 	{
 		for (int i = 0; i < RepeatTime; i++)
 		{
-			runtime->LanchKernel();
-			ElapsedTimes.push_back(runtime->ElapsedTime);
+			stream->Launch(kernel, SolutionConfig->global_sz, SolutionConfig->group_sz, &profEvt);
+			stream->Finish();
+			elapsedTimes.push_back(rtOcl->GetProfilingTime(&profEvt));
 			usleep(0.01);
 		}
 	}
@@ -94,29 +92,27 @@ E_ReturnState SolutionCtrlBase::LaunchSolution(bool isWarmup)
 
 E_ReturnState SolutionCtrlBase::GetPerformence()
 {
-	// 平均时间
-	std::list<double>::iterator elp;
+	// 统计时间
 	AverageScore.ElapsedTime = 0;
-	for (elp = ElapsedTimes.begin(); elp != ElapsedTimes.end(); elp++)
+	BestScore.ElapsedTime = (std::numeric_limits<double>::max)();
+	for (int i = 0; i < elapsedTimes.size(); i++)
 	{
-		//printf("elapsed time %.3f us\n",*elp * 1e6);
-		AverageScore.ElapsedTime += *elp;
+		AverageScore.ElapsedTime += elapsedTimes[i];
+		if (elapsedTimes[i] < BestScore.ElapsedTime)
+			BestScore.ElapsedTime = elapsedTimes[i];
 	}
-	AverageScore.ElapsedTime /= ElapsedTimes.size();
-
-	// 最短时间
-	ElapsedTimes.sort();
-	BestScore.ElapsedTime = ElapsedTimes.front();
+	AverageScore.ElapsedTime /= elapsedTimes.size();
+	
+	INFO("average elapsed time: %.3f (us).", AverageScore.ElapsedTime * 1e9);
+	INFO("best elapsed time: %.3f (us).", BestScore.ElapsedTime * 1e6);
 
 	// 性能换算
-	AverageScore.Flops = ProblemConfig->Calculation / AverageScore.ElapsedTime;
+/*	AverageScore.Flops = ProblemConfig->Calculation / AverageScore.ElapsedTime;
 	AverageScore.Performence = ProblemConfig->TheoryElapsedTime / AverageScore.ElapsedTime;
 	BestScore.Flops = ProblemConfig->Calculation / BestScore.ElapsedTime;
 	BestScore.Performence = ProblemConfig->TheoryElapsedTime / BestScore.ElapsedTime;
 
-	printf("best elapsed time: %.3f (us).\t", BestScore.ElapsedTime * 1e6);
 	printf("best performence: %.1f (Gflops) = %.1f%%.\n", BestScore.Flops * 1e-9, BestScore.Performence * 100);
-	printf("average elapsed time: %.3f (us).\t", AverageScore.ElapsedTime * 1e6);
 	printf("average performence: %.1f (Gflops) = %.1f%%.\n", AverageScore.Flops * 1e-9, AverageScore.Performence * 100);
 		
 	if ((ProblemBestTime < 0) || (ProblemBestTime > AverageScore.ElapsedTime))
@@ -124,49 +120,85 @@ E_ReturnState SolutionCtrlBase::GetPerformence()
 		ProblemBestTime = AverageScore.ElapsedTime;
 		ProblemBestPerformence = AverageScore.Performence;
 		SolutionConfig->KernelSearchSpace.RecordBestComb();
-	}
+	}*/
+
+	return E_ReturnState::SUCCESS;
 }
 
-void SolutionCtrlBase::printIndex(int *index, char* name)
+
+namespace feifei
 {
-	int groupNum = SolutionConfig->g_wk0 / SolutionConfig->l_wk0;
-	int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
-	int grpNumPerCUMin = groupNum / CU_NUM;
-	int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
-	int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
-
-	int waveNumPerCUMax = grpNumPerCUMax * (SolutionConfig->l_wk0 / WAVE_SIZE);
-	int waveNumPerCUMin = grpNumPerCUMin * (SolutionConfig->l_wk0 / WAVE_SIZE);
-	int simuGrpIdx = 0;
-	int grpIdxBase;
-
-	printf("\t|---------------------------------------------------------\n");
-	printf("\t| index name = %s\n", name);
-	printf("\t| group size = %d\n", SolutionConfig->l_wk0);
-	printf("\t| group number = %d\n", groupNum);
-	printf("\t| group number per cu = (%d * %d) + (%d * %d)\n",
-		grpNumPerCUMax, maxGrpCUNum, grpNumPerCUMin, minGrpCUNum);
-	printf("\t| wave number per cu = (%d * %d) + (%d * %d)\n",
-		waveNumPerCUMax, maxGrpCUNum, waveNumPerCUMin, minGrpCUNum);
-	printf("\t|---------------------------------------------------------\n");
-	for (int se = 0; se < SE_NUM; se++)
+	int next2pow(int n)
 	{
-		printf("SE=%d:", se);
-		grpIdxBase = se;
-
-		for (int cu = 0; cu < CU_PER_SE; cu++)
+		int base = 1;
+		for (int i = 0; i < 32; i++)
 		{
-			printf("\t[%02d]: ", cu);
-			simuGrpIdx = grpIdxBase;
-
-			while (simuGrpIdx < groupNum)
+			base = 1 << i;
+			if (n <= base)
 			{
-				printf("%03d, ", index[simuGrpIdx]);
-				simuGrpIdx += CU_NUM;
+				break;
+			}
+		}
+		return base;
+	}
+
+	int log2(int value)
+	{
+		int log2 = 0;
+		while (value > 1)
+		{
+			value = value / 2;
+			log2++;
+		}
+		return log2;
+	}
+
+	int divCeil(int a, int b)
+	{
+		return ((a + b - 1) / b);
+	}
+
+	void printIndex(int *index, char* name, dim3 g_wk, dim3 l_wk)
+	{
+		int groupNum = g_wk.x / l_wk.x;
+		int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
+		int grpNumPerCUMin = groupNum / CU_NUM;
+		int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
+		int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
+
+		int waveNumPerCUMax = grpNumPerCUMax * (l_wk.x / WAVE_SIZE);
+		int waveNumPerCUMin = grpNumPerCUMin * (l_wk.x / WAVE_SIZE);
+		int simuGrpIdx = 0;
+		int grpIdxBase;
+
+		printf("\t|---------------------------------------------------------\n");
+		printf("\t| index name = %s\n", name);
+		printf("\t| group size = %d\n", l_wk.x);
+		printf("\t| group number = %d\n", groupNum);
+		printf("\t| group number per cu = (%d * %d) + (%d * %d)\n",
+			grpNumPerCUMax, maxGrpCUNum, grpNumPerCUMin, minGrpCUNum);
+		printf("\t| wave number per cu = (%d * %d) + (%d * %d)\n",
+			waveNumPerCUMax, maxGrpCUNum, waveNumPerCUMin, minGrpCUNum);
+		printf("\t|---------------------------------------------------------\n");
+		for (int se = 0; se < SE_NUM; se++)
+		{
+			printf("SE=%d:", se);
+			grpIdxBase = se;
+
+			for (int cu = 0; cu < CU_PER_SE; cu++)
+			{
+				printf("\t[%02d]: ", cu);
+				simuGrpIdx = grpIdxBase;
+
+				while (simuGrpIdx < groupNum)
+				{
+					printf("%03d, ", index[simuGrpIdx]);
+					simuGrpIdx += CU_NUM;
+				}
+				printf("\n");
+				grpIdxBase += 4;
 			}
 			printf("\n");
-			grpIdxBase += 4;
 		}
-		printf("\n");
 	}
 }

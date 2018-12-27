@@ -390,7 +390,7 @@ E_ReturnState KernelOCL::dumpProgram()
 
 	return E_ReturnState::SUCCESS;
 }
-E_ReturnState CmdQueueOCL::Launch(KernelOCL *k, size_t global_sz[3], size_t group_sz[3])
+E_ReturnState CmdQueueOCL::Launch(KernelOCL *k, dim3 global_sz, dim3 group_sz, cl_event * evt_creat)
 {
 	cl_int errNum;
 
@@ -399,13 +399,28 @@ E_ReturnState CmdQueueOCL::Launch(KernelOCL *k, size_t global_sz[3], size_t grou
 		WARN("kernel device not match command queue device.");
 	}
 
-	errNum = clEnqueueNDRangeKernel(cmdQueue, k->Kernel(), 3, NULL, group_sz, global_sz, 0, NULL, NULL);
+	errNum = clEnqueueNDRangeKernel(cmdQueue, k->Kernel(), 3, NULL, global_sz.arr(), group_sz.arr(), 0, NULL, evt_creat);
 	if(errNum != CL_SUCCESS)
 	{
+		clErrInfo(errNum);
 		ERR("Failed launch kernel: " + std::string(clGetErrorInfo(errNum)));
 	}
 
 	return E_ReturnState::SUCCESS;
+}
+double RuntimeOCL::GetProfilingTime(cl_event * evt)
+{
+	if (evt == NULL)
+	{
+		WARN("no profiling event.");
+		return 0.0;
+	}
+
+	double start_time, end_time;
+	clGetEventProfilingInfo(*evt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start_time, NULL);
+	clGetEventProfilingInfo(*evt, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end_time, NULL);
+
+	return (end_time - start_time) * 1e-9;
 }
 
 cl_mem RuntimeOCL::DevMalloc(size_t byteNum)
@@ -425,9 +440,10 @@ E_ReturnState CmdQueueOCL::MemCopyH2D(cl_mem d_mem, void * h_mem, size_t byteNum
 {
 	cl_int errNum;
 
-	clEnqueueWriteBuffer(cmdQueue, d_mem, CL_TRUE, 0, byteNum, h_mem, 0, NULL, NULL);
+	errNum = clEnqueueWriteBuffer(cmdQueue, d_mem, CL_TRUE, 0, byteNum, h_mem, 0, NULL, NULL);
 	if (errNum != CL_SUCCESS)
 	{
+		clErrInfo(errNum);
 		ERR("Failed to copy memory to device %d Byte", byteNum);
 	}
 
@@ -437,9 +453,10 @@ E_ReturnState CmdQueueOCL::MemCopyD2H(void * h_mem, cl_mem d_mem, size_t byteNum
 {
 	cl_int errNum;
 
-	clEnqueueReadBuffer(cmdQueue, d_mem, CL_TRUE, 0, byteNum, h_mem, 0, NULL, NULL);
+	errNum = clEnqueueReadBuffer(cmdQueue, d_mem, CL_TRUE, 0, byteNum, h_mem, 0, NULL, NULL);
 	if (errNum != CL_SUCCESS)
 	{
+		clErrInfo(errNum);
 		ERR("Failed to copy memory to device %d Byte", byteNum);
 	}
 

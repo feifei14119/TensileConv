@@ -72,6 +72,7 @@ namespace feifei
 			errNum = clSetKernelArg(kernel, argsCnt, sizeof(head), (const void*)head);
 			if (errNum != CL_SUCCESS)
 			{
+				clErrInfo(errNum);
 				ERR("Failed set kernel arg %d.", argsCnt);
 			}
 			argsCnt++;
@@ -119,7 +120,7 @@ namespace feifei
 		cl_command_queue Queue() { return cmdQueue; }
 		E_ReturnState MemCopyH2D(cl_mem d_mem, void * h_mem, size_t byteNum);
 		E_ReturnState MemCopyD2H(void * h_mem, cl_mem d_mem, size_t byteNum);
-		E_ReturnState Launch(KernelOCL *k, size_t global_sz[3], size_t group_sz[3]);
+		E_ReturnState Launch(KernelOCL *k, dim3 global_sz, dim3 group_sz, cl_event * evt_creat = NULL);
 		void Finish() { clFinish(cmdQueue); }
 
 	private:
@@ -181,5 +182,7 @@ namespace feifei
 
 		cl_mem DevMalloc(size_t byteNum);
 		void DevFree(cl_mem d_mem) { clReleaseMemObject(d_mem); }
+
+		double GetProfilingTime(cl_event * evt);
 	};
 }

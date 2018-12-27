@@ -23,89 +23,6 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 	T_ExtConvFwd1x1SolutionConfig * extSolutionConfig;
 	T_SearchParam * searchParam;
 
-	// ======================================================================
-	// solution config 1: MIOpenOcl
-	// ======================================================================
-	{
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig("MIOpenOcl");
-		solutionConfig->extConfig = extSolutionConfig;
-
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
-	}
-
-	// ======================================================================
-	// solution config 2: MIOpenAsm
-	// ======================================================================
-	{
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig("MIOpenAsm");
-		solutionConfig->extConfig = extSolutionConfig;
-
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
-	}
-
-	// ======================================================================
-	// solution config 3: SQC: 标准汇编实现,含prefetch
-	// ======================================================================
-	{
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig("SQC");
-		solutionConfig->extConfig = extSolutionConfig;
-
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
-	}
-
-	// ======================================================================
-	// solution config 3: SQC-c_mult: 基于SQC的对C进行分解
-	// ======================================================================
-	{
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig("C_MULT");
-		solutionConfig->extConfig = extSolutionConfig;
-
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
-	}
-
-	// ======================================================================
-	// solution config 4: Sigle-kernrl PreFetch
-	// ======================================================================
-	{
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig("PreFetch_Single");
-		solutionConfig->extConfig = extSolutionConfig;
-
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
-	}
-
-	// ======================================================================
-	// solution config 5: Mult-kernel Perfetch
-	// ======================================================================
-	{
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig("PreFetch_Mult");
-		solutionConfig->extConfig = extSolutionConfig;
-
-		// ----------------------------------------------------------------------
-		// 添加solution
-		//SolutionConfigList->push_back(solutionConfig);
-	}
 
 	// ======================================================================
 	// solution config 6: AutoTuning
@@ -159,28 +76,14 @@ E_ReturnState ConvFwd1x1Solution::InitDev()
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
-	DevMalloc((void**)&(d_in.ptr), extProb->size_in * sizeof(float));
-	DevMalloc((void**)&(d_wei.ptr), extProb->size_wei * sizeof(float));
-	DevMalloc((void**)&(d_bias.ptr), extProb->size_bias * sizeof(float));
-	DevMalloc((void**)&(d_out.ptr), extProb->size_out * sizeof(float));
+	d_a = rtOcl->DevMalloc(extProb->sizeN);
+	d_b = rtOcl->DevMalloc(extProb->sizeN);
+	d_c = rtOcl->DevMalloc(extProb->sizeN);
+	 
+	stream->MemCopyH2D(d_a, extProb->h_a, extProb->sizeN);
+	stream->MemCopyH2D(d_b, extProb->h_b, extProb->sizeN);
 
-	d_in.size = sizeof(cl_mem);		d_in.isVal = false;
-	d_wei.size = sizeof(cl_mem);	d_wei.isVal = false;
-	d_bias.size = sizeof(cl_mem);	d_bias.isVal = false;
-	d_out.size = sizeof(cl_mem);	d_out.isVal = false;
-	d_negSlop.size = sizeof(float);	d_negSlop.isVal = true;
-	negSlop = extProb->negSlop;	d_negSlop.ptr = &negSlop;
-
-	SolutionConfig->KernelArgus = new std::list<T_KernelArgu>;
-	SolutionConfig->KernelArgus->push_back(d_in);
-	SolutionConfig->KernelArgus->push_back(d_wei);
-	SolutionConfig->KernelArgus->push_back(d_bias);
-	SolutionConfig->KernelArgus->push_back(d_out);
-	//SolutionConfig->KernelArgus->push_back(d_negSlop);
-
-	Copy2Dev((cl_mem)(d_in.ptr), extProb->h_in, extProb->size_in * sizeof(float));
-	Copy2Dev((cl_mem)(d_wei.ptr), extProb->h_wei, extProb->size_wei * sizeof(float));
-	Copy2Dev((cl_mem)(d_bias.ptr), extProb->h_bias, extProb->size_bias * sizeof(float));
+	kernel->SetArgs(&d_a, &d_b, &d_c);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -191,14 +94,9 @@ E_ReturnState ConvFwd1x1Solution::InitDev()
 E_ReturnState ConvFwd1x1Solution::GetBackResult()
 {
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
-	Copy2Hst(extProb->h_out, (cl_mem)(d_out.ptr), extProb->size_out * sizeof(float));
-	Copy2Hst(extProb->h_sig, (cl_mem)(d_sig.ptr), extProb->size_sig * sizeof(float));
-
-	if (SolutionConfig->ConfigName == "PreFetch_Mult" || SolutionConfig->ConfigName == "PreFetch_Single")
-	{
-		Copy2Hst(h_signal, (cl_mem)(d_signal.ptr), size_sig * sizeof(int));
-	}
+	stream->MemCopyD2H(extProb->h_c, d_c, extProb->sizeN);
 }
 
 /************************************************************************/
@@ -206,19 +104,9 @@ E_ReturnState ConvFwd1x1Solution::GetBackResult()
 /************************************************************************/
 void ConvFwd1x1Solution::ReleaseDev()
 {
-	DevFree((cl_mem)(d_in.ptr));
-	DevFree((cl_mem)(d_wei.ptr));
-	DevFree((cl_mem)(d_bias.ptr));
-	DevFree((cl_mem)(d_out.ptr));
-
-	if (SolutionConfig->ConfigName == "PreFetch_Single")
-	{
-		DevFree((cl_mem)(d_signal.ptr));
-		if (SolutionConfig->ConfigName == "PreFetch_Mult")
-		{
-			delete preKernel;
-		}
-	}
+	rtOcl->DevFree(d_a);
+	rtOcl->DevFree(d_b);
+	rtOcl->DevFree(d_c);
 }
 
 /************************************************************************/
@@ -226,431 +114,23 @@ void ConvFwd1x1Solution::ReleaseDev()
 /************************************************************************/
 E_ReturnState ConvFwd1x1Solution::GenerateSolution()
 {
-	// 提取搜索参数
-	if (generateParameters() != E_ReturnState::SUCCESS)
-		return E_ReturnState::FAIL;
-	// 生成编译选项
-	if (generateCompilerOption() != E_ReturnState::SUCCESS)
-		return E_ReturnState::FAIL;
-	// 生成worksize
-	if (generateWorkLoad() != E_ReturnState::SUCCESS)
-		return E_ReturnState::FAIL;
-	// 获取/生成代码
-	if (generateSource() != E_ReturnState::SUCCESS)
-		return E_ReturnState::FAIL;
-
-#if EnSimuIndex
-	simulateIndex();
-#endif
-	return E_ReturnState::SUCCESS;
-}
-
-E_ReturnState ConvFwd1x1Solution::generateParameters()
-{
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
-	if (SolutionConfig->ConfigName == "MIOpenOcl")
-	{
-		extSol->group_size = WAVE_SIZE;
-
-		// chunk config
-		// ---------------
-		int n_out_pix_tiles = 16;
-		extSol->k_out_maps = n_out_pix_tiles;
-		extSol->k_out_maps = std::min(extSol->k_out_maps, extProb->K);
-		while ((extProb->K % extSol->k_out_maps) != 0 && extSol->k_out_maps > 16)
-		{
-			extSol->k_out_maps /= 2;
-		}
-		n_out_pix_tiles = extSol->k_out_maps;
-
-		// ---------------
-		int n_in_data_tiles = 2048;
-		N_LCL_IN_MAPS = n_in_data_tiles;
-		N_LCL_IN_MAPS = std::min(N_LCL_IN_MAPS, extProb->C);
-		if (N_LCL_IN_MAPS < extProb->C && N_LCL_IN_MAPS > 0 && (N_LCL_IN_MAPS % 8) == 0)
-		{
-			// Pass will do nothing
-		}
-		else
-		{
-			N_LCL_IN_MAPS = extProb->C;
-		}
-		n_in_data_tiles = N_LCL_IN_MAPS;
-
-		N_IN_GROUPS = (extProb->C + N_LCL_IN_MAPS - 1) / N_LCL_IN_MAPS;
-		N_LCL_IN_MAPS_ONCE = 8;
-
-		CLOOP0 = N_LCL_IN_MAPS / N_LCL_IN_MAPS_ONCE;
-		CLOOP2 = (extProb->C - N_LCL_IN_MAPS * (N_IN_GROUPS - 1)) / N_LCL_IN_MAPS_ONCE;
-
-		align = ((extProb->W * extProb->H * extProb->N + WAVE_SIZE - 1) / WAVE_SIZE) * WAVE_SIZE;
-		N_OUT_GROUPS = (extProb->K / extSol->k_out_maps);
-
-		extSol->k_out_group = (extProb->K + extSol->k_out_maps - 1) / extSol->k_out_maps;
-	}
-	else if (SolutionConfig->ConfigName == "SQC")
-	{
-		extSol->group_size = WAVE_SIZE;
-		extSol->k_out_maps = 16;
-		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		extSol->c_in_maps = extProb->C;
-		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
-
-		extSol->pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
-		extSol->c_in_maps_once = 8;
-		loop = extSol->c_in_maps / extSol->c_in_maps_once;
-	}
-	else if (SolutionConfig->ConfigName == "C_MULT")
-	{
-		extSol->group_size = WAVE_SIZE;
-		extSol->k_out_maps = 16;
-		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		extSol->c_in_maps = extProb->C / 16;
-		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
-
-		extSol->pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
-		extSol->c_in_maps_once = 8;
-		loop = extSol->c_in_maps / extSol->c_in_maps_once;
-	}
-	else if (SolutionConfig->ConfigName == "PreFetch_Single")
-	{
-		extSol->group_size = WAVE_SIZE;
-		extSol->k_out_maps = 16;
-		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		extSol->c_in_maps = extProb->C;
-		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
-
-		extSol->c_in_maps_once = 8;
-		loop = extSol->c_in_maps / extSol->c_in_maps_once;
-		extSol->pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group) * extSol->pix_per_group;
-
-		// signal space
-		sig_num_per_cu = extSol->c_in_maps / CACHE_LINE;
-		size_sig = sig_num_per_cu * CU_NUM;
-		h_signal = (int*)HstMalloc(size_sig * sizeof(int));
-		DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
-		d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
-		SolutionConfig->KernelArgus->push_back(d_signal);
-	}
-	else if (SolutionConfig->ConfigName == "PreFetch_Mult")
-	{
-		extSol->group_size = WAVE_SIZE;
-		extSol->k_out_maps = 16;
-		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-		extSol->c_in_maps = extProb->C;
-		extSol->c_in_group = divCeil(extProb->C, extSol->c_in_maps);
-
-		extSol->c_in_maps_once = 8;
-		loop = extSol->c_in_maps / extSol->c_in_maps_once;
-		extSol->pix_per_group = 64;
-		align = divCeil(extProb->W * extProb->H * extProb->N, extSol->pix_per_group);
-
-		// signal mem
-		size_sig = loop / 2 * CU_NUM;
-		DevMalloc((void**)&(d_signal.ptr), size_sig * sizeof(uint));
-		d_signal.size = sizeof(cl_mem);	d_signal.isVal = false;
-		SolutionConfig->KernelArgus->push_back(d_signal);
-		h_signal = (int*)HstMalloc(size_sig * sizeof(int));
-		// prefetch kernel
-		preKernel = new RuntimeCtrlOcl();
-		preArgus = new std::list<T_KernelArgu>;
-		preArgus->push_back(d_in);
-		preArgus->push_back(d_wei);
-		preArgus->push_back(d_out);
-		preArgus->push_back(d_signal);
-	}
-	else if (SolutionConfig->ConfigName == "TensileConv")
-	{
-		while (true)
-		{
-			T_SearchParam * param;
-			param = SolutionConfig->KernelSearchSpace.GetOneParam();
-			if (param == NULL)
-			{
-				break;
-			}
-
-			if (param->Name == "c_in_group")
-			{
-				extSol->c_in_group = param->CurrValue;
-			}
-			if (param->Name == "k_out_maps")
-			{
-				extSol->k_out_maps = param->CurrValue;
-			}
-			if (param->Name == "group_size")
-			{
-				extSol->group_size = param->CurrValue;
-			}
-		}
-
-		if (extSol->c_in_group == 0)
-		{
-			extSol->c_in_group = 4;
-		}
-		if (extSol->k_out_maps == 0)
-		{
-			extSol->k_out_maps = 8;
-		}
-		if (extSol->group_size == 0)
-		{
-			extSol->group_size = 128;
-		}
-
-		extSol->c_in_maps = extProb->C / extSol->c_in_group;
-		extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
-
-		extSol->c_in_maps_once = 8;
-		loop = divCeil(extSol->c_in_maps, extSol->c_in_maps_once);
-		extSol->pix_per_group = 64;
-		extSol->pix_group = divCeil(extProb->W * extProb->H * extProb->N, extSol->group_size);
-		align = extSol->pix_group * extSol->group_size;
-
-		printf("----------------------------------------------------------------------\n");
-		printf("Kernel Param:\n");
-		printf("	c_in_maps =[%d], c_in_group =[%d]\n", extSol->c_in_maps, extSol->c_in_group);
-		printf("	k_out_maps=[%d], k_out_group=[%d]\n", extSol->k_out_maps, extSol->k_out_group);
-		printf("	align=[%d], pix_group = [%d]\n", align, extSol->pix_group);
-		printf("	group_size=[%d]\n", extSol->group_size);
-		printf("----------------------------------------------------------------------\n");
-
-		extProb->size_sig = extSol->pix_group * extSol->k_out_group;
-		DevMalloc((void**)&(d_sig.ptr), extProb->size_sig * sizeof(float));
-		d_sig.size = sizeof(cl_mem);		d_sig.isVal = false;
-		SolutionConfig->KernelArgus->push_back(d_sig);
-		SolutionConfig->KernelArgus->push_back(d_negSlop);
-		extProb->h_sig = (float*)HstMalloc(extProb->size_sig * sizeof(float));
-	}
+	kernel = rtOcl->CreatKernel("../TensileConv/kernel/VectorAdd.cl", "VectorAdd", E_ProgramType::PRO_OCL_FILE);
+	SolutionConfig->global_sz = dim3(extProb->N2, 1, 1);
+	SolutionConfig->group_sz = dim3(64, 1, 1);
 
 	return E_ReturnState::SUCCESS;
 }
 
-E_ReturnState ConvFwd1x1Solution::generateCompilerOption()
-{
-	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
-
-	if (SolutionConfig->ConfigName == "TensileConv")
-	{
-		SolutionConfig->extCompilerOpt = "";
-	}
-	else if (SolutionConfig->ConfigName == "MIOpenOcl")
-	{
-		SolutionConfig->extCompilerOpt =
-			std::string(" -DMLO_FILTER_STRIDE0=1") +
-			std::string(" -DMLO_FILTER_STRIDE1=1") +
-			std::string(" -DMLO_N_LCL_IN_MAPS_ONCE=") + std::to_string(N_LCL_IN_MAPS_ONCE) +
-			std::string(" -DBATCHSIZE=") + std::to_string(extProb->N) +
-			std::string(" -DH=") + std::to_string(extProb->H) +
-			std::string(" -DW=") + std::to_string(extProb->W) +
-			std::string(" -DC=") + std::to_string(extProb->C) +
-			std::string(" -DK=") + std::to_string(extProb->K) +
-			std::string(" -DMLO_N_LCL_IN_MAPS=") + std::to_string(N_LCL_IN_MAPS) +
-			std::string(" -DMLO_N_INPUTS=") + std::to_string(extProb->C) +
-			std::string(" -DMLO_N_OUTPUTS=") + std::to_string(extProb->K) +
-			std::string(" -DH_out=") + std::to_string(extProb->OutH) +
-			std::string(" -DW_out=") + std::to_string(extProb->OutW) +
-			std::string(" -DMLO_N_IN_GROUPS=") + std::to_string(N_IN_GROUPS) +
-			std::string(" -DMLO_CLOOP0=") + std::to_string(CLOOP0) +
-			std::string(" -DMLO_CLOOP2=") + std::to_string(CLOOP2) +
-			std::string(" -DMLO_N_LCL_OUT_MAPS=") + std::to_string(extSol->k_out_maps) +
-			std::string(" -DMLO_CHEAT_SHADER_COMPILER=1") +
-			std::string(" -DMLopen_RUNNING=1") +
-			std::string(" -DMIOPEN_USE_FP32=1");
-	}
-	else
-	{
-		int in_pix_groups = divCeil(align, extSol->group_size);
-		int k_out_groups = divCeil(extProb->K, extSol->k_out_maps);
-		int groupNum = in_pix_groups * k_out_groups;
-
-		int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
-		int grpNumPerCUMin = groupNum / CU_NUM;
-		int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
-		int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
-		int grpNumPerSe = groupNum / SE_NUM;
-
-		SolutionConfig->extCompilerOpt =
-			std::string(" -Wa,-defsym,W=") + std::to_string(extProb->W) +
-			std::string(" -Wa,-defsym,H=") + std::to_string(extProb->H) +
-			std::string(" -Wa,-defsym,C=") + std::to_string(extProb->C) +
-			std::string(" -Wa,-defsym,K=") + std::to_string(extProb->K) +
-			std::string(" -Wa,-defsym,N=") + std::to_string(extProb->N) +
-			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS=") + std::to_string(extSol->k_out_group) +
-			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_LOG2=") + std::to_string(log2(extSol->k_out_group)) +
-			std::string(" -Wa,-defsym,MLO_N_OUT_GROUPS_DIV_MASK=") + std::to_string(extSol->k_out_group - 1) +
-			std::string(" -Wa,-defsym,MLO_N_LCL_IN_MAPS=") + std::to_string(extSol->c_in_maps) +
-			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS=") + std::to_string(extSol->c_in_group) +
-			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_LOG2=") + std::to_string(log2(extSol->c_in_group)) +
-			std::string(" -Wa,-defsym,MLO_N_IN_GROUPS_DIV_MASK=") + std::to_string(extSol->c_in_group - 1) +
-
-			std::string(" -Wa,-defsym,GRP_NUM_SE=") + std::to_string(grpNumPerSe) +
-			std::string(" -Wa,-defsym,GRP_NUM_CU_MIN=") + std::to_string(grpNumPerCUMin) +
-			std::string(" -Wa,-defsym,MAX_GRP_CU_NUM=") + std::to_string(maxGrpCUNum) +
-			std::string(" -Wa,-defsym,PIX_GRP_NUM=") + std::to_string(in_pix_groups) +
-			std::string(" -Wa,-defsym,SIG_NUM_PER_CU=") + std::to_string(sig_num_per_cu) +
-			std::string(" -Wa,-defsym,SIG_NUM_PER_CU_LOG2=") + std::to_string(log2(sig_num_per_cu));
-	}
-	return E_ReturnState::SUCCESS;
-}
-
-E_ReturnState ConvFwd1x1Solution::generateWorkLoad()
-{
-	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
-
-	if (SolutionConfig->ConfigName == "MIOpenOcl")
-	{
-		SolutionConfig->l_wk0 = extSol->group_size;
-		SolutionConfig->l_wk1 = 1;
-		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * N_IN_GROUPS * N_OUT_GROUPS;
-		SolutionConfig->g_wk1 = 1;
-		SolutionConfig->g_wk2 = 1;
-
-		//SolutionConfig->l_wk0 = WAVE_SIZE*4;
-	}
-	else if (SolutionConfig->ConfigName == "SQC")
-	{
-		SolutionConfig->l_wk0 = extSol->group_size;
-		SolutionConfig->l_wk1 = 1;
-		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
-		SolutionConfig->g_wk1 = 1;
-		SolutionConfig->g_wk2 = 1;
-
-		//SolutionConfig->l_wk0 = 1;
-		//SolutionConfig->g_wk0 = 64;
-	}
-	else if (SolutionConfig->ConfigName == "C_MULT")
-	{
-		SolutionConfig->l_wk0 = extSol->group_size;
-		SolutionConfig->l_wk1 = 1;
-		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
-		SolutionConfig->g_wk1 = 1;
-		SolutionConfig->g_wk2 = 1;
-	}
-	else if (SolutionConfig->ConfigName == "PreFetch_Single")
-	{
-		SolutionConfig->l_wk0 = extSol->group_size;
-		SolutionConfig->l_wk1 = 1;
-		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
-		SolutionConfig->g_wk1 = 1;
-		SolutionConfig->g_wk2 = 1;
-
-		//SolutionConfig->l_wk0 = 64;		// 需要注释掉循环控制的exec
-		//SolutionConfig->g_wk0 = (CU_NUM * SolutionConfig->l_wk0);
-
-		SolutionConfig->g_wk0 += (CU_NUM * SolutionConfig->l_wk0);
-	}
-	else if (SolutionConfig->ConfigName == "PreFetch_Mult")
-	{
-		SolutionConfig->l_wk0 = extSol->group_size;
-		SolutionConfig->l_wk1 = 1;
-		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
-		SolutionConfig->g_wk1 = 1;
-		SolutionConfig->g_wk2 = 1;
-
-		//SolutionConfig->l_wk0 = 1;
-		//SolutionConfig->g_wk0 = 64;
-	}
-	else if (SolutionConfig->ConfigName == "TensileConv")
-	{
-		SolutionConfig->l_wk0 = extSol->group_size;
-		SolutionConfig->l_wk1 = 1;
-		SolutionConfig->l_wk2 = 1;
-		SolutionConfig->g_wk0 = align * extSol->c_in_group * extSol->k_out_group;
-		SolutionConfig->g_wk1 = 1;
-		SolutionConfig->g_wk2 = 1;
-
-		//SolutionConfig->l_wk0 = 64;
-		//SolutionConfig->g_wk0 = 64*64;
-	}
-
-	SolutionConfig->b_wk0 = (SolutionConfig->g_wk0 + SolutionConfig->l_wk0 - 1) / SolutionConfig->l_wk0;
-	SolutionConfig->b_wk1 = (SolutionConfig->g_wk1 + SolutionConfig->l_wk1 - 1) / SolutionConfig->l_wk1;
-	SolutionConfig->b_wk2 = (SolutionConfig->g_wk2 + SolutionConfig->l_wk2 - 1) / SolutionConfig->l_wk2;
-
-	if (SolutionConfig->b_wk0 == 0)
-		return E_ReturnState::FAIL;
-
-	return E_ReturnState::SUCCESS;
-}
-
-E_ReturnState ConvFwd1x1Solution::generateSource()
-{
-	SolutionConfig->KernelName = "ConvFwd1x1";
-	if (SolutionConfig->ConfigName == "MIOpenOcl")
-	{
-		SolutionConfig->KernelFile = "ConvFwd1x1_Jcl.cl";
-		//SolutionConfig->KernelFile = "ConvFwd1x1_Jcl_NewOrg.cl";
-		//SolutionConfig->KernelFile = "ConvFwd1x1_Jcl_256thread.cl";
-		SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_OCL_FILE;
-	}
-	else if (SolutionConfig->ConfigName == "SQC")
-	{
-		SolutionConfig->KernelFile = "ConvFwd1x1_Jasm.s";
-		//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_NewOrg.s";
-		//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_256thread.s";
-		SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-	}
-	else if (SolutionConfig->ConfigName == "C_MULT")
-	{
-		SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_Cin_Mult.s";
-		SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-	}
-	else if (SolutionConfig->ConfigName == "PreFetch_Single")
-	{
-		//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single.s";
-		//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_NewOrg.s";
-		//SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_FixWei.s";
-		SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Single_FixWei_2.s";
-		SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-	}
-	else if (SolutionConfig->ConfigName == "PreFetch_Mult")
-	{
-		SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_PreFetch_Mult_Conv.s";
-		SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-	}
-	else if (SolutionConfig->ConfigName == "TensileConv")
-	{
-		SolutionConfig->KernelFile = "ConvFwd1x1_Jasm_TensileConv.s";
-		autoGenKernel();
-		SolutionConfig->KernelSrcType = E_KernleType::KERNEL_TYPE_GAS_FILE;
-	}
-
-	return E_ReturnState::SUCCESS;
-}
-
-/************************************************************************/
-/* 自动生成kernel								                        */
-/************************************************************************/
-void ConvFwd1x1Solution::autoGenKernel()
-{
-	KernelWriterConv1x1 * kw = new KernelWriterConv1x1(ProblemConfig, SolutionConfig);
-	kw->GenKernelString();
-#if EnPrintSource
-	kw->PrintKernelString();
-#endif
-#if EnSaveSource
-	kw->SaveKernelString2File();
-#endif
-}
 
 /************************************************************************/
 /* 记录性能和配置															*/
 /************************************************************************/
 void ConvFwd1x1Solution::ReportProblemPerformence()
 {
-	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+/*	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
 	printf("------------------------------------------------\n");
@@ -669,7 +149,7 @@ void ConvFwd1x1Solution::ReportProblemPerformence()
 		}
 
 		printf("%s = %d\n", param->Name.c_str(), param->BestValue);
-	}
+	}*/
 }
 
 /************************************************************************/
@@ -677,7 +157,7 @@ void ConvFwd1x1Solution::ReportProblemPerformence()
 /************************************************************************/
 void ConvFwd1x1Solution::simulateIndex()
 {
-	T_ExtConvFwd1x1ProblemConfig * extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+/*	T_ExtConvFwd1x1ProblemConfig * extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
 
 	int *testId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
@@ -753,7 +233,7 @@ void ConvFwd1x1Solution::simulateIndex()
 	free(testKOutBlkId);
 	free(testPosId);
 	free(testBatchId);
-	free(testOutId);
+	free(testOutId);*/
 }
 #pragma endregion
 
@@ -762,7 +242,7 @@ void ConvFwd1x1Solution::simulateIndex()
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
-#define		SkipHost		(0)
+#define		SkipHost		(1)
 
 /************************************************************************/
 /* 生成问题空间													        */
@@ -933,6 +413,17 @@ E_ReturnState ConvFwd1x1Problem::InitHost()
 		exProbCfg->h_out[i] = 555.555;
 	}
 
+	exProbCfg->N2 = 1024; 
+	exProbCfg->sizeN = exProbCfg->N2 * sizeof(float);
+	exProbCfg->h_a = (float *)malloc(exProbCfg->sizeN);
+	exProbCfg->h_b = (float *)malloc(exProbCfg->sizeN);
+	exProbCfg->h_c = (float *)malloc(exProbCfg->sizeN);
+	for (int i = 0; i < exProbCfg->N2; i++)
+	{
+		exProbCfg->h_a[i] = 1.234;
+		exProbCfg->h_b[i] = i * 1.0f;
+		exProbCfg->h_c[i] = 0;
+	}
 	return E_ReturnState::SUCCESS;
 }
 
@@ -1052,6 +543,10 @@ void ConvFwd1x1Problem::ReleaseHost()
 	free(exProbCfg->h_bias);
 	free(exProbCfg->h_out);
 	free(exProbCfg->out_ref);
+
+	free(exProbCfg->h_a);
+	free(exProbCfg->h_b);
+	free(exProbCfg->h_c);
 }
 
 

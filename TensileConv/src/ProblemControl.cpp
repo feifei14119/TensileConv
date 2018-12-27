@@ -31,7 +31,7 @@ E_ReturnState ProblemCtrlBase::RunOneProblem()
 	{
 		INFO("initialize host.");				InitHost();
 		INFO("run host calculate.");			Host();
-		INFO("solve this problem.");			Solution->RunAllSolution();
+		INFO("solve this problem.");			Solution->RunAllSolution(ProblemConfig);
 		INFO("verify device calculation.");		Verify();
 		INFO("release host.");					ReleaseHost();
 

@@ -13,22 +13,6 @@
 using namespace AutoTune;
 
 /************************************************************************/
-/* problem 配置				                                            */
-/************************************************************************/
-typedef struct ProblemConfigType
-{
-	ProblemConfigType(std::string name) { ConfigName = name; }
-	ProblemConfigType() {}
-
-	std::string ConfigName;				// 问题配置名称
-	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
-	void * extConfig;
-
-	double Calculation;					// 计算量
-	double TheoryElapsedTime;			// 理论执行时间
-}T_ProblemConfig;
-
-/************************************************************************/
 /* 问题句柄																*/
 /************************************************************************/
 class ProblemCtrlBase

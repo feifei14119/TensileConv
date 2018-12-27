@@ -49,6 +49,7 @@ namespace feifei
 	{
 		unsigned int x, y, z;
 		dim3(unsigned int vx = 1, unsigned int vy = 1, unsigned int vz = 1) : x(vx), y(vy), z(vz) {}
+		size_t * arr() { return new size_t[3]{ x,y,z }; }
 	}dim3;
 
 	typedef struct KernelWriteHelpInfoType

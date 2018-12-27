@@ -42,12 +42,28 @@ typedef struct SolutionConfigTpye
 	E_ProgramType KernelSrcType;
 	std::string extCompilerOpt;
 
-	size_t l_wk0, l_wk1, l_wk2;
-	size_t g_wk0, g_wk1, g_wk2;
-	size_t b_wk0, b_wk1, b_wk2;
+	dim3 group_sz;
+	dim3 group_num;
+	dim3 global_sz;
 }T_SolutionConfig;
 
-struct T_ProblemConfig;
+/************************************************************************/
+/* problem 配置				                                            */
+/************************************************************************/
+typedef struct ProblemConfigType
+{
+	ProblemConfigType(std::string name) { ConfigName = name; }
+	ProblemConfigType() {}
+
+	std::string ConfigName;				// 问题配置名称
+	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
+	void * extConfig;
+
+	double Calculation;					// 计算量
+	double TheoryElapsedTime;			// 理论执行时间
+}T_ProblemConfig;
+
+
 /************************************************************************/
 /* solution 控制 (so called generic solver)			                    */
 /************************************************************************/
@@ -57,27 +73,22 @@ public:
 	// 此处可以把问题扩展配置传过来
 	SolutionCtrlBase()
 	{
-		RepeatTime = 1;
+		RepeatTime = 100;
 		ProblemBestTime = -1;
 		cmdArgs = CmdArgs::GetCmdArgs();
-		pOclRt = RuntimeOCL::GetInstance();
-		stream = pOclRt->CreatCmdQueue(true);
+		rtOcl = RuntimeOCL::GetInstance();
+		stream = rtOcl->CreatCmdQueue(true);
 		SolutionConfigList = new std::list<T_SolutionConfig*>;
 		SolutionConfigList->clear();
 	}
-	~SolutionCtrlBase() { delete stream; }
+	~SolutionCtrlBase() { delete stream; delete SolutionConfigList; }
 
 
 public:
-	void RunAllSolution();
+	void RunAllSolution(T_ProblemConfig *problem);
 	E_ReturnState RunOneSolution();
-
-	void CleanSolution();
-
 	virtual E_ReturnState LaunchSolution(bool isWarmup);
-	E_ReturnState GetPerformence();
-	
-	void printIndex(int *index, char* name);
+	E_ReturnState GetPerformence();	
 	
 	virtual E_ReturnState InitDev() = 0;
 	virtual E_ReturnState GenerateSolutionConfigs() = 0;
@@ -89,13 +100,8 @@ public:
 		printf("please report best perfomence.\n");
 	}
 
-	T_ProblemConfig * ProblemConfig;					// 当前正在处理的问题配置
-	T_SolutionConfig * SolutionConfig;					// 当前正在处理的解决方案配置
-	std::list<T_SolutionConfig*> *SolutionConfigList;	// 所有解决方案配置
 
-	int RepeatTime;
-	//RuntimeCtrl * runtime;			
-	std::list<double> ElapsedTimes;		// 每次运行的耗时
+	int RepeatTime;	
 	T_Score BestScore;					// 当前解决方案配置的最佳性能
 	T_Score AverageScore;				// 当前解决方案配置的平均性能
 	double ProblemBestTime;				// 当前问题配置的最佳运行时间
@@ -103,8 +109,23 @@ public:
 
 protected:
 	CmdArgs * cmdArgs;
-	int devId;
-
-	RuntimeOCL * pOclRt;
+	RuntimeOCL * rtOcl;
 	CmdQueueOCL* stream;	// one command queue for whole solution configs
+	KernelOCL * kernel;
+	cl_event profEvt;
+
+	std::list<T_SolutionConfig*> *SolutionConfigList;	// 所有解决方案配置
+	T_ProblemConfig * ProblemConfig;					// 当前正在处理的问题配置
+	T_SolutionConfig * SolutionConfig;					// 当前正在处理的解决方案配置
+	
+	std::vector<double> elapsedTimes;		// 单个参数组合重复执行的时间
+
 };
+
+namespace feifei
+{
+	extern int next2pow(int n);
+	extern int log2(int value);
+	extern int divCeil(int a, int b);
+	extern void printIndex(int *index, char* name, dim3 g_wk, dim3 l_wk);
+}

@@ -45,4 +45,8 @@ typedef struct ExtConvFwd1x1ProblemConfigType
 	float negSlop;
 	int size_in, size_wei, size_bias, size_out, size_sig;
 	int size_dbg;
+
+	int N2;
+	size_t sizeN;
+	float * h_a, * h_b, * h_c;
 }T_ExtConvFwd1x1ProblemConfig;
