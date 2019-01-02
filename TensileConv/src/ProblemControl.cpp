@@ -8,37 +8,35 @@ using namespace AutoTune;
 /************************************************************************/
 void ProblemCtrlBase::RunAllProblem()
 {
+	PRINT_SEPARATOR1();
+	INFO(" Problem Name: %s.", problemName.c_str());
+	PRINT_SEPARATOR1();
+
 	// ======================================================================
 	// 遍历problem参数空间,搜索参数空间
 	// ======================================================================
 	std::list<T_ProblemConfig*>::iterator problemCfgIt;
-	for (problemCfgIt = ProblemConfigList->begin(); problemCfgIt != ProblemConfigList->end(); problemCfgIt++)
+	for (problemCfgIt = problemConfigList->begin(); problemCfgIt != problemConfigList->end(); problemCfgIt++)
 	{
-		ProblemConfig = *problemCfgIt;
-
-		PRINT_SEPARATOR1();
-		INFO(" Problem Name: %s.", ProblemName.c_str());
-		INFO(" Problem Config: %s.", ProblemConfig->ConfigName.c_str());
-		PRINT_SEPARATOR1();
-
-		RunOneProblem();
+		problemConfig = *problemCfgIt;
+		runOneProblem();
 	}
 }
 
-E_ReturnState ProblemCtrlBase::RunOneProblem()
+E_ReturnState ProblemCtrlBase::runOneProblem()
 {
 	while (true)
 	{
-		INFO("initialize host.");				InitHost();
-		INFO("run host calculate.");			Host();
-		INFO("solve this problem.");			Solution->RunAllSolution(ProblemConfig);
-		INFO("verify device calculation.");		Verify();
-		INFO("release host.");					ReleaseHost();
+		INFO("initialize host.");				initHostParam(); caculateTheoryPerformance();
+		INFO("run host calculate.");			runHostCompute();
+		INFO("solve this problem.");			solution->RunAllSolution(problemConfig);
+		INFO("verify device calculation.");		verifyDevCompute();
+		INFO("release host.");					releaseHostParam();
 
-		if (ProblemConfig->ProblemParamSpace.ParamNum > 0)
+		if (problemConfig->ProblemParamSpace.ParamNum > 0)
 		{
 			INFO("search problem parameters.");
-			if (ProblemConfig->ProblemParamSpace.GetNexComb() == E_ReturnState::FAIL)
+			if (problemConfig->ProblemParamSpace.GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search problem parameters finished.");
 				break;

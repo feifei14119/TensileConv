@@ -416,7 +416,7 @@ double RuntimeOCL::GetProfilingTime(cl_event * evt)
 		return 0.0;
 	}
 
-	double start_time, end_time;
+	cl_ulong start_time, end_time;
 	clGetEventProfilingInfo(*evt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start_time, NULL);
 	clGetEventProfilingInfo(*evt, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end_time, NULL);
 

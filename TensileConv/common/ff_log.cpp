@@ -21,6 +21,16 @@ namespace feifei
 	/************************************************************************/
 	/* ÆÁÄ»Êä³ö																*/
 	/************************************************************************/
+	void print_format_output(const char * format, ...)
+	{
+		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
+		va_list args;
+		va_start(args, format);
+		vsprintf(log_char_buffer, format, args);
+		printf("%s", log_char_buffer);
+		va_end(args);
+		printf("\n");
+	}
 	void print_format_info(const char * format, ...)
 	{
 		printf("[INFO]");

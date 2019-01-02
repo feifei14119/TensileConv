@@ -5,19 +5,17 @@
 //using namespace AutoGen;
 using namespace AutoTune;
 
-#pragma region SOLUTION
 /************************************************************************/
 /* solution控制                                                          */
 /************************************************************************/
+#pragma region SOLUTION
+
 #define		MultSolution	(0)
 #define		EnSimuIndex		(0)
 #define		EnSaveSource	(1)
 #define		EnPrintSource	(0)
 
-/************************************************************************/
-/* 根据problem参数成solution参数空间                                      */
-/************************************************************************/
-E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
+E_ReturnState ConvFwd1x1Solution::generateSolutionConfigs()
 {
 	T_SolutionConfig * solutionConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSolutionConfig;
@@ -62,19 +60,28 @@ E_ReturnState ConvFwd1x1Solution::GenerateSolutionConfigs()
 #endif
 		// ----------------------------------------------------------------------
 		// 添加solution
-		SolutionConfigList->push_back(solutionConfig);
+		solutionConfigList->push_back(solutionConfig);
 	}
 
 	return E_ReturnState::SUCCESS;
 }
 
-/************************************************************************/
-/* 申请显存                                                            */
-/************************************************************************/
-E_ReturnState ConvFwd1x1Solution::InitDev()
+E_ReturnState ConvFwd1x1Solution::generateKernel()
 {
-	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
+	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
+
+	kernel = rtOcl->CreatKernel("../TensileConv/kernel/VectorAdd.cl", "VectorAdd", E_ProgramType::PRO_OCL_FILE);
+	solutionConfig->global_sz = dim3(extProb->N2, 1, 1);
+	solutionConfig->group_sz = dim3(64, 1, 1);
+
+	return E_ReturnState::SUCCESS;
+}
+
+E_ReturnState ConvFwd1x1Solution::generateKernelParam()
+{
+	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
+	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
 
 	d_a = rtOcl->DevMalloc(extProb->sizeN);
 	d_b = rtOcl->DevMalloc(extProb->sizeN);
@@ -88,85 +95,57 @@ E_ReturnState ConvFwd1x1Solution::InitDev()
 	return E_ReturnState::SUCCESS;
 }
 
-/************************************************************************/
-/* 返回结果                                                            */
-/************************************************************************/
-E_ReturnState ConvFwd1x1Solution::GetBackResult()
+E_ReturnState ConvFwd1x1Solution::getBackResult()
 {
-	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
+	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
 
 	stream->MemCopyD2H(extProb->h_c, d_c, extProb->sizeN);
 }
 
-/************************************************************************/
-/* 释放显存	                                                           */
-/************************************************************************/
-void ConvFwd1x1Solution::ReleaseDev()
+void ConvFwd1x1Solution::releaseKernelParam()
 {
 	rtOcl->DevFree(d_a);
 	rtOcl->DevFree(d_b);
 	rtOcl->DevFree(d_c);
 }
 
-/************************************************************************/
-/* 根据solution参数生成source, complier和worksize                        */
-/************************************************************************/
-E_ReturnState ConvFwd1x1Solution::GenerateSolution()
+void ConvFwd1x1Solution::reportProblemPerformence()
 {
-	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
+	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
+	
+	INFO("shortest time: %.3f (us).\t", solutionScore.ElapsedTime * 1e6);
+	INFO("best performence: %.1f%%.\n", solutionScore.Performence * 100);
 
-	kernel = rtOcl->CreatKernel("../TensileConv/kernel/VectorAdd.cl", "VectorAdd", E_ProgramType::PRO_OCL_FILE);
-	SolutionConfig->global_sz = dim3(extProb->N2, 1, 1);
-	SolutionConfig->group_sz = dim3(64, 1, 1);
-
-	return E_ReturnState::SUCCESS;
-}
-
-
-/************************************************************************/
-/* 记录性能和配置															*/
-/************************************************************************/
-void ConvFwd1x1Solution::ReportProblemPerformence()
-{
-/*	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
-
-	printf("------------------------------------------------\n");
-	printf("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
-
-	printf("shortest time: %.3f (us).\t", ProblemBestTime * 1e6);
-	printf("best performence: %.1f%%.\n", ProblemBestPerformence * 100);
-
+	PRINT_SEPARATOR2();
+	OUTPUT("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
 	while (true)
 	{
 		T_SearchParam * param;
-		param = SolutionConfig->KernelSearchSpace.GetOneParam();
+		param = solutionConfig->KernelSearchSpace.GetOneParam();
 		if (param == NULL)
 		{
 			break;
 		}
 
-		printf("%s = %d\n", param->Name.c_str(), param->BestValue);
-	}*/
+		OUTPUT("%s = %d\n", param->Name.c_str(), param->BestValue);
+	}
+	PRINT_SEPARATOR2();
 }
 
-/************************************************************************/
-/* 测试下标计算															*/
-/************************************************************************/
 void ConvFwd1x1Solution::simulateIndex()
 {
-/*	T_ExtConvFwd1x1ProblemConfig * extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)SolutionConfig->extConfig;
+/*	T_ExtConvFwd1x1ProblemConfig * extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
+	T_ExtConvFwd1x1SolutionConfig * extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
 
-	int *testId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
-	int *testPixBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
-	int *testCInBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
-	int *testKOutBlkId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
-	int *testPosId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
-	int *testBatchId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
-	int *testOutId = (int*)malloc(SolutionConfig->b_wk0 * sizeof(int));
+	int *testId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
+	int *testPixBlkId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
+	int *testCInBlkId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
+	int *testKOutBlkId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
+	int *testPosId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
+	int *testBatchId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
+	int *testOutId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
 
 	uint in_chan_stride = extProbCfg->W * extProbCfg->H;
 	uint in_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->C;
@@ -179,10 +158,10 @@ void ConvFwd1x1Solution::simulateIndex()
 	uint k_out_maps = extSolCfg->k_out_maps;
 	uint k_out_group = extSolCfg->k_out_group;
 
-	uint wave_per_group = SolutionConfig->l_wk0 / WAVE_SIZE;
+	uint wave_per_group = solutionConfig->l_wk0 / WAVE_SIZE;
 	uint conv_loop = extProbCfg->C / extSolCfg->c_in_maps_once / 2;
 
-	for (int grp = 0; grp < SolutionConfig->b_wk0; grp++)
+	for (int grp = 0; grp < solutionConfig->b_wk0; grp++)
 	{
 		uint tid_x = 5 * 64 + 40;
 		uint gid_x = grp;
@@ -237,16 +216,13 @@ void ConvFwd1x1Solution::simulateIndex()
 }
 #pragma endregion
 
-
-#pragma region PROBLEM
 /************************************************************************/
 /* 问题控制                                                             */
 /************************************************************************/
+#pragma region PROBLEM
+
 #define		SkipHost		(1)
 
-/************************************************************************/
-/* 生成问题空间													        */
-/************************************************************************/
 E_ReturnState ConvFwd1x1Problem::TurnProblem()
 {
 	T_ProblemConfig * probCfg;
@@ -294,7 +270,7 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 	searchParam->ValueArray.push_back(1);
 	probCfg->ProblemParamSpace.AddOneParam(searchParam);
 
-	ProblemConfigList->push_back(probCfg);
+	problemConfigList->push_back(probCfg);
 
 	RunAllProblem();
 }
@@ -311,22 +287,19 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem(int WH, int C, int K, int N, int UV
 	exProbCfg->enRelu = isRelu;
 	probCfg->extConfig = exProbCfg;
 
-	ProblemConfigList->push_back(probCfg);
+	problemConfigList->push_back(probCfg);
 
 	RunAllProblem();
 }
 
-/************************************************************************/
-/* 参数初始化                                                            */
-/************************************************************************/
-E_ReturnState ConvFwd1x1Problem::InitHost()
+E_ReturnState ConvFwd1x1Problem::initHostParam()
 {
-	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 
 	while (true)
 	{
 		T_SearchParam * param;
-		param = ProblemConfig->ProblemParamSpace.GetOneParam();
+		param = problemConfig->ProblemParamSpace.GetOneParam();
 		if (param == NULL)
 		{
 			break;
@@ -361,10 +334,10 @@ E_ReturnState ConvFwd1x1Problem::InitHost()
 	exProbCfg->R = 0;		exProbCfg->S = 0;		// padding
 
 	PRINT_SEPARATOR1();
-	INFO(" WHCKN=[%d * %d, %d, %d, %d] stride=[%d, %d]",
+	OUTPUT("WHCKN=[%d * %d, %d, %d, %d] stride=[%d, %d]",
 		exProbCfg->W, exProbCfg->H, exProbCfg->C, exProbCfg->K, exProbCfg->N,
 		exProbCfg->U, exProbCfg->V);
-	INFO(" Bias = %s, Relu = %s", exProbCfg->enBias ? "True" : "False", exProbCfg->enRelu ? "True" : "False");
+	OUTPUT("Bias = %s, Relu = %s", exProbCfg->enBias ? "True" : "False", exProbCfg->enRelu ? "True" : "False");
 	PRINT_SEPARATOR1();
 
 	exProbCfg->OutW = exProbCfg->W + exProbCfg->R * 2 - exProbCfg->X + 1;
@@ -427,15 +400,26 @@ E_ReturnState ConvFwd1x1Problem::InitHost()
 	return E_ReturnState::SUCCESS;
 }
 
-/************************************************************************/
-/* HOST端                                                               */
-/************************************************************************/
-E_ReturnState ConvFwd1x1Problem::Host()
+void ConvFwd1x1Problem::caculateTheoryPerformance()
+{
+	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
+
+	int cuNum = rtOcl->Device()->DeviceInfo()->cuNum;
+	double freq = rtOcl->Device()->DeviceInfo()->freqMHz * 1e6;
+
+	problemConfig->Calculation = 1.0 * exProbCfg->W * exProbCfg->H * exProbCfg->C * exProbCfg->N * exProbCfg->K * exProbCfg->X * exProbCfg->Y / exProbCfg->U / exProbCfg->V * 2.0;
+	problemConfig->TheoryElapsedTime = problemConfig->Calculation / (SIMD_PER_CU * cuNum * freq * 2.0);
+
+	INFO("Calculation = %.3f(G), TheoryElapsedTime = %.3f(us)",
+		problemConfig->Calculation * 1e-9, problemConfig->TheoryElapsedTime * 1e6);
+}
+
+E_ReturnState ConvFwd1x1Problem::runHostCompute()
 {
 #if SkipHost
 	return E_ReturnState::SUCCESS;
 #endif
-	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 
 	int stride_n_in;			// stride for differetn batch of input
 	int stride_c_in;			// stride for differetn channel in the same batch of input
@@ -508,12 +492,9 @@ E_ReturnState ConvFwd1x1Problem::Host()
 	return E_ReturnState::SUCCESS;
 }
 
-/************************************************************************/
-/* 校验                                                                 */
-/************************************************************************/
-E_ReturnState ConvFwd1x1Problem::Verify()
+E_ReturnState ConvFwd1x1Problem::verifyDevCompute()
 {
-	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 
 	float diff = 0;
 	for (int i = 0; i < exProbCfg->size_out; i++)
@@ -531,12 +512,9 @@ E_ReturnState ConvFwd1x1Problem::Verify()
 	return E_ReturnState::SUCCESS;
 }
 
-/***********************************************************************/
-/* 释放                                                                 */
-/************************************************************************/
-void ConvFwd1x1Problem::ReleaseHost()
+void ConvFwd1x1Problem::releaseHostParam()
 {
-	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
+	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 
 	free(exProbCfg->h_in);
 	free(exProbCfg->h_wei);
@@ -547,19 +525,6 @@ void ConvFwd1x1Problem::ReleaseHost()
 	free(exProbCfg->h_a);
 	free(exProbCfg->h_b);
 	free(exProbCfg->h_c);
-}
-
-
-void ConvFwd1x1Problem::caculPerf()
-{
-	T_ExtConvFwd1x1ProblemConfig * exProbCfg = (T_ExtConvFwd1x1ProblemConfig *)ProblemConfig->extConfig;
-
-	ProblemConfig->Calculation = 1.0 * exProbCfg->W * exProbCfg->H * exProbCfg->C * exProbCfg->N * exProbCfg->K * exProbCfg->X * exProbCfg->Y; // */stride_R/stride_S
-	//ProblemConfig->TheoryElapsedTime = ProblemConfig->Calculation / RuntimeCtrlBase::DeviceInfo.Fp32Flops;
-	ProblemConfig->TheoryElapsedTime = ProblemConfig->Calculation / (64 * 64 * 1.5 * 1000 * 1000 * 1000);
-
-	printf("Calculation = %.3f G\n", ProblemConfig->Calculation * 1e-9);
-	printf("TheoryElapsedTime = %.3f us \n", ProblemConfig->TheoryElapsedTime * 1e6);
 }
 
 #pragma endregion

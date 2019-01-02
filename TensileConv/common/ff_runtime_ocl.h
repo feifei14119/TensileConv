@@ -26,6 +26,7 @@ namespace feifei
 
 		void AddCmdQueue(CmdQueueOCL * q) { queues.push_back(q); }
 		void AddKernel(KernelOCL * k) { kernels.push_back(k); }
+		T_DeviceInfo * DeviceInfo() { return &deviceInfo; }
 
 	protected:
 		cl_platform_id platformId;
@@ -168,6 +169,7 @@ namespace feifei
 		}
 
 		uint DevicesCnt() { return devices.size(); }
+		DeviceOCL * Device() { return selDevice; }
 		E_ReturnState SellectDevice(uint devNum) { selDevice = devices[devNum]; }
 		CmdQueueOCL * CreatCmdQueue(bool enProf = false, int devNum = -1);
 

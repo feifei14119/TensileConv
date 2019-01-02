@@ -91,6 +91,7 @@ struct Option
 #define	CU_PER_SE			(16)
 #define CU_NUM				(CU_PER_SE * SE_NUM)
 #define	WAVE_SIZE			(64)
+#define SIMD_PER_CU			(64)
 #define CACHE_LINE			(16)
 #define	MAX_VGPR_COUNT		(256)
 #define	MAX_SGPR_COUNT		(800)

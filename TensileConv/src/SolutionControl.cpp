@@ -1,59 +1,56 @@
-#include <limits>
+
 #include "SolutionControl.h"
 
 using namespace feifei;
 using namespace AutoTune;
 
-
 void SolutionCtrlBase::RunAllSolution(T_ProblemConfig *problem)
 {
-	ProblemConfig = problem;
+	problemConfig = problem;
 
 	// ======================================================================
 	// 生成解决方案空间
 	// ======================================================================
 	INFO("generate solution config list.");
-	GenerateSolutionConfigs();
+	generateSolutionConfigs();
 
 	// ======================================================================
 	// 遍历每个problem的solution参数空间
 	// ======================================================================
 	std::list<T_SolutionConfig*>::iterator solutionCfgIt;
-	for (solutionCfgIt = SolutionConfigList->begin();
-		solutionCfgIt != SolutionConfigList->end();
+	for (solutionCfgIt = solutionConfigList->begin();
+		solutionCfgIt != solutionConfigList->end();
 		solutionCfgIt++)
 	{
-		SolutionConfig = *solutionCfgIt;
+		solutionConfig = *solutionCfgIt;
 
 		PRINT_SEPARATOR1();
-		INFO("Solution Name: %s.", SolutionConfig->ConfigName.c_str());
+		OUTPUT("solution Name: %s.", solutionConfig->ConfigName.c_str());
 		PRINT_SEPARATOR1();
 
-		RunOneSolution();
+		runOneSolution();
 	}
 }
 
 #define TempDo(x)	do{if(x != E_ReturnState::SUCCESS) goto CONTINUE_SEARCH;}while(0)
-E_ReturnState SolutionCtrlBase::RunOneSolution()
+E_ReturnState SolutionCtrlBase::runOneSolution()
 {
 	while (true)
 	{
-		INFO("generate program and build kernel.");	TempDo(GenerateSolution());
-		INFO("initialize device.");					TempDo(InitDev());	// alloc dev mem and NOT create cmd queue
-		INFO("warmup.");							TempDo(LaunchSolution(true));
-		INFO("launch kernel.");						TempDo(LaunchSolution(false));
-		INFO("collect performence.");				TempDo(GetPerformence());
-		INFO("copy result back to cpu.");			TempDo(GetBackResult());
-		INFO("release resource.");					ReleaseDev();	// release dev mem and cmd queue
+		INFO("generate program and build kernel.");	TempDo(generateKernel());
+		INFO("initialize device.");					TempDo(generateKernelParam());
+		INFO("launch kernel.");						TempDo(launchKernel());
+		INFO("copy result back to cpu.");			TempDo(getBackResult());
+		INFO("release resource.");					releaseKernelParam();
 		INFO("search kernel parameters.");
 
 	CONTINUE_SEARCH:
-		if (SolutionConfig->KernelSearchSpace.ParamNum > 0)
+		if (solutionConfig->KernelSearchSpace.ParamNum > 0)
 		{
-			if (SolutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
+			if (solutionConfig->KernelSearchSpace.GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search kernel parameters finished.");
-				ReportProblemPerformence();
+				reportProblemPerformence();
 				return E_ReturnState::SUCCESS;
 			}
 		}
@@ -67,64 +64,53 @@ E_ReturnState SolutionCtrlBase::RunOneSolution()
 }
 #undef TempDo(x)
 
-E_ReturnState SolutionCtrlBase::LaunchSolution(bool isWarmup)
+E_ReturnState SolutionCtrlBase::launchKernel()
 {
-	if (isWarmup)
+	INFO("warmup.");
 	{
-		stream->Launch(kernel, SolutionConfig->global_sz, SolutionConfig->group_sz, &profEvt);
+		stream->Launch(kernel, solutionConfig->global_sz, solutionConfig->group_sz, &profEvt);
 		stream->Finish();
-		elapsedTimes.clear();
 		usleep(0.1);
 	}
-	else
+
+	std::vector<double> elapsedTimes;
+	elapsedTimes.clear();
+	INFO("launch kernel %d times.", repeatTime);
 	{
-		for (int i = 0; i < RepeatTime; i++)
+		for (int i = 0; i < repeatTime; i++)
 		{
-			stream->Launch(kernel, SolutionConfig->global_sz, SolutionConfig->group_sz, &profEvt);
+			stream->Launch(kernel, solutionConfig->global_sz, solutionConfig->group_sz, &profEvt);
 			stream->Finish();
 			elapsedTimes.push_back(rtOcl->GetProfilingTime(&profEvt));
 			usleep(0.01);
 		}
 	}
 
-	return E_ReturnState::SUCCESS;
-}
-
-E_ReturnState SolutionCtrlBase::GetPerformence()
-{
-	// 统计时间
-	AverageScore.ElapsedTime = 0;
-	BestScore.ElapsedTime = (std::numeric_limits<double>::max)();
-	for (int i = 0; i < elapsedTimes.size(); i++)
+	INFO("collect performence.");
 	{
-		AverageScore.ElapsedTime += elapsedTimes[i];
-		if (elapsedTimes[i] < BestScore.ElapsedTime)
-			BestScore.ElapsedTime = elapsedTimes[i];
+		// for this solution config
+		configScore.ElapsedTime = 0;
+		for (int i = 0; i < elapsedTimes.size(); i++)
+		{
+			configScore.ElapsedTime += elapsedTimes[i];
+		}
+		configScore.ElapsedTime /= elapsedTimes.size();		
+		configScore.Flops = problemConfig->Calculation / configScore.ElapsedTime;
+		configScore.Performence = problemConfig->TheoryElapsedTime / configScore.ElapsedTime;
+		INFO("elapsed = %.1f(us), performence = %.1f(Gflops) = %.1f%%.", 
+			configScore.ElapsedTime * 1e6, configScore.Flops * 1e-9, configScore.Performence * 100);
+
+		// for this problem(all solution config)
+		if (solutionScore.ElapsedTime > configScore.ElapsedTime)
+		{
+			solutionScore.ElapsedTime = configScore.ElapsedTime;
+			solutionScore.Performence = configScore.Performence;
+			solutionConfig->KernelSearchSpace.RecordBestComb();
+		}
 	}
-	AverageScore.ElapsedTime /= elapsedTimes.size();
-	
-	INFO("average elapsed time: %.3f (us).", AverageScore.ElapsedTime * 1e9);
-	INFO("best elapsed time: %.3f (us).", BestScore.ElapsedTime * 1e6);
-
-	// 性能换算
-/*	AverageScore.Flops = ProblemConfig->Calculation / AverageScore.ElapsedTime;
-	AverageScore.Performence = ProblemConfig->TheoryElapsedTime / AverageScore.ElapsedTime;
-	BestScore.Flops = ProblemConfig->Calculation / BestScore.ElapsedTime;
-	BestScore.Performence = ProblemConfig->TheoryElapsedTime / BestScore.ElapsedTime;
-
-	printf("best performence: %.1f (Gflops) = %.1f%%.\n", BestScore.Flops * 1e-9, BestScore.Performence * 100);
-	printf("average performence: %.1f (Gflops) = %.1f%%.\n", AverageScore.Flops * 1e-9, AverageScore.Performence * 100);
-		
-	if ((ProblemBestTime < 0) || (ProblemBestTime > AverageScore.ElapsedTime))
-	{
-		ProblemBestTime = AverageScore.ElapsedTime;
-		ProblemBestPerformence = AverageScore.Performence;
-		SolutionConfig->KernelSearchSpace.RecordBestComb();
-	}*/
 
 	return E_ReturnState::SUCCESS;
 }
-
 
 namespace feifei
 {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <stdarg.h>
 #include <vector>
 #include <list>
@@ -16,9 +17,9 @@ using namespace AutoTune;
 /************************************************************************/
 typedef struct ScoreTypde
 {
-	double ElapsedTime;
-	double Flops;
-	double Performence;
+	double ElapsedTime;	//(s)
+	double Flops;		//(Flops)
+	double Performence;	//(%)
 }T_Score;
 
 /************************************************************************/
@@ -30,7 +31,7 @@ typedef struct SolutionConfigTpye
 	SolutionConfigTpye() {}
 	SolutionConfigTpye(std::string name) { ConfigName = name; }
 
-	std::string ConfigName;				// 解决方案名称
+	std::string ConfigName;				// 配置名称
 	SearchSpace KernelSearchSpace;		// 解决方案参数搜索空间
 	void * extConfig;
 
@@ -52,8 +53,8 @@ typedef struct SolutionConfigTpye
 /************************************************************************/
 typedef struct ProblemConfigType
 {
-	ProblemConfigType(std::string name) { ConfigName = name; }
 	ProblemConfigType() {}
+	ProblemConfigType(std::string name) { ConfigName = name; }
 
 	std::string ConfigName;				// 问题配置名称
 	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
@@ -63,63 +64,52 @@ typedef struct ProblemConfigType
 	double TheoryElapsedTime;			// 理论执行时间
 }T_ProblemConfig;
 
-
 /************************************************************************/
 /* solution 控制 (so called generic solver)			                    */
 /************************************************************************/
 class SolutionCtrlBase
 {
 public:
-	// 此处可以把问题扩展配置传过来
 	SolutionCtrlBase()
 	{
-		RepeatTime = 100;
-		ProblemBestTime = -1;
+		repeatTime = 100;
+		solutionScore.ElapsedTime = (std::numeric_limits<double>::max)();
+		solutionScore.Performence = 0;
+
 		cmdArgs = CmdArgs::GetCmdArgs();
 		rtOcl = RuntimeOCL::GetInstance();
 		stream = rtOcl->CreatCmdQueue(true);
-		SolutionConfigList = new std::list<T_SolutionConfig*>;
-		SolutionConfigList->clear();
+
+		solutionConfigList = new std::list<T_SolutionConfig*>;
+		solutionConfigList->clear();
 	}
-	~SolutionCtrlBase() { delete stream; delete SolutionConfigList; }
-
-
-public:
-	void RunAllSolution(T_ProblemConfig *problem);
-	E_ReturnState RunOneSolution();
-	virtual E_ReturnState LaunchSolution(bool isWarmup);
-	E_ReturnState GetPerformence();	
+	~SolutionCtrlBase() { delete stream; delete solutionConfigList; }
 	
-	virtual E_ReturnState InitDev() = 0;
-	virtual E_ReturnState GenerateSolutionConfigs() = 0;
-	virtual E_ReturnState GenerateSolution() = 0;
-	virtual E_ReturnState GetBackResult() = 0;
-	virtual void ReleaseDev() = 0;
-	virtual void ReportProblemPerformence()
-	{
-		printf("please report best perfomence.\n");
-	}
-
-
-	int RepeatTime;	
-	T_Score BestScore;					// 当前解决方案配置的最佳性能
-	T_Score AverageScore;				// 当前解决方案配置的平均性能
-	double ProblemBestTime;				// 当前问题配置的最佳运行时间
-	double ProblemBestPerformence;		// 当前问题配置的最佳性能
+	void RunAllSolution(T_ProblemConfig *problem);
 
 protected:
 	CmdArgs * cmdArgs;
 	RuntimeOCL * rtOcl;
-	CmdQueueOCL* stream;	// one command queue for whole solution configs
+	CmdQueueOCL* stream;	// one command queue for all solution configs
 	KernelOCL * kernel;
 	cl_event profEvt;
 
-	std::list<T_SolutionConfig*> *SolutionConfigList;	// 所有解决方案配置
-	T_ProblemConfig * ProblemConfig;					// 当前正在处理的问题配置
-	T_SolutionConfig * SolutionConfig;					// 当前正在处理的解决方案配置
-	
-	std::vector<double> elapsedTimes;		// 单个参数组合重复执行的时间
+	std::list<T_SolutionConfig*> *solutionConfigList;	// 所有解决方案配置
+	T_ProblemConfig * problemConfig;					// 当前正在处理的问题配置
+	T_SolutionConfig * solutionConfig;					// 当前正在处理的解决方案配置
 
+	int repeatTime;
+	T_Score configScore;				// 当前配置的平均性能
+	T_Score solutionScore;				// 全部配置的平均性能
+
+	virtual E_ReturnState generateSolutionConfigs() = 0;
+	E_ReturnState runOneSolution();
+	virtual E_ReturnState generateKernel() = 0;
+	virtual E_ReturnState generateKernelParam() = 0;
+	virtual E_ReturnState launchKernel();
+	virtual E_ReturnState getBackResult() = 0;
+	virtual void releaseKernelParam() = 0;
+	virtual void reportProblemPerformence(){}
 };
 
 namespace feifei

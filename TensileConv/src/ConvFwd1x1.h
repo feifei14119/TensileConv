@@ -28,59 +28,23 @@ private:
 public:
 	ConvFwd1x1Solution() :SolutionCtrlBase() {}
 
-	/************************************************************************/
-	/* 根据problem参数成solution参数空间                                      */
-	/************************************************************************/
-	E_ReturnState GenerateSolutionConfigs();
-
-
-	/************************************************************************/
-	/* 申请显存                                                            */
-	/************************************************************************/
-	E_ReturnState InitDev();
-
-	/************************************************************************/
-	/* 返回结果                                                            */
-	/************************************************************************/
-	E_ReturnState GetBackResult();
-
-	/************************************************************************/
-	/* 释放显存	                                                           */
-	/************************************************************************/
-	void ReleaseDev();
-
-	/************************************************************************/
-	/* 根据solution参数生成source, complier和worksize                        */
-	/************************************************************************/
-	E_ReturnState GenerateSolution();
-
+protected:
+	E_ReturnState generateSolutionConfigs();
+	E_ReturnState generateKernel();
+	E_ReturnState generateKernelParam();
+	E_ReturnState getBackResult();
+	void releaseKernelParam();
+	void reportProblemPerformence();
+	
 	int N_LCL_IN_MAPS;
 	int N_IN_GROUPS;
 	int N_LCL_IN_MAPS_ONCE;
 	int	N_OUT_GROUPS;
 	int CLOOP0;
 	int CLOOP2;
-//	E_ReturnState generateParameters();
-//	E_ReturnState generateCompilerOption();
-//	E_ReturnState generateWorkLoad();
-//	E_ReturnState generateSource();
 
-	/************************************************************************/
-	/* 自动生成kernel								                        */
-	/************************************************************************/
-//	void autoGenKernel();
-
-
-	/************************************************************************/
-	/* 记录性能和配置															*/
-	/************************************************************************/
-	void ReportProblemPerformence();
-	
-	/************************************************************************/
-	/* 测试下标计算															*/
-	/************************************************************************/
-	void simulateIndex();
-	
+	// 测试下标计算
+	void simulateIndex();	
 };
 
 /************************************************************************/
@@ -89,36 +53,19 @@ public:
 class ConvFwd1x1Problem : public ProblemCtrlBase
 {
 public:
-	ConvFwd1x1Problem() :ProblemCtrlBase() { Solution = new ConvFwd1x1Solution(); }
-	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name) { Solution = new ConvFwd1x1Solution(); }
+	ConvFwd1x1Problem() :ProblemCtrlBase() { solution = new ConvFwd1x1Solution(); }
+	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name) { solution = new ConvFwd1x1Solution(); }
 
-	/************************************************************************/
-	/* 运行问题														        */
-	/************************************************************************/
+	// 运行问题
 	E_ReturnState TurnProblem();
 	E_ReturnState TurnProblem(int WH, int C, int K, int N, int UV, bool isBias, bool isRelu);
 	
-	/************************************************************************/
-	/* 参数初始化                                                            */
-	/************************************************************************/
-	E_ReturnState InitHost();
-
-	/************************************************************************/
-	/* HOST端                                                               */
-	/************************************************************************/
-	E_ReturnState Host();
-
-	/************************************************************************/
-	/* 校验                                                                 */
-	/************************************************************************/
-	E_ReturnState Verify();
-	 
-	/************************************************************************/
-	/* 释放                                                                  */
-	/************************************************************************/
-	void ReleaseHost();
-
-	void caculPerf();
+protected:
+	E_ReturnState initHostParam();
+	E_ReturnState runHostCompute();
+	E_ReturnState verifyDevCompute();
+	void releaseHostParam(); 
+	void caculateTheoryPerformance();
 };
 
 

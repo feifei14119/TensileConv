@@ -20,31 +20,39 @@ class ProblemCtrlBase
 public:
 	ProblemCtrlBase()
 	{
-		ProblemConfigList = new std::list<T_ProblemConfig*>;
 		cmdArgs = CmdArgs::GetCmdArgs();
+		rtOcl = RuntimeOCL::GetInstance();
+
+		problemConfigList = new std::list<T_ProblemConfig*>;
+		problemConfigList->clear();
 	}
 	ProblemCtrlBase(std::string name)
 	{
-		ProblemName = name;
-		ProblemConfigList = new std::list<T_ProblemConfig*>;
+		problemName = name;
+
 		cmdArgs = CmdArgs::GetCmdArgs();
+		rtOcl = RuntimeOCL::GetInstance();
+
+		problemConfigList = new std::list<T_ProblemConfig*>;
+		problemConfigList->clear();
 	}
 
-public:
 	void RunAllProblem();
-	E_ReturnState RunOneProblem();
-
-	virtual E_ReturnState InitHost() = 0;
-	virtual E_ReturnState Host() = 0;
-	virtual E_ReturnState Verify() = 0;
-	virtual void ReleaseHost() = 0;
-
-	std::string ProblemName;
-	std::list<T_ProblemConfig*> *ProblemConfigList;	// 所有问题配置
-	T_ProblemConfig *ProblemConfig;					// 当前正在处理的问题配置
-	SolutionCtrlBase * Solution;
 
 protected:
 	CmdArgs * cmdArgs;
+	RuntimeOCL * rtOcl;
+	SolutionCtrlBase * solution;
+
+	std::string problemName;
+	std::list<T_ProblemConfig*> *problemConfigList;	// 所有问题配置
+	T_ProblemConfig *problemConfig;					// 当前正在处理的问题配置
+
+	E_ReturnState runOneProblem();
+	virtual E_ReturnState initHostParam() = 0;
+	virtual E_ReturnState runHostCompute() = 0;
+	virtual E_ReturnState verifyDevCompute() = 0;
+	virtual void releaseHostParam() = 0;
+	virtual void caculateTheoryPerformance() {}
 };
 
