@@ -18,6 +18,7 @@ namespace feifei
 	/* ÆÁÄ»Êä³ö																*/
 	/************************************************************************/
 	extern void print_format_output(const char * format, ...);
+	extern void print_format_output(std::string msg, ...);
 	extern void print_format_info(const char * format, ...);
 	extern void print_format_info(std::string msg,...);
 	extern void print_format_warn(const char *file, int line, const char * format, ...);

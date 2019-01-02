@@ -49,6 +49,9 @@
     <ClInclude Include="..\src\AutoTuning.h" />
     <ClInclude Include="..\src\ConvFwd1x1.h" />
     <ClInclude Include="..\src\ConvFwd1x1Config.h" />
+    <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h" />
+    <ClInclude Include="..\src\KernelWriter.h" />
+    <ClInclude Include="..\src\KernelWriterBasic.h" />
     <ClInclude Include="..\src\ProblemControl.h" />
     <ClInclude Include="..\src\SolutionControl.h" />
   </ItemGroup>

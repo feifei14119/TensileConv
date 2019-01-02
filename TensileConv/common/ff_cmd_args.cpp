@@ -45,9 +45,9 @@ namespace feifei
 		addOneArg(CMD_ARG_HELP, E_DataType::String, "help", 'h', "help", "help infomation");
 		addOneArg(CMD_ARG_DEVICE, E_DataType::Int, "0", 'd', "device", "specify a device");
 		addOneArg(CMD_ARG_WH, E_DataType::Int, "14", 's', "size", "specify input tensor width and height");
-		addOneArg(CMD_ARG_C, E_DataType::Int, "128", 'c', "chanin", "specify input channel");
+		addOneArg(CMD_ARG_C, E_DataType::Int, "1024", 'c', "chanin", "specify input channel");
 		addOneArg(CMD_ARG_K, E_DataType::Int, "64", 'k', "chanout", "specify output channel");
-		addOneArg(CMD_ARG_N, E_DataType::Int, "16", 'n', "batch", "specify batch size");
+		addOneArg(CMD_ARG_N, E_DataType::Int, "1", 'n', "batch", "specify batch size");
 		addOneArg(CMD_ARG_UV, E_DataType::Int, "1", 'u', "stride", "specify stride size");
 		addOneArg(CMD_ARG_BIAS, E_DataType::Int, "1", 'b', "bias", "specify if use fusion bias opt");
 		addOneArg(CMD_ARG_RELU, E_DataType::Int, "1", 'r', "relu", "specify if use fusion relu opt");

@@ -31,6 +31,11 @@ namespace feifei
 		va_end(args);
 		printf("\n");
 	}
+	void print_format_output(std::string msg, ...)
+	{
+		printf(msg.c_str());
+		printf("\n");
+	}
 	void print_format_info(const char * format, ...)
 	{
 		printf("[INFO]");

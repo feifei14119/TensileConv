@@ -2,7 +2,7 @@
 
 #include "ConvFwd1x1.h"
 
-//using namespace AutoGen;
+using namespace AutoGen;
 using namespace AutoTune;
 
 /************************************************************************/
@@ -70,10 +70,79 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 {
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
+	
+	while (true)
+	{
+		T_SearchParam * param;
+		param = solutionConfig->KernelSearchSpace.GetOneParam();
+		if (param == NULL)
+		{
+			break;
+		}
 
-	kernel = rtOcl->CreatKernel("../TensileConv/kernel/VectorAdd.cl", "VectorAdd", E_ProgramType::PRO_OCL_FILE);
-	solutionConfig->global_sz = dim3(extProb->N2, 1, 1);
-	solutionConfig->group_sz = dim3(64, 1, 1);
+		if (param->Name == "c_in_group")
+		{
+			extSol->c_in_group = param->CurrValue;
+		}
+		if (param->Name == "k_out_maps")
+		{
+			extSol->k_out_maps = param->CurrValue;
+		}
+		if (param->Name == "group_size")
+		{
+			extSol->group_size = param->CurrValue;
+		}
+	}
+
+	if (extSol->c_in_group == 0)
+	{
+		extSol->c_in_group = 4;
+	}
+	if (extSol->k_out_maps == 0)
+	{
+		extSol->k_out_maps = 8;
+	}
+	if (extSol->group_size == 0)
+	{
+		extSol->group_size = 128;
+	}
+
+	extSol->c_in_maps = extProb->C / extSol->c_in_group;
+	extSol->k_out_group = divCeil(extProb->K, extSol->k_out_maps);
+
+	extSol->c_in_maps_once = 8;
+	loop = divCeil(extSol->c_in_maps, extSol->c_in_maps_once);
+	extSol->pix_per_group = 64;
+	extSol->pix_group = divCeil(extProb->W * extProb->H * extProb->N, extSol->group_size);
+	align = extSol->pix_group * extSol->group_size;
+
+	PRINT_SEPARATOR4();
+	OUTPUT("- Kernel Param:");
+	OUTPUT("- 	c_in_maps =[%d], c_in_group =[%d]", extSol->c_in_maps, extSol->c_in_group);
+	OUTPUT("- 	k_out_maps=[%d], k_out_group=[%d]", extSol->k_out_maps, extSol->k_out_group);
+	OUTPUT("- 	align=[%d], pix_group = [%d]", align, extSol->pix_group);
+	OUTPUT("- 	group_size=[%d]", extSol->group_size);
+	PRINT_SEPARATOR4();
+
+	extProb->size_sig = extSol->pix_group * extSol->k_out_group;
+	extProb->h_sig = (float*)malloc(extProb->size_sig * sizeof(float));
+
+	solutionConfig->global_sz = dim3(align * extSol->c_in_group * extSol->k_out_group, 1, 1);
+	solutionConfig->group_sz = dim3(extSol->group_size, 1, 1);
+	
+	solutionConfig->KernelName = "ConvFwd1x1";
+	if(rtOcl->Device()->DeviceInfo()->name == "gfx900")
+		kernelWriter = new KernelWriterConv1x1(problemConfig, solutionConfig);
+	else if (rtOcl->Device()->DeviceInfo()->name == "gfx803")
+		kernelWriter = new KernelWriterConv1x1(problemConfig, solutionConfig, E_IsaArch::Gfx800);
+	kernelWriter->GenKernelString();
+	kernelWriter->SaveKernelString2File();
+	kernel = rtOcl->CreatKernel(
+		(char *)kernelWriter->KernelFile().c_str(), kernelWriter->KernelName().c_str(), E_ProgramType::PRO_GAS_FILE);
+
+//	kernel = rtOcl->CreatKernel("../TensileConv/kernel/VectorAdd.cl", "VectorAdd", E_ProgramType::PRO_OCL_FILE);
+//	solutionConfig->global_sz = dim3(extProb->N2, 1, 1);
+//	solutionConfig->group_sz = dim3(64, 1, 1);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -82,15 +151,28 @@ E_ReturnState ConvFwd1x1Solution::generateKernelParam()
 {
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
+	
+	d_in = rtOcl->DevMalloc(extProb->size_in * sizeof(float));
+	d_wei = rtOcl->DevMalloc(extProb->size_wei * sizeof(float));
+	d_bias = rtOcl->DevMalloc(extProb->size_bias * sizeof(float));
+	d_out = rtOcl->DevMalloc(extProb->size_out * sizeof(float));
+	d_sig = rtOcl->DevMalloc(extProb->size_sig * sizeof(float));
+	negSlop = extProb->negSlop;
+	
+	stream->MemCopyH2D(d_in, extProb->h_in, extProb->size_in * sizeof(float));
+	stream->MemCopyH2D(d_wei, extProb->h_wei, extProb->size_wei * sizeof(float));
+	stream->MemCopyH2D(d_bias, extProb->h_bias, extProb->size_bias * sizeof(float));
 
-	d_a = rtOcl->DevMalloc(extProb->sizeN);
-	d_b = rtOcl->DevMalloc(extProb->sizeN);
-	d_c = rtOcl->DevMalloc(extProb->sizeN);
-	 
-	stream->MemCopyH2D(d_a, extProb->h_a, extProb->sizeN);
-	stream->MemCopyH2D(d_b, extProb->h_b, extProb->sizeN);
+	kernel->SetArgs(&d_in, &d_wei, &d_bias, &d_out, &d_sig, &negSlop);
 
-	kernel->SetArgs(&d_a, &d_b, &d_c);
+//	d_a = rtOcl->DevMalloc(extProb->sizeN);
+//	d_b = rtOcl->DevMalloc(extProb->sizeN);
+//	d_c = rtOcl->DevMalloc(extProb->sizeN);
+//	 
+//	stream->MemCopyH2D(d_a, extProb->h_a, extProb->sizeN);
+//	stream->MemCopyH2D(d_b, extProb->h_b, extProb->sizeN);
+//
+//	kernel->SetArgs(&d_a, &d_b, &d_c);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -100,14 +182,22 @@ E_ReturnState ConvFwd1x1Solution::getBackResult()
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
 
-	stream->MemCopyD2H(extProb->h_c, d_c, extProb->sizeN);
+	stream->MemCopyD2H(extProb->h_out, d_out, extProb->size_out * sizeof(float));
+	stream->MemCopyD2H(extProb->h_sig, d_sig, extProb->size_sig * sizeof(float));
+
+//	stream->MemCopyD2H(extProb->h_c, d_c, extProb->sizeN);
 }
 
 void ConvFwd1x1Solution::releaseKernelParam()
 {
-	rtOcl->DevFree(d_a);
-	rtOcl->DevFree(d_b);
-	rtOcl->DevFree(d_c);
+	rtOcl->DevFree(d_in);
+	rtOcl->DevFree(d_wei);
+	rtOcl->DevFree(d_bias);
+	rtOcl->DevFree(d_out);
+
+//	rtOcl->DevFree(d_a);
+//	rtOcl->DevFree(d_b);
+//	rtOcl->DevFree(d_c);
 }
 
 void ConvFwd1x1Solution::reportProblemPerformence()
@@ -221,7 +311,7 @@ void ConvFwd1x1Solution::simulateIndex()
 /************************************************************************/
 #pragma region PROBLEM
 
-#define		SkipHost		(1)
+#define		SkipHost		(0)
 
 E_ReturnState ConvFwd1x1Problem::TurnProblem()
 {

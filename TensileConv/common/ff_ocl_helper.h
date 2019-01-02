@@ -25,10 +25,10 @@ namespace feifei
 		cl_uint freqMHz;
 		cl_ulong glbMemSizeB;
 		cl_ulong ldsMemSizeB;
-		char * drvVersion;
-		char * clVersion;
-		char * name;			// ISA
-		char * vendor;
+		std::string drvVersion;
+		std::string clVersion;
+		std::string name;			// ISA
+		std::string vendor;
 
 		cl_device_type type;
 		cl_uint cacheLineB;

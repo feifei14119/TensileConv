@@ -80,6 +80,15 @@
     <ClInclude Include="..\src\SolutionControl.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\KernelWriter.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\KernelWriterBasic.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\kernel\VectorAdd.cl">

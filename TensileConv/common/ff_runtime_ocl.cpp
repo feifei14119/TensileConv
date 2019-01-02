@@ -92,6 +92,7 @@ void DeviceOCL::getDeviceInfo()
 {
 	cl_int errNum;
 	size_t size;
+	char * tmpChar;
 
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_TYPE, sizeof(cl_uint), &deviceInfo.type, NULL);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR_ID, sizeof(cl_uint), &deviceInfo.vendorId, NULL);
@@ -103,21 +104,26 @@ void DeviceOCL::getDeviceInfo()
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.ldsMemSizeB, NULL);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platformId, NULL);
 
+
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NAME, 0, NULL, &size);
-	deviceInfo.name = (char*)alloca(size);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NAME, size, deviceInfo.name, NULL);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NAME, size, tmpChar, NULL);
+	deviceInfo.name = std::string(tmpChar);
 
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR, 0, NULL, &size);
-	deviceInfo.vendor = (char*)alloca(size);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR, size, deviceInfo.vendor, NULL);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR, size, tmpChar, NULL);
+	deviceInfo.vendor = std::string(tmpChar);
 
 	errNum = clGetDeviceInfo(deviceId, CL_DRIVER_VERSION, 0, NULL, &size);
-	deviceInfo.drvVersion = (char*)alloca(size);
-	errNum = clGetDeviceInfo(deviceId, CL_DRIVER_VERSION, size, deviceInfo.drvVersion, NULL);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetDeviceInfo(deviceId, CL_DRIVER_VERSION, size, tmpChar, NULL);
+	deviceInfo.drvVersion = std::string(tmpChar);
 
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VERSION, 0, NULL, &size);
-	deviceInfo.clVersion = (char*)alloca(size);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VERSION, size, deviceInfo.clVersion, NULL);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VERSION, size, tmpChar, NULL);
+	deviceInfo.clVersion = std::string(tmpChar);
 }
 
 CmdQueueOCL * RuntimeOCL::CreatCmdQueue(bool enProf, int devNum)
@@ -272,14 +278,22 @@ E_ReturnState KernelOCL::creatKernelFromGasFile(cl_context *ctx)
 	if (kernelFile == "")
 		kernelFile = RuntimeOCL::GetInstance()->KernelTempDir() + "/" + get_file_name(programFile) + ".bin";
 
+	if (device->DeviceInfo()->name == "gfx900")
+		BuildOption = "-x assembler -target amdgcn--amdhsa -mcpu=gfx900 ";
+	else if (device->DeviceInfo()->name == "gfx803")
+		BuildOption = "-x assembler -target amdgcn--amdhsa -mcpu=gfx803 ";
+	else
+		ERR("not support hardware.");
+
 	std::string cmd = compiler + " " + BuildOption + "-o " + kernelFile + " " + programFile;
 	exec_cmd(cmd);
+	INFO(cmd);
 
 	// creatKernelFromBinString()
 	FILE * fp = fopen(kernelFile.c_str(), "rb");
 	if (fp == NULL)
 	{
-		ERR("can't open bin file: " + programFile);
+		ERR("can't open bin file: " + kernelFile);
 	}
 	fseek(fp, 0, SEEK_END);
 	programSize = ftell(fp);
@@ -296,7 +310,7 @@ E_ReturnState KernelOCL::creatKernelFromGasFile(cl_context *ctx)
 		ERR("Failed to create CL program from " + programFile);
 	}
 
-	return E_ReturnState::SUCCESS;
+	return buildKernel();
 }
 E_ReturnState KernelOCL::creatKernelFromGasString(cl_context *ctx)
 {
@@ -319,7 +333,7 @@ E_ReturnState KernelOCL::buildKernel()
 	size_t size;
 	char * tmpLog;
 
-	errNum = clBuildProgram(program, 1, device->pDeviceId(), BuildOption.c_str(), NULL, NULL);
+	errNum = clBuildProgram(program, 1, device->pDeviceId(), "", NULL, NULL);
 	if (errNum != CL_SUCCESS)
 	{
 		ERR("Failed to build CL program from " + programFile);

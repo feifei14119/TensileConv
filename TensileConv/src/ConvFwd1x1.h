@@ -2,7 +2,7 @@
 
 #include "ProblemControl.h"
 #include "ConvFwd1x1Config.h"
-//#include "ConvFwd1x1KernelWriter.h"
+#include "ConvFwd1x1KernelWriter.h"
 
 /************************************************************************/
 /* solution¿ØÖÆ                                                          */
@@ -10,7 +10,7 @@
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 private:
-	T_KernelArgu d_in, d_wei, d_bias, d_out, d_negSlop, d_sig;
+	cl_mem d_in, d_wei, d_bias, d_out, d_sig;
 	cl_mem d_a, d_b, d_c;
 	float negSlop;
 
@@ -29,6 +29,8 @@ public:
 	ConvFwd1x1Solution() :SolutionCtrlBase() {}
 
 protected:
+	AutoGen::KernelWriterConv1x1 * kernelWriter;
+
 	E_ReturnState generateSolutionConfigs();
 	E_ReturnState generateKernel();
 	E_ReturnState generateKernelParam();

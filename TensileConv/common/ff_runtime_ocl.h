@@ -70,7 +70,7 @@ namespace feifei
 			//uint argsCnt = sizeof...(rest);
 			int errNum;
 			
-			errNum = clSetKernelArg(kernel, argsCnt, sizeof(head), (const void*)head);
+			errNum = clSetKernelArg(kernel, argsCnt, sizeof(*head), (const void*)head);
 			if (errNum != CL_SUCCESS)
 			{
 				clErrInfo(errNum);
@@ -136,7 +136,8 @@ namespace feifei
 		static RuntimeOCL * pInstance;
 		RuntimeOCL()
 		{
-			compiler = "clang";
+			//compiler = "clang"; 
+			compiler = "/opt/rocm/opencl/bin/x86_64/clang";
 			SetKernelTempDir("./kernel");
 		}
 

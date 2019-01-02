@@ -39,7 +39,7 @@ typedef struct SolutionConfigTpye
 	std::string KernelDir;
 	std::string KernelFile;			// 可以指定文件名，不使用KernelName推导.需要后缀
 	std::string KernelFileFullName;
-	std::string KernelString;
+	std::string kernelString;
 	E_ProgramType KernelSrcType;
 	std::string extCompilerOpt;
 
@@ -72,7 +72,7 @@ class SolutionCtrlBase
 public:
 	SolutionCtrlBase()
 	{
-		repeatTime = 100;
+		repeatTime = 1;
 		solutionScore.ElapsedTime = (std::numeric_limits<double>::max)();
 		solutionScore.Performence = 0;
 

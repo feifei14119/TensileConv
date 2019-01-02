@@ -8,8 +8,8 @@ namespace AutoGen
 	class KernelWriterConv1x1 :public AutoGen::KernelWriter
 	{
 	public:
-		KernelWriterConv1x1(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg)
-			:KernelWriter(probCfg, solCfg)
+		KernelWriterConv1x1(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg, E_IsaArch isaArch = E_IsaArch::Gfx900)
+			:KernelWriter(probCfg, solCfg, isaArch)
 		{
 			extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 			extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
@@ -32,7 +32,7 @@ namespace AutoGen
 				c_in_maps_once_real = c_in_maps / unroll_time;
 			conv_loop = c_in_maps / c_in_maps_once_real / 2;
 			
-			wave_per_group = solutionConfig->l_wk0 / WAVE_SIZE;
+			wave_per_group = solutionConfig->group_sz.x / WAVE_SIZE;
 
 			en_input_offset = ((extProbCfg->W <= 28) && (IsaArch == E_IsaArch::Gfx900));
 			offset_grp_num = c_in_maps_once_real * 2 / 2;
