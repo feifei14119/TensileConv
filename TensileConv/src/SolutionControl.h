@@ -72,7 +72,7 @@ class SolutionCtrlBase
 public:
 	SolutionCtrlBase()
 	{
-		repeatTime = 1;
+		repeatTime = 100;
 		solutionScore.ElapsedTime = (std::numeric_limits<double>::max)();
 		solutionScore.Performence = 0;
 

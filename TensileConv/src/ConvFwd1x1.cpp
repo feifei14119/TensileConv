@@ -12,8 +12,6 @@ using namespace AutoTune;
 
 #define		MultSolution	(0)
 #define		EnSimuIndex		(0)
-#define		EnSaveSource	(1)
-#define		EnPrintSource	(0)
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionConfigs()
 {
@@ -205,11 +203,11 @@ void ConvFwd1x1Solution::reportProblemPerformence()
 	T_ExtConvFwd1x1ProblemConfig * extProb = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
 	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
 	
-	INFO("shortest time: %.3f (us).\t", solutionScore.ElapsedTime * 1e6);
-	INFO("best performence: %.1f%%.\n", solutionScore.Performence * 100);
-
 	PRINT_SEPARATOR2();
-	OUTPUT("ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:\n", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
+	OUTPUT("+ ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", extProb->H, extProb->W, extProb->C, extProb->K, extProb->N);
+	OUTPUT("+ shortest time: %.3f (us).", solutionScore.ElapsedTime * 1e6);
+	OUTPUT("+ best performence: %.1f%%.", solutionScore.Performence * 100);
+
 	while (true)
 	{
 		T_SearchParam * param;
@@ -219,7 +217,7 @@ void ConvFwd1x1Solution::reportProblemPerformence()
 			break;
 		}
 
-		OUTPUT("%s = %d\n", param->Name.c_str(), param->BestValue);
+		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
 	}
 	PRINT_SEPARATOR2();
 }
