@@ -19,47 +19,42 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionConfigs()
 	T_ExtConvFwd1x1SolutionConfig * extSolutionConfig;
 	T_SearchParam * searchParam;
 
+	extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
 
-	// ======================================================================
-	// solution config 6: AutoTuning
-	// ======================================================================
-	{
-		extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-		solutionConfig = new T_SolutionConfig("TensileConv");
-		solutionConfig->extConfig = extSolutionConfig;
+	solutionConfig = new T_SolutionConfig("TensileConv");
+	solutionConfig->extConfig = extSolutionConfig;
 #if MultSolution
-		// ----------------------------------------------------------------------
-		// 生成搜索空间
-		searchParam = new T_SearchParam("c_in_group");
-		searchParam->ValueArray.push_back(1);
-		searchParam->ValueArray.push_back(2);
-		searchParam->ValueArray.push_back(4);
-		searchParam->ValueArray.push_back(8);
-		searchParam->ValueArray.push_back(16);
-		searchParam->ValueArray.push_back(32);
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
-		//--------------------------------
-		searchParam = new T_SearchParam("k_out_maps");
-		searchParam->ValueArray.push_back(2);
-		searchParam->ValueArray.push_back(4);
-		searchParam->ValueArray.push_back(8);
-		searchParam->ValueArray.push_back(16);
-		searchParam->ValueArray.push_back(32);
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
-		//--------------------------------
-		searchParam = new T_SearchParam("group_size");
-		searchParam->ValueArray.push_back(64);
-		searchParam->ValueArray.push_back(128);
-		searchParam->ValueArray.push_back(256);
-		searchParam->ValueArray.push_back(512);
-		//		searchParam->ValueArray.push_back(1024);
-		solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+	// ----------------------------------------------------------------------
+	// 生成搜索空间
+	searchParam = new T_SearchParam("c_in_group");
+	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(16);
+	searchParam->ValueArray.push_back(32);
+	solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+	//--------------------------------
+	searchParam = new T_SearchParam("k_out_maps");
+	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(16);
+	searchParam->ValueArray.push_back(32);
+	solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+	//--------------------------------
+	searchParam = new T_SearchParam("group_size");
+	searchParam->ValueArray.push_back(64);
+	searchParam->ValueArray.push_back(128);
+	searchParam->ValueArray.push_back(256);
+	searchParam->ValueArray.push_back(512);
+	//		searchParam->ValueArray.push_back(1024);
+	solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
 #endif
-		// ----------------------------------------------------------------------
-		// 添加solution
-		solutionConfigList->push_back(solutionConfig);
-	}
+	// ----------------------------------------------------------------------
+	// 添加solution
+	solutionConfigList->push_back(solutionConfig);
+
 
 	return E_ReturnState::SUCCESS;
 }

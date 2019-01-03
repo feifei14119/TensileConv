@@ -149,6 +149,7 @@ namespace feifei
 		DeviceOCL * selDevice;
 
 		E_ReturnState initPlatform();
+		E_ReturnState initPlatform(cl_platform_id platformId, cl_context context, cl_device_id deviceId);
 		void getPlatformInfo();
 
 		std::string kernelTempDir;
@@ -156,6 +157,7 @@ namespace feifei
 
 	public:
 		static RuntimeOCL * GetInstance();
+		static RuntimeOCL * GetInstance(cl_platform_id platformId, cl_context context, cl_device_id deviceId);
 		~RuntimeOCL()
 		{
 			for (int i = 0; i < DevicesCnt(); i++)
@@ -168,6 +170,9 @@ namespace feifei
 			if (RuntimeOCL::pInstance)
 				pInstance = nullptr;
 		}
+
+		cl_platform_id PlatformId() { return platformId; }
+		cl_context Context() { return context; }
 
 		uint DevicesCnt() { return devices.size(); }
 		DeviceOCL * Device() { return selDevice; }

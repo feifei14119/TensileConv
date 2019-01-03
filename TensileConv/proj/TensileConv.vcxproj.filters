@@ -39,6 +39,7 @@
     <ClCompile Include="..\src\SolutionControl.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\TensileConvLib.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\common\ff_basic.h">
@@ -89,6 +90,7 @@
     <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\TensileConv.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\kernel\VectorAdd.cl">

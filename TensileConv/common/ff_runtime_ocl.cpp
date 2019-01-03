@@ -22,6 +22,20 @@ RuntimeOCL * RuntimeOCL::GetInstance()
 
 	return pInstance;
 }
+RuntimeOCL * RuntimeOCL::GetInstance(cl_platform_id platformId, cl_context context, cl_device_id deviceId)
+{
+	if (pInstance == nullptr)
+	{
+		pInstance = new RuntimeOCL();
+
+		if (pInstance->initPlatform(platformId, context, deviceId) != E_ReturnState::SUCCESS)
+		{
+			pInstance = nullptr;
+		}
+	}
+
+	return pInstance;
+}
 
 E_ReturnState RuntimeOCL::initPlatform()
 {
@@ -67,6 +81,54 @@ E_ReturnState RuntimeOCL::initPlatform()
 	{
 		DeviceOCL *dev = new DeviceOCL(deviceIds[i]);
 		devices.push_back(dev);
+	}
+
+	return E_ReturnState::SUCCESS;
+}
+E_ReturnState RuntimeOCL::initPlatform(cl_platform_id platformId, cl_context context, cl_device_id deviceId)
+{
+	cl_int errNum;
+	cl_uint pltNum;
+
+	// platform
+	this->platformId = platformId;
+	getPlatformInfo();
+
+	// context
+	this->context = context;
+
+	// devices
+	uint deviceCnt;
+	errNum = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_GPU, 0, NULL, &deviceCnt);
+	clCheckErr(errNum);
+	if (deviceCnt == 0)
+	{
+		FATAL("no opencl device support.");
+	}
+
+	cl_device_id deviceIds[deviceCnt];
+	errNum = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_GPU, deviceCnt, deviceIds, NULL);
+	clCheckErr(errNum);
+
+	for (int i = 0; i < deviceCnt; i++)
+	{
+		DeviceOCL *dev = new DeviceOCL(deviceIds[i]);
+		devices.push_back(dev);
+	}
+
+	// sellect device
+	int devCnt = 0;
+	for (devCnt = 0; devCnt < devices.size(); devCnt++)
+	{
+		if (devices[devCnt]->DeviceId() == deviceId)
+		{
+			selDevice = devices[devCnt];
+			break;
+		}
+	}
+	if (devCnt >= devices.size())
+	{
+		ERR("Can't find device %d.", deviceId);
 	}
 
 	return E_ReturnState::SUCCESS;
