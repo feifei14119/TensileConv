@@ -16,16 +16,16 @@ void DeviceInfo()
 	int cuNum = devInfo->cuNum;
 	double freq = devInfo->freqMHz * 1e6;
 	double perf = SIMD_PER_CU * cuNum * freq * 2;	// 2 opts(mult & add) in one cycle
-	PRINT_SEPARATOR3();
-	PRINT_SEPARATOR2();
+	PRINT_SEPARATOR('=');
+	PRINT_SEPARATOR('+');
 	OUTPUT("+ Vendor name: " + devInfo->vendor);
 	OUTPUT("+ Device name: " + devInfo->name);
 	OUTPUT("+ Runtime version: " + devInfo->clVersion);
 	OUTPUT("+ CU num = %d", cuNum);
 	OUTPUT("+ Freq = %.3f(GHz)", freq * 1e-9);
 	OUTPUT("+ Perf(fp32) = %.3f(TFlops)", perf * 1e-12);
-	PRINT_SEPARATOR2();
-	PRINT_SEPARATOR3();
+	PRINT_SEPARATOR('+');
+	PRINT_SEPARATOR('=');
 }
 
 int main(int argc, char *argv[])

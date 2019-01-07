@@ -70,12 +70,13 @@ protected:
 	T_Score solutionScore;				// 全部配置的平均性能
 
 	virtual E_ReturnState generateSolutionParamSpace() = 0;
+	virtual E_ReturnState getKernelParam() {}
 	virtual E_ReturnState generateKernel() = 0;
 	virtual E_ReturnState prepareKernelArgs() = 0;
 	virtual E_ReturnState launchKernel();
-	virtual E_ReturnState getBackResult() = 0;
+	virtual void getBackResult() = 0;
 	virtual void releaseDevMem() = 0;
-	virtual void reportProblemPerformence() {}
+	virtual void getBestKernel() {}
 
 	// 打印下标
 	void printIndex(int *index, char* name, dim3 g_wk, dim3 l_wk);

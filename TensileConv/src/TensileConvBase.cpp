@@ -9,9 +9,9 @@ using namespace AutoTune;
 /************************************************************************/
 void SolutionCtrlBase::RunSolution()
 {
-	PRINT_SEPARATOR1();
+	PRINT_SEPARATOR2();
 	OUTPUT("* solution Name: %s.", solutionName.c_str());
-	PRINT_SEPARATOR1();
+	PRINT_SEPARATOR2();
 
 	// 生成解决方案空间
 	INFO("generate solution config list.");
@@ -21,10 +21,11 @@ void SolutionCtrlBase::RunSolution()
 #define TempDo(x)	do{if(x != E_ReturnState::SUCCESS) goto CONTINUE_SEARCH;}while(0)
 	while (true)
 	{
+		getKernelParam();
 		INFO("generate program and build kernel.");	TempDo(generateKernel());
 		INFO("initialize device.");					TempDo(prepareKernelArgs());
 		INFO("launch kernel.");						TempDo(launchKernel());
-		INFO("copy result back to cpu.");			TempDo(getBackResult());
+		//INFO("copy result back to cpu.");			TempDo(getBackResult());
 		INFO("release resource.");					releaseDevMem();
 		INFO("search kernel parameters.");
 
@@ -34,7 +35,8 @@ void SolutionCtrlBase::RunSolution()
 			if (solutionParamSpace->GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search kernel parameters finished.");
-				reportProblemPerformence();
+				getBestKernel();
+				break;
 			}
 		}
 		else

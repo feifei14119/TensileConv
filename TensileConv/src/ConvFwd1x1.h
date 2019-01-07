@@ -16,7 +16,6 @@ public:
 	AutoGen::T_Conv1x1KernelParam KernelParam() { return kernelParam; }
 
 private:
-	AutoGen::T_Conv1x1KernelParam kernelParam;
 	cl_mem d_in, d_wei, d_bias, d_out, d_sig;
 	cl_mem d_a, d_b, d_c;
 	float negSlop;
@@ -24,14 +23,17 @@ private:
 
 protected:
 	ConvFwd1x1Problem * problem;
+	AutoGen::T_Conv1x1KernelParam kernelParam;
 	AutoGen::KernelWriterConv1x1 * kernelWriter;
 
 	E_ReturnState generateSolutionParamSpace();
+	E_ReturnState getKernelParam();
+	E_ReturnState getBestKernelParam();
 	E_ReturnState generateKernel();
 	E_ReturnState prepareKernelArgs();
-	E_ReturnState getBackResult();
+	void getBackResult();
+	void getBestKernel();
 	void releaseDevMem();
-	void reportProblemPerformence();
 
 	// ≤‚ ‘œ¬±Íº∆À„
 	void simulateIndex();

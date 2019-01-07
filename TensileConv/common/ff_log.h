@@ -9,9 +9,8 @@
 #define ERR(fmt,...)		do{feifei::print_format_err(__FILE__,__LINE__,fmt,##__VA_ARGS__);return E_ReturnState::FAIL;}while(0)
 #define FATAL(fmt,...)		feifei::print_format_fatal(__FILE__,__LINE__,fmt,##__VA_ARGS__)
 #define	PRINT_SEPARATOR1()	do{for(int i=0;i<COMMENT_LEN;i++) printf("*"); printf("\n");}while(0)
-#define	PRINT_SEPARATOR2()	do{for(int i=0;i<COMMENT_LEN;i++) printf("+"); printf("\n");}while(0)
-#define	PRINT_SEPARATOR3()	do{for(int i=0;i<COMMENT_LEN;i++) printf("="); printf("\n");}while(0)
-#define	PRINT_SEPARATOR4()	do{for(int i=0;i<COMMENT_LEN;i++) printf("-"); printf("\n");}while(0)
+#define	PRINT_SEPARATOR2()	do{for(int i=0;i<COMMENT_LEN;i++) printf("="); printf("\n");}while(0)
+#define	PRINT_SEPARATOR3()	do{for(int i=0;i<COMMENT_LEN;i++) printf("-"); printf("\n");}while(0)
 #define	PRINT_SEPARATOR(c)	do{for(int i=0;i<COMMENT_LEN;i++) printf("%c",c); printf("\n");}while(0)
 
 namespace feifei

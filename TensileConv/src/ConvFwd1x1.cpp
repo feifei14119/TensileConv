@@ -11,7 +11,7 @@ using namespace AutoTune;
 /************************************************************************/
 #pragma region SOLUTION
 
-#define		MultSolution	(0)
+#define		MultSolution	(1)
 #define		EnSimuIndex		(0)
 
 ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
@@ -34,34 +34,34 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	// Éú³ÉËÑË÷¿Õ¼ä
 	searchParam = new T_SearchParam("c_in_group");
 	searchParam->ValueArray.push_back(1);
-	searchParam->ValueArray.push_back(2);
-	searchParam->ValueArray.push_back(4);
-	searchParam->ValueArray.push_back(8);
-	searchParam->ValueArray.push_back(16);
-	searchParam->ValueArray.push_back(32);
+//	searchParam->ValueArray.push_back(2);
+//	searchParam->ValueArray.push_back(4);
+//	searchParam->ValueArray.push_back(8);
+//	searchParam->ValueArray.push_back(16);
+//	searchParam->ValueArray.push_back(32);
 	solutionParamSpace->AddOneParam(searchParam);
 	//--------------------------------
 	searchParam = new T_SearchParam("k_out_maps");
-	searchParam->ValueArray.push_back(2);
-	searchParam->ValueArray.push_back(4);
+//	searchParam->ValueArray.push_back(2);
+//	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
-	searchParam->ValueArray.push_back(32);
+//	searchParam->ValueArray.push_back(32);
 	solutionParamSpace->AddOneParam(searchParam);
 	//--------------------------------
 	searchParam = new T_SearchParam("group_size");
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
-	searchParam->ValueArray.push_back(256);
-	searchParam->ValueArray.push_back(512);
+//	searchParam->ValueArray.push_back(256);
+//	searchParam->ValueArray.push_back(512);
 	solutionParamSpace->AddOneParam(searchParam);
 #endif
 
 	return E_ReturnState::SUCCESS;
 }
 
-E_ReturnState ConvFwd1x1Solution::generateKernel()
-{	
+E_ReturnState ConvFwd1x1Solution::getKernelParam()
+{
 	while (true)
 	{
 		T_SearchParam * param = solutionParamSpace->GetOneParam();
@@ -84,8 +84,37 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 			kernelParam.group_size = param->CurrValue;
 		}
 	}
+}
 
+E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
+{
+	while (true)
+	{
+		T_SearchParam * param = solutionParamSpace->GetOneParam();
 
+		if (param == NULL)
+		{
+			break;
+		}
+
+		if (param->Name == "c_in_group")
+		{
+			kernelParam.c_in_group = param->BestValue;
+		}
+		if (param->Name == "k_out_maps")
+		{
+			kernelParam.k_out_maps = param->BestValue;
+		}
+		if (param->Name == "group_size")
+		{
+			kernelParam.group_size = param->BestValue;
+		}
+		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
+	}
+}
+
+E_ReturnState ConvFwd1x1Solution::generateKernel()
+{	
 	kernelParam.c_in_maps = problem->C() / kernelParam.c_in_group;
 	kernelParam.k_out_group = _divCeil(problem->K(), kernelParam.k_out_maps);
 
@@ -94,13 +123,13 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	kernelParam.pix_group = _divCeil(problem->W() * problem->H() * problem->N(), kernelParam.group_size);
 	kernelParam.align = kernelParam.pix_group * kernelParam.group_size;
 
-	PRINT_SEPARATOR4();
+	PRINT_SEPARATOR3();
 	OUTPUT("- Kernel Param:");
 	OUTPUT("- 	c_in_maps =[%d], c_in_group =[%d]", kernelParam.c_in_maps, kernelParam.c_in_group);
 	OUTPUT("- 	k_out_maps=[%d], k_out_group=[%d]", kernelParam.k_out_maps, kernelParam.k_out_group);
 	OUTPUT("- 	align=[%d], pix_group = [%d]", kernelParam.align, kernelParam.pix_group);
 	OUTPUT("- 	group_size=[%d]", kernelParam.group_size);
-	PRINT_SEPARATOR4();
+	PRINT_SEPARATOR3();
 
 	problem->size_sig = kernelParam.pix_group * kernelParam.k_out_group;
 	problem->h_sig = (float*)malloc(problem->size_sig * sizeof(float));
@@ -140,7 +169,7 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	return E_ReturnState::SUCCESS;
 }
 
-E_ReturnState ConvFwd1x1Solution::getBackResult()
+void ConvFwd1x1Solution::getBackResult()
 {
 	stream->MemCopyD2H(problem->h_out, d_out, problem->size_out * sizeof(float));
 	stream->MemCopyD2H(problem->h_sig, d_sig, problem->size_sig * sizeof(float));
@@ -154,25 +183,21 @@ void ConvFwd1x1Solution::releaseDevMem()
 	rtOcl->DevFree(d_out);
 }
 
-void ConvFwd1x1Solution::reportProblemPerformence()
+void ConvFwd1x1Solution::getBestKernel()
 {	
-	PRINT_SEPARATOR2();
+	PRINT_SEPARATOR('+');
 	OUTPUT("+ ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	OUTPUT("+ shortest time: %.3f (us).", solutionScore.ElapsedTime * 1e6);
 	OUTPUT("+ best performence: %.1f%%.", solutionScore.Performence * 100);
 
-	while (true)
-	{
-		T_SearchParam * param = solutionParamSpace->GetOneParam();
+	getBestKernelParam();
+	PRINT_SEPARATOR('+');
 
-		if (param == NULL)
-		{
-			break;
-		}
-
-		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
-	}
-	PRINT_SEPARATOR2();
+	generateKernel();
+	prepareKernelArgs();
+	launchKernel();
+	getBackResult();
+	releaseDevMem();
 }
 
 void ConvFwd1x1Solution::simulateIndex()
