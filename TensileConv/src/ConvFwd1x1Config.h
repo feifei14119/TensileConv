@@ -28,25 +28,3 @@ typedef struct ExtConvFwd1x1SolutionConfigTpye
 	int pix_per_group;
 }T_ExtConvFwd1x1SolutionConfig;
 
-typedef struct ExtConvFwd1x1ProblemConfigType
-{
-	int N;				// batch size
-	int W, H;			// input size
-	int C, K;			// input channel / output feature
-	int X, Y;			// weight size
-	int R, S;			// padding 
-	int U, V;			// stride
-	int OutW, OutH;		// output size
-	bool enBias;
-	bool enRelu;
-
-	float* h_in, *h_wei, *h_bias, *h_out, *h_sig;
-	float *out_ref, *h_dbg;
-	float negSlop;
-	int size_in, size_wei, size_bias, size_out, size_sig;
-	int size_dbg;
-
-	int N2;
-	size_t sizeN;
-	float * h_a, * h_b, * h_c;
-}T_ExtConvFwd1x1ProblemConfig;

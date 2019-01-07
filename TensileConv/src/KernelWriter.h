@@ -6,7 +6,7 @@
 #pragma once
 
 #include "KernelWriterBasic.h"
-#include "SolutionControl.h"
+#include "TensileConvBase.h"
 
 #include <sys/stat.h>
 
@@ -15,10 +15,9 @@ namespace AutoGen
 	class KernelWriter : public KernelWriterBasic
 	{
 	public:
-		KernelWriter(T_ProblemConfig * probCfg, T_SolutionConfig * solCfg, E_IsaArch isaArch = E_IsaArch::Gfx900)
+		KernelWriter(T_SolutionConfig * solCfg, E_IsaArch isaArch = E_IsaArch::Gfx900)
 			: KernelWriterBasic(isaArch)
 		{
-			problemConfig = probCfg;
 			solutionConfig = solCfg;
 
 			kernelName = solutionConfig->KernelName;
@@ -50,7 +49,6 @@ namespace AutoGen
 		std::string KernelName() { return kernelName; }
 
 	protected:
-		T_ProblemConfig * problemConfig;
 		T_SolutionConfig * solutionConfig;
 
 		std::string kernelName;

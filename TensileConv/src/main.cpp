@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 	conv1x1->TurnProblem(WH, C, K, N, UV, Bias, Relu);
 //	conv1x1->TurnProblem();
 	
-
+	delete conv1x1;
 	delete pOcl;
 
 	return 0;

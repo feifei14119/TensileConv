@@ -33,13 +33,13 @@
     <ClCompile Include="..\src\ConvFwd1x1.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\ProblemControl.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\SolutionControl.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\TensileConvLib.cpp" />
+    <ClCompile Include="..\src\ConvFwd1x1KernelWriter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\TensileConvBase.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\common\ff_basic.h">
@@ -72,13 +72,7 @@
     <ClInclude Include="..\src\ConvFwd1x1.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\ProblemControl.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ConvFwd1x1Config.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\SolutionControl.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\KernelWriter.h">
@@ -91,6 +85,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\include\TensileConv.h" />
+    <ClInclude Include="..\src\TensileConvBase.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\kernel\VectorAdd.cl">
