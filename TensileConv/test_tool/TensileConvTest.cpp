@@ -5,24 +5,29 @@
 
 #include "../include/TensileConv.h"
 
-#include "../common/ff_utils.h"
+using namespace TensileConv;
 
 int main(int argc, char *argv[])
 {
-	// init your own runtime 
-	RuntimeOCL * rtOcl = RuntimeOCL::GetInstance();
-	rtOcl->SellectDevice(0);
+	DirConv1x1Fwd * conv = new DirConv1x1Fwd();
+	conv->AutoTune(14, 512, 64, 1, 1, true, true);
 
-	// get your runtime param
-	cl_platform_id platformId = rtOcl->PlatformId();
-	cl_context context = rtOcl->Context();
-	cl_device_id deviceId = rtOcl->Device()->DeviceId();
+	printf("\n");
+	printf("\n");
+	printf("*************************************************************************\n");
+	printf("*************************** TensileConv *********************************\n");
+	printf("*************************************************************************\n");
+	printf("kernel name: %s.\n", conv->KernelName.c_str());
+	printf("kernel file: %s.\n", conv->KernelFile.c_str());
+	printf("group size: [%d, %d, %d].\n", conv->GroupSize[0], conv->GroupSize[1], conv->GroupSize[2]);
+	printf("global size: [%d, %d, %d].\n", conv->GlobalSize[0], conv->GlobalSize[1], conv->GlobalSize[2]);
+	printf("elapsed time. %.3f (us)\n", conv->ElapsedTime * 1e6);
+	printf("*************************************************************************\n");
+	printf("*************************** TensileConv *********************************\n");
+	printf("*************************************************************************\n");
+	printf("\n");
+	printf("\n");
 
-	// set runtime for TensileConv
-	TensileConv::SetRuntime(platformId, context, deviceId);
-
-	// run TensileConv
-	TensileConv::DirConv1x1Fwd(14, 512, 64, 1, 1, true, true);
-
+	delete conv;
 	return 0;
 }

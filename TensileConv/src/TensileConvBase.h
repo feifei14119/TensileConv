@@ -47,8 +47,10 @@ public:
 	void RunSolution();
 
 	std::string KernelName() { return kernelName; }
+	std::string KernelFile() { return kernelFile; }
 	dim3 GroupSize() { return group_sz; }
 	dim3 GlobalSize() { return global_sz; }
+	T_Score SolutionScore() { return solutionScore; }
 
 protected:
 	CmdArgs * cmdArgs;
@@ -62,6 +64,7 @@ protected:
 	AutoTune::SearchSpace *solutionParamSpace;		// 解决方案参数搜索空间
 
 	std::string kernelName;
+	std::string kernelFile;
 	dim3 group_sz;
 	dim3 global_sz;
 

@@ -31,6 +31,7 @@
     <ClInclude Include="..\common\ff_cmd_args.h" />
     <ClInclude Include="..\common\ff_file_opt.h" />
     <ClInclude Include="..\common\ff_log.h" />
+    <ClInclude Include="..\common\ff_math.h" />
     <ClInclude Include="..\common\ff_ocl_helper.h" />
     <ClInclude Include="..\common\ff_runtime.h" />
     <ClInclude Include="..\common\ff_runtime_ocl.h" />

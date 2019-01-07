@@ -148,6 +148,8 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	kernel = rtOcl->CreatKernel(
 		(char *)kernelWriter->KernelFile().c_str(), kernelWriter->KernelName().c_str(), E_ProgramType::PRO_GAS_FILE);
 
+	kernelFile = kernelWriter->KernelFile();
+
 	return E_ReturnState::SUCCESS;
 }
 

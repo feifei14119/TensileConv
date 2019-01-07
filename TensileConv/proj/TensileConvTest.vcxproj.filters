@@ -33,6 +33,10 @@
     <ClInclude Include="..\common\ff_utils.h">
       <Filter>common</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\TensileConv.h" />
+    <ClInclude Include="..\common\ff_math.h">
+      <Filter>common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\common\ff_cmd_args.cpp">
