@@ -8,8 +8,9 @@
 #include <stdarg.h>
 #include "../common/ff_utils.h"
 
-namespace AutoGen
-{
+namespace TensileConv {
+namespace AutoGen{
+
 #define	PARAM_START_COL		(44)
 #define	FLAG_START_COL		(85)
 #define	COMMON_START_COL	(109)
@@ -2692,4 +2693,4 @@ namespace AutoGen
 #pragma endregion
 	};
 }
-
+}

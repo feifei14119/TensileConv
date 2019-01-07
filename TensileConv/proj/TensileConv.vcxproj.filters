@@ -72,9 +72,6 @@
     <ClInclude Include="..\src\ConvFwd1x1.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\ConvFwd1x1Config.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\KernelWriter.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -87,6 +84,9 @@
     <ClInclude Include="..\include\TensileConv.h" />
     <ClInclude Include="..\src\TensileConvBase.h">
       <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\ff_math.h">
+      <Filter>common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

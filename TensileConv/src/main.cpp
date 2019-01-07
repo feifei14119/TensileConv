@@ -6,6 +6,8 @@
 #include "../common/ff_utils.h"
 #include "ConvFwd1x1.h"
 
+using namespace TensileConv;
+
 void DeviceInfo()
 {
 	RuntimeOCL * rtOcl = RuntimeOCL::GetInstance();

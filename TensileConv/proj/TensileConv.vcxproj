@@ -45,6 +45,7 @@
     <ClInclude Include="..\common\ff_cmd_args.h" />
     <ClInclude Include="..\common\ff_file_opt.h" />
     <ClInclude Include="..\common\ff_log.h" />
+    <ClInclude Include="..\common\ff_math.h" />
     <ClInclude Include="..\common\ff_ocl_helper.h" />
     <ClInclude Include="..\common\ff_runtime_ocl.h" />
     <ClInclude Include="..\common\ff_timer.h" />
@@ -52,7 +53,6 @@
     <ClInclude Include="..\include\TensileConv.h" />
     <ClInclude Include="..\src\AutoTuning.h" />
     <ClInclude Include="..\src\ConvFwd1x1.h" />
-    <ClInclude Include="..\src\ConvFwd1x1Config.h" />
     <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h" />
     <ClInclude Include="..\src\KernelWriter.h" />
     <ClInclude Include="..\src\KernelWriterBasic.h" />

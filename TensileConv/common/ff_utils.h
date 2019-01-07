@@ -4,6 +4,7 @@
 #include "ff_file_opt.h"
 #include "ff_log.h"
 #include "ff_timer.h"
+#include "ff_math.h"
 #include "ff_cmd_args.h"
 
 #include "ff_ocl_helper.h"

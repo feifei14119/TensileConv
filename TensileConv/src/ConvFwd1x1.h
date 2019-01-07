@@ -1,8 +1,9 @@
 #pragma once 
 
 #include "TensileConvBase.h"
-#include "ConvFwd1x1Config.h"
 #include "ConvFwd1x1KernelWriter.h"
+
+namespace TensileConv {
 
 /************************************************************************/
 /* solution控制                                                          */
@@ -12,8 +13,10 @@ class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 public:
 	ConvFwd1x1Solution(ConvFwd1x1Problem * problem);
+	AutoGen::T_Conv1x1KernelParam KernelParam() { return kernelParam; }
 
 private:
+	AutoGen::T_Conv1x1KernelParam kernelParam;
 	cl_mem d_in, d_wei, d_bias, d_out, d_sig;
 	cl_mem d_a, d_b, d_c;
 	float negSlop;
@@ -23,15 +26,15 @@ protected:
 	ConvFwd1x1Problem * problem;
 	AutoGen::KernelWriterConv1x1 * kernelWriter;
 
-	E_ReturnState generateSolutionConfigs();
+	E_ReturnState generateSolutionParamSpace();
 	E_ReturnState generateKernel();
-	E_ReturnState generateKernelParam();
+	E_ReturnState prepareKernelArgs();
 	E_ReturnState getBackResult();
-	void releaseKernelParam();
+	void releaseDevMem();
 	void reportProblemPerformence();
-	
+
 	// 测试下标计算
-	void simulateIndex();	
+	void simulateIndex();
 };
 
 /************************************************************************/
@@ -50,7 +53,7 @@ public:
 	int N() { return batch; }
 	int W() { return in_width; } int H() { return in_height; }
 	int C() { return in_chan; } int K() { return out_chan; }
-	int X() {return wei_width;} int Y() {return wei_height;}
+	int X() { return wei_width; } int Y() { return wei_height; }
 	int R() { return pad_x; } int S() { return pad_y; }
 	int U() { return stride_x; } int V() { return stride_y; }
 	int OutW() { return out_width; } int OutH() { return out_height; }
@@ -64,7 +67,7 @@ private:
 	E_ReturnState initHostParam();
 	E_ReturnState runHostCompute();
 	E_ReturnState verifyDevCompute();
-	void releaseHostParam(); 
+	void releaseHostParam();
 	void caculateTheoryPerformance();
 
 	int batch;					// batch size
@@ -75,7 +78,7 @@ private:
 	int stride_x, stride_y;		// stride
 	int out_width, out_height;	// output size
 	bool enBias, enRelu;
-	float negSlop;	
+	float negSlop;
 };
-
+}
 

@@ -3,13 +3,14 @@
 #include "ConvFwd1x1KernelWriter.h"
 #include "ConvFwd1x1.h"
 
+using namespace TensileConv;
 using namespace AutoGen;
 
-KernelWriterConv1x1::KernelWriterConv1x1(ConvFwd1x1Problem * problem, T_SolutionConfig * solCfg, E_IsaArch isaArch)
-	:KernelWriter(solCfg, isaArch)
+KernelWriterConv1x1::KernelWriterConv1x1(ConvFwd1x1Problem * problem, ConvFwd1x1Solution * solution, E_IsaArch isaArch)
+	:KernelWriter(solution, isaArch)
 {
 	this->problem = problem;
-	extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
+	this->solution = solution;
 
 	in_chan_stride = problem->W() * problem->H();
 	in_batch_stride = problem->W() * problem->H() * problem->C();
@@ -17,19 +18,20 @@ KernelWriterConv1x1::KernelWriterConv1x1(ConvFwd1x1Problem * problem, T_Solution
 	out_chan_stride = problem->W() * problem->H();
 	out_batch_stride = problem->W() * problem->H() * problem->K();
 
-	c_in_maps = extSolCfg->c_in_maps;
-	c_in_group = extSolCfg->c_in_group;
-	k_out_maps = extSolCfg->k_out_maps;
-	k_out_group = extSolCfg->k_out_group;
+	kernelParam = solution->KernelParam();
+	c_in_maps = kernelParam.c_in_maps;
+	c_in_group = kernelParam.c_in_group;
+	k_out_maps = kernelParam.k_out_maps;
+	k_out_group = kernelParam.k_out_group;
 
-	c_in_maps_once = extSolCfg->c_in_maps_once;
+	c_in_maps_once = kernelParam.c_in_maps_once;
 	if (c_in_maps_once <= c_in_maps / unroll_time)
 		c_in_maps_once_real = c_in_maps_once;
 	else
 		c_in_maps_once_real = c_in_maps / unroll_time;
 	conv_loop = c_in_maps / c_in_maps_once_real / 2;
 			
-	wave_per_group = solutionConfig->group_sz.x / WAVE_SIZE;
+	wave_per_group = solution->GroupSize().x / WAVE_SIZE;
 
 	en_input_offset = ((problem->W() <= 28) && (IsaArch == E_IsaArch::Gfx900));
 	offset_grp_num = c_in_maps_once_real * 2 / 2;

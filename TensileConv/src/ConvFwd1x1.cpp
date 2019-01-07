@@ -2,6 +2,7 @@
 
 #include "ConvFwd1x1.h"
 
+using namespace TensileConv;
 using namespace AutoGen;
 using namespace AutoTune;
 
@@ -14,23 +15,22 @@ using namespace AutoTune;
 #define		EnSimuIndex		(0)
 
 ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
-	: SolutionCtrlBase((ProblemCtrlBase*)problem)
+	: SolutionCtrlBase(problem)
 {	
 	this->problem = problem;
+
+	solutionName = "TensileConv";
+
+	kernelParam.c_in_group = 4;
+	kernelParam.k_out_maps = 8;
+	kernelParam.group_size = 128;
 }
 
-E_ReturnState ConvFwd1x1Solution::generateSolutionConfigs()
+E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
-	T_SolutionConfig * solutionConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSolutionConfig;
 	T_SearchParam * searchParam;
-
-	extSolutionConfig = new T_ExtConvFwd1x1SolutionConfig();
-
-	solutionConfig = new T_SolutionConfig("TensileConv");
-	solutionConfig->extConfig = extSolutionConfig;
+	
 #if MultSolution
-	// ----------------------------------------------------------------------
 	// 生成搜索空间
 	searchParam = new T_SearchParam("c_in_group");
 	searchParam->ValueArray.push_back(1);
@@ -39,7 +39,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionConfigs()
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
-	solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+	solutionParamSpace->AddOneParam(searchParam);
 	//--------------------------------
 	searchParam = new T_SearchParam("k_out_maps");
 	searchParam->ValueArray.push_back(2);
@@ -47,32 +47,25 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionConfigs()
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
-	solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+	solutionParamSpace->AddOneParam(searchParam);
 	//--------------------------------
 	searchParam = new T_SearchParam("group_size");
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
 	searchParam->ValueArray.push_back(256);
 	searchParam->ValueArray.push_back(512);
-	//		searchParam->ValueArray.push_back(1024);
-	solutionConfig->KernelSearchSpace.AddOneParam(searchParam);
+	solutionParamSpace->AddOneParam(searchParam);
 #endif
-	// ----------------------------------------------------------------------
-	// 添加solution
-	solutionConfigList->push_back(solutionConfig);
-
 
 	return E_ReturnState::SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateKernel()
-{
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
-	
+{	
 	while (true)
 	{
-		T_SearchParam * param;
-		param = solutionConfig->KernelSearchSpace.GetOneParam();
+		T_SearchParam * param = solutionParamSpace->GetOneParam();
+
 		if (param == NULL)
 		{
 			break;
@@ -80,62 +73,47 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 
 		if (param->Name == "c_in_group")
 		{
-			extSol->c_in_group = param->CurrValue;
+			kernelParam.c_in_group = param->CurrValue;
 		}
 		if (param->Name == "k_out_maps")
 		{
-			extSol->k_out_maps = param->CurrValue;
+			kernelParam.k_out_maps = param->CurrValue;
 		}
 		if (param->Name == "group_size")
 		{
-			extSol->group_size = param->CurrValue;
+			kernelParam.group_size = param->CurrValue;
 		}
 	}
 
-	if (extSol->c_in_group == 0)
-	{
-		extSol->c_in_group = 4;
-	}
-	if (extSol->k_out_maps == 0)
-	{
-		extSol->k_out_maps = 8;
-	}
-	if (extSol->group_size == 0)
-	{
-		extSol->group_size = 128;
-	}
 
-	size_t align;
+	kernelParam.c_in_maps = problem->C() / kernelParam.c_in_group;
+	kernelParam.k_out_group = _divCeil(problem->K(), kernelParam.k_out_maps);
 
-	extSol->c_in_maps = problem->C() / extSol->c_in_group;
-	extSol->k_out_group = divCeil(problem->K(), extSol->k_out_maps);
-
-	extSol->c_in_maps_once = 8;
-	extSol->pix_per_group = 64;
-	extSol->pix_group = divCeil(problem->W() * problem->H() * problem->N(), extSol->group_size);
-	align = extSol->pix_group * extSol->group_size;
+	kernelParam.c_in_maps_once = 8;
+	kernelParam.pix_per_group = 64;
+	kernelParam.pix_group = _divCeil(problem->W() * problem->H() * problem->N(), kernelParam.group_size);
+	kernelParam.align = kernelParam.pix_group * kernelParam.group_size;
 
 	PRINT_SEPARATOR4();
 	OUTPUT("- Kernel Param:");
-	OUTPUT("- 	c_in_maps =[%d], c_in_group =[%d]", extSol->c_in_maps, extSol->c_in_group);
-	OUTPUT("- 	k_out_maps=[%d], k_out_group=[%d]", extSol->k_out_maps, extSol->k_out_group);
-	OUTPUT("- 	align=[%d], pix_group = [%d]", align, extSol->pix_group);
-	OUTPUT("- 	group_size=[%d]", extSol->group_size);
+	OUTPUT("- 	c_in_maps =[%d], c_in_group =[%d]", kernelParam.c_in_maps, kernelParam.c_in_group);
+	OUTPUT("- 	k_out_maps=[%d], k_out_group=[%d]", kernelParam.k_out_maps, kernelParam.k_out_group);
+	OUTPUT("- 	align=[%d], pix_group = [%d]", kernelParam.align, kernelParam.pix_group);
+	OUTPUT("- 	group_size=[%d]", kernelParam.group_size);
 	PRINT_SEPARATOR4();
 
-	problem->size_sig = extSol->pix_group * extSol->k_out_group;
+	problem->size_sig = kernelParam.pix_group * kernelParam.k_out_group;
 	problem->h_sig = (float*)malloc(problem->size_sig * sizeof(float));
 
-	solutionConfig->global_sz = dim3(align * extSol->c_in_group * extSol->k_out_group, 1, 1);
-	solutionConfig->group_sz = dim3(extSol->group_size, 1, 1);
+	global_sz = dim3(kernelParam.align * kernelParam.c_in_group * kernelParam.k_out_group, 1, 1);
+	group_sz = dim3(kernelParam.group_size, 1, 1);
 	
-	solutionConfig->KernelName = "ConvFwd1x1";
+	kernelName = "ConvFwd1x1";
 	if(rtOcl->Device()->DeviceInfo()->name == "gfx900")
-		kernelWriter = new KernelWriterConv1x1(problem, solutionConfig, E_IsaArch::Gfx900);
+		kernelWriter = new KernelWriterConv1x1(problem, this, E_IsaArch::Gfx900);
 	else if (rtOcl->Device()->DeviceInfo()->name == "gfx803")
-		kernelWriter = new KernelWriterConv1x1(problem, solutionConfig, E_IsaArch::Gfx800);
+		kernelWriter = new KernelWriterConv1x1(problem, this, E_IsaArch::Gfx800);
 
-	kernelWriter->solution = this;
 	kernelWriter->GenKernelString();
 	kernelWriter->SaveKernelString2File();
 	kernel = rtOcl->CreatKernel(
@@ -144,10 +122,8 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	return E_ReturnState::SUCCESS;
 }
 
-E_ReturnState ConvFwd1x1Solution::generateKernelParam()
-{
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
-	
+E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
+{	
 	d_in = rtOcl->DevMalloc(problem->size_in * sizeof(float));
 	d_wei = rtOcl->DevMalloc(problem->size_wei * sizeof(float));
 	d_bias = rtOcl->DevMalloc(problem->size_bias * sizeof(float));
@@ -166,13 +142,11 @@ E_ReturnState ConvFwd1x1Solution::generateKernelParam()
 
 E_ReturnState ConvFwd1x1Solution::getBackResult()
 {
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
-
 	stream->MemCopyD2H(problem->h_out, d_out, problem->size_out * sizeof(float));
 	stream->MemCopyD2H(problem->h_sig, d_sig, problem->size_sig * sizeof(float));
 }
 
-void ConvFwd1x1Solution::releaseKernelParam()
+void ConvFwd1x1Solution::releaseDevMem()
 {
 	rtOcl->DevFree(d_in);
 	rtOcl->DevFree(d_wei);
@@ -181,9 +155,7 @@ void ConvFwd1x1Solution::releaseKernelParam()
 }
 
 void ConvFwd1x1Solution::reportProblemPerformence()
-{
-	T_ExtConvFwd1x1SolutionConfig * extSol = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
-	
+{	
 	PRINT_SEPARATOR2();
 	OUTPUT("+ ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	OUTPUT("+ shortest time: %.3f (us).", solutionScore.ElapsedTime * 1e6);
@@ -191,8 +163,8 @@ void ConvFwd1x1Solution::reportProblemPerformence()
 
 	while (true)
 	{
-		T_SearchParam * param;
-		param = solutionConfig->KernelSearchSpace.GetOneParam();
+		T_SearchParam * param = solutionParamSpace->GetOneParam();
+
 		if (param == NULL)
 		{
 			break;
@@ -386,8 +358,8 @@ E_ReturnState ConvFwd1x1Problem::initHostParam()
 	pad_x = 0;		pad_y = 0;		// padding
 
 	PRINT_SEPARATOR1();
-	OUTPUT("WHCKN=[%d * %d, %d, %d, %d] stride=[%d, %d]", in_width, in_height, in_chan, out_chan, batch, stride_x, stride_y);
-	OUTPUT("Bias = %s, Relu = %s", enBias ? "True" : "False", enRelu ? "True" : "False");
+	OUTPUT("* WHCKN=[%d * %d, %d, %d, %d] stride=[%d, %d]", in_width, in_height, in_chan, out_chan, batch, stride_x, stride_y);
+	OUTPUT("* Bias = %s, Relu = %s", enBias ? "True" : "False", enRelu ? "True" : "False");
 	PRINT_SEPARATOR1();
 
 	out_width = in_width + pad_x * 2 - wei_width + 1;

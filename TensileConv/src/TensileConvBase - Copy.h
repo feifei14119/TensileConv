@@ -49,18 +49,6 @@ typedef struct SolutionConfigTpye
 }T_SolutionConfig;
 
 /************************************************************************/
-/* problem 配置				                                            */
-/************************************************************************/
-typedef struct ProblemConfigType
-{
-	ProblemConfigType() {}
-	ProblemConfigType(std::string name) { ConfigName = name; }
-
-	std::string ConfigName;				// 问题配置名称
-	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
-}T_ProblemConfig;
-
-/************************************************************************/
 /* solution 控制 (so called generic solver)			                    */
 /************************************************************************/
 class ProblemCtrlBase;
@@ -82,9 +70,9 @@ public:
 
 		this->problem = problem;
 	}
-	~SolutionCtrlBase() { delete stream; delete solutionConfigList; }
+	virtual ~SolutionCtrlBase() { delete stream; delete solutionConfigList; }
 	
-	void RunAllSolution(T_ProblemConfig *problem);
+	void RunAllSolution();
 
 protected:
 	CmdArgs * cmdArgs;
@@ -95,7 +83,6 @@ protected:
 
 	std::list<T_SolutionConfig*> *solutionConfigList;	// 所有解决方案配置
 	ProblemCtrlBase * problem;
-	T_ProblemConfig * problemConfig;					// 当前正在处理的问题配置
 	T_SolutionConfig * solutionConfig;					// 当前正在处理的解决方案配置
 
 	int repeatTime;
@@ -123,8 +110,7 @@ public:
 		cmdArgs = CmdArgs::GetCmdArgs();
 		rtOcl = RuntimeOCL::GetInstance();
 
-		problemConfigList = new std::list<T_ProblemConfig*>;
-		problemConfigList->clear();
+		problemParamSpace = new SearchSpace();
 	}
 	ProblemCtrlBase(std::string name)
 	{
@@ -133,13 +119,16 @@ public:
 		cmdArgs = CmdArgs::GetCmdArgs();
 		rtOcl = RuntimeOCL::GetInstance();
 
-		problemConfigList = new std::list<T_ProblemConfig*>;
-		problemConfigList->clear();
+		problemParamSpace = new SearchSpace();
 	}
+	virtual ~ProblemCtrlBase() { delete problemParamSpace; }
 
 	void RunAllProblem();
+	SolutionCtrlBase * Solution() { return solution; }
 	double Calculation() { return calculation; }
 	double TheoryElapsedTime() { return theoryElapsedTime; }
+
+	// TODO: dump/load input/output data
 
 protected:
 	CmdArgs * cmdArgs;
@@ -147,14 +136,11 @@ protected:
 	SolutionCtrlBase * solution;
 
 	std::string problemName;
-//	std::list<T_ProblemConfig*> *problemConfigList;	// 所有问题配置
-	SearchSpace ProblemParamSpace;		// 问题参数搜索空间
+	SearchSpace *problemParamSpace;		// 问题参数搜索空间
 
-//	T_ProblemConfig *problemConfig;					// 当前正在处理的问题配置	
-	double calculation;								// 当前正在处理的问题配置的计算量
-	double theoryElapsedTime;						// 当前正在处理的问题配置的理论执行时间
+	double calculation;					// 当前正在处理的问题配置的计算量
+	double theoryElapsedTime;			// 当前正在处理的问题配置的理论执行时间
 
-	E_ReturnState runOneProblem();
 	virtual E_ReturnState initHostParam() = 0;
 	virtual E_ReturnState runHostCompute() = 0;
 	virtual E_ReturnState verifyDevCompute() = 0;
