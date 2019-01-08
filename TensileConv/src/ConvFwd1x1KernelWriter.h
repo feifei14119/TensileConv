@@ -110,6 +110,9 @@ protected:
 	void writeProgram()
 	{
 		calcuIndex();
+#if SIMU_INDEX
+		simulate_index();
+#endif
 		main_conv();
 
 		clrVar();
@@ -142,6 +145,8 @@ protected:
 	void save_without_atomic();
 	void save_with_atomic(int n, Var * addr_out, Var * accum);
 	void save_with_slop_zero();
+
+	void simulate_index();
 };
 }
 }

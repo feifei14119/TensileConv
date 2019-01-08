@@ -11,9 +11,6 @@ using namespace AutoTune;
 /************************************************************************/
 #pragma region SOLUTION
 
-#define		MultSolution	(1)
-#define		EnSimuIndex		(0)
-
 ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	: SolutionCtrlBase(problem)
 {	
@@ -21,41 +18,38 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 
 	solutionName = "TensileConv";
 
-	kernelParam.c_in_group = 4;
-	kernelParam.k_out_maps = 8;
-	kernelParam.group_size = 128;
+	kernelParam.c_in_group = 1;
+	kernelParam.k_out_maps = 16;
+	kernelParam.group_size = 64;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
 	T_SearchParam * searchParam;
 	
-#if MultSolution
-	// Éú³ÉËÑË÷¿Õ¼ä
 	searchParam = new T_SearchParam("c_in_group");
 	searchParam->ValueArray.push_back(1);
 //	searchParam->ValueArray.push_back(2);
-//	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(4);
 //	searchParam->ValueArray.push_back(8);
 //	searchParam->ValueArray.push_back(16);
 //	searchParam->ValueArray.push_back(32);
 	solutionParamSpace->AddOneParam(searchParam);
 	//--------------------------------
 	searchParam = new T_SearchParam("k_out_maps");
-//	searchParam->ValueArray.push_back(2);
-//	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
-//	searchParam->ValueArray.push_back(32);
+	searchParam->ValueArray.push_back(32);
 	solutionParamSpace->AddOneParam(searchParam);
 	//--------------------------------
 	searchParam = new T_SearchParam("group_size");
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
-//	searchParam->ValueArray.push_back(256);
-//	searchParam->ValueArray.push_back(512);
+	searchParam->ValueArray.push_back(256);
+	searchParam->ValueArray.push_back(512);
 	solutionParamSpace->AddOneParam(searchParam);
-#endif
 
 	return E_ReturnState::SUCCESS;
 }
@@ -88,6 +82,8 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 
 E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 {
+	OUTPUT("+ Serching param comb: ");
+
 	while (true)
 	{
 		T_SearchParam * param = solutionParamSpace->GetOneParam();
@@ -125,10 +121,10 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 
 	PRINT_SEPARATOR3();
 	OUTPUT("- Kernel Param:");
-	OUTPUT("- 	c_in_maps =[%d], c_in_group =[%d]", kernelParam.c_in_maps, kernelParam.c_in_group);
-	OUTPUT("- 	k_out_maps=[%d], k_out_group=[%d]", kernelParam.k_out_maps, kernelParam.k_out_group);
-	OUTPUT("- 	align=[%d], pix_group = [%d]", kernelParam.align, kernelParam.pix_group);
-	OUTPUT("- 	group_size=[%d]", kernelParam.group_size);
+	OUTPUT("- 	c_in_maps = %d, \tc_in_group = %d", kernelParam.c_in_maps, kernelParam.c_in_group);
+	OUTPUT("- 	k_out_maps = %d, \tk_out_group = %d", kernelParam.k_out_maps, kernelParam.k_out_group);
+	OUTPUT("- 	align = %d, \t\tpix_group = %d", kernelParam.align, kernelParam.pix_group);
+	OUTPUT("- 	group_size = %d", kernelParam.group_size);
 	PRINT_SEPARATOR3();
 
 	problem->size_sig = kernelParam.pix_group * kernelParam.k_out_group;
@@ -191,6 +187,8 @@ void ConvFwd1x1Solution::GetBestKernel()
 	OUTPUT("+ Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	OUTPUT("+ Best solution: " + solutionName);
 	OUTPUT("+ Best score: %.3f (us) = %.1f%%.", solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
+	OUTPUT("+ Kernel name: " + kernelName);
+	OUTPUT("+ Kernel file: " + kernelFile);
 	getBestKernelParam();
 	PRINT_SEPARATOR('+');
 
@@ -201,86 +199,6 @@ void ConvFwd1x1Solution::GetBestKernel()
 	releaseDevMem();
 }
 
-void ConvFwd1x1Solution::simulateIndex()
-{
-/*	T_ExtConvFwd1x1ProblemConfig * extProbCfg = (T_ExtConvFwd1x1ProblemConfig *)problemConfig->extConfig;
-	T_ExtConvFwd1x1SolutionConfig * extSolCfg = (T_ExtConvFwd1x1SolutionConfig *)solutionConfig->extConfig;
-
-	int *testId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
-	int *testPixBlkId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
-	int *testCInBlkId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
-	int *testKOutBlkId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
-	int *testPosId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
-	int *testBatchId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
-	int *testOutId = (int*)malloc(solutionConfig->b_wk0 * sizeof(int));
-
-	uint in_chan_stride = extProbCfg->W * extProbCfg->H;
-	uint in_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->C;
-	uint wei_chan_stride = extProbCfg->C;
-	uint out_chan_stride = extProbCfg->W * extProbCfg->H;
-	uint out_batch_stride = extProbCfg->W * extProbCfg->H * extProbCfg->K;
-
-	uint c_in_maps = extSolCfg->c_in_maps;
-	uint c_in_group = extSolCfg->c_in_group;
-	uint k_out_maps = extSolCfg->k_out_maps;
-	uint k_out_group = extSolCfg->k_out_group;
-
-	uint wave_per_group = solutionConfig->l_wk0 / WAVE_SIZE;
-	uint conv_loop = extProbCfg->C / extSolCfg->c_in_maps_once / 2;
-
-	for (int grp = 0; grp < solutionConfig->b_wk0; grp++)
-	{
-		uint tid_x = 5 * 64 + 40;
-		uint gid_x = grp;
-		int waveId = -1, tidInWave = -1;
-		int pixBlkId = -1, kOutBlkId = -1, cInBlkId = -1;
-		int pos_id = -1, batch_id = -1, out_id = -1;
-		int gbl_in_off = -1, wei_off = -1, gbl_out_off = -1;
-
-		waveId = gid_x * wave_per_group + tid_x / WAVE_SIZE;
-		tidInWave = tid_x % WAVE_SIZE;
-
-		cInBlkId = waveId / k_out_group % c_in_group;
-		pixBlkId = waveId / k_out_group / c_in_group;
-		kOutBlkId = waveId % k_out_group;
-
-		pos_id = (pixBlkId * WAVE_SIZE + tidInWave) % in_chan_stride;
-		batch_id = (pixBlkId * WAVE_SIZE + tidInWave) / in_chan_stride;
-		out_id = kOutBlkId * k_out_maps;
-
-		if (batch_id >= extProbCfg->N)
-			goto STORE_IDX;
-
-		gbl_in_off = (batch_id * in_batch_stride) + (cInBlkId * c_in_maps * in_chan_stride) + pos_id;
-		wei_off = (out_id * wei_chan_stride) + (cInBlkId * c_in_maps);
-		gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
-
-	STORE_IDX:
-		testId[grp] = wei_off;
-		testPixBlkId[grp] = pixBlkId;
-		testCInBlkId[grp] = cInBlkId;
-		testKOutBlkId[grp] = kOutBlkId;
-		testPosId[grp] = pos_id;
-		testBatchId[grp] = batch_id;
-		testOutId[grp] = out_id;
-	}
-
-	//printIndex(testId, "test temp id");
-	//printIndex(testPixBlkId, "pix block id");
-	//printIndex(testCInBlkId, "c_in block id");
-	//printIndex(testKOutBlkId, "k_out block id");
-	printIndex(testBatchId, "batch id");
-	//printIndex(testOutId, "out id");
-	//printIndex(testPosId, "pos id");
-
-	free(testId);
-	free(testPixBlkId);
-	free(testCInBlkId);
-	free(testKOutBlkId);
-	free(testPosId);
-	free(testBatchId);
-	free(testOutId);*/
-}
 #pragma endregion
 
 /************************************************************************/
@@ -307,7 +225,6 @@ void ConvFwd1x1Solver::generateSolver()
 /************************************************************************/
 #pragma region PROBLEM
 
-#define		SkipHost		(0)
 
 void ConvFwd1x1Problem::generateProblem()
 {
@@ -472,12 +389,8 @@ void ConvFwd1x1Problem::caculateTheoryPerformance()
 	INFO("Calculation = %.3f(G), TheoryElapsedTime = %.3f(us)", calculation * 1e-9, theoryElapsedTime * 1e6);
 }
 
-E_ReturnState ConvFwd1x1Problem::runHostCompute()
+void ConvFwd1x1Problem::runHostCompute()
 {
-#if SkipHost
-	return E_ReturnState::SUCCESS;
-#endif
-
 	int stride_n_in;			// stride for differetn batch of input
 	int stride_c_in;			// stride for differetn channel in the same batch of input
 	int stride_k_wei;			// stride for differetn feature of weight
@@ -545,8 +458,6 @@ E_ReturnState ConvFwd1x1Problem::runHostCompute()
 			}
 		}
 	}
-
-	return E_ReturnState::SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Problem::verifyDevCompute()

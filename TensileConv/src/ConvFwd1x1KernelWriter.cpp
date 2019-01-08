@@ -826,3 +826,84 @@ void KernelWriterConv1x1::save_with_slop_zero()
 	delVar(v_sig);
 	delVar(v_addr_sig);
 }
+
+/************************************************************************************/
+/* ²âÊÔÏÂ±ê																			*/
+/************************************************************************************/
+void KernelWriterConv1x1::simulate_index()
+{
+		int *testId = (int*)malloc(group_num.x * sizeof(int));
+		int *testPixBlkId = (int*)malloc(group_num.x * sizeof(int));
+		int *testCInBlkId = (int*)malloc(group_num.x * sizeof(int));
+		int *testKOutBlkId = (int*)malloc(group_num.x * sizeof(int));
+		int *testPosId = (int*)malloc(group_num.x * sizeof(int));
+		int *testBatchId = (int*)malloc(group_num.x * sizeof(int));
+		int *testOutId = (int*)malloc(group_num.x * sizeof(int));
+
+		uint in_chan_stride = problem->W() * problem->H();
+		uint in_batch_stride = problem->W() * problem->H() * problem->C();
+		uint wei_chan_stride = problem->C();
+		uint out_chan_stride = problem->W() * problem->H();
+		uint out_batch_stride = problem->W() * problem->H() * problem->K();
+
+		uint c_in_maps = kernelParam.c_in_maps;
+		uint c_in_group = kernelParam.c_in_group;
+		uint k_out_maps = kernelParam.k_out_maps;
+		uint k_out_group = kernelParam.k_out_group;
+
+		uint wave_per_group = group_sz.x / WAVE_SIZE;
+		uint conv_loop = problem->C() / kernelParam.c_in_maps_once / 2;
+
+		for (int grp = 0; grp < group_num.x; grp++)
+		{
+			uint tid_x = 5 * 64 + 40;
+			uint gid_x = grp;
+			int waveId = -1, tidInWave = -1;
+			int pixBlkId = -1, kOutBlkId = -1, cInBlkId = -1;
+			int pos_id = -1, batch_id = -1, out_id = -1;
+			int gbl_in_off = -1, wei_off = -1, gbl_out_off = -1;
+
+			waveId = gid_x * wave_per_group + tid_x / WAVE_SIZE;
+			tidInWave = tid_x % WAVE_SIZE;
+
+			cInBlkId = waveId / k_out_group % c_in_group;
+			pixBlkId = waveId / k_out_group / c_in_group;
+			kOutBlkId = waveId % k_out_group;
+
+			pos_id = (pixBlkId * WAVE_SIZE + tidInWave) % in_chan_stride;
+			batch_id = (pixBlkId * WAVE_SIZE + tidInWave) / in_chan_stride;
+			out_id = kOutBlkId * k_out_maps;
+
+			if (batch_id >= problem->N())
+				goto STORE_IDX;
+
+			gbl_in_off = (batch_id * in_batch_stride) + (cInBlkId * c_in_maps * in_chan_stride) + pos_id;
+			wei_off = (out_id * wei_chan_stride) + (cInBlkId * c_in_maps);
+			gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
+
+		STORE_IDX:
+			testId[grp] = wei_off;
+			testPixBlkId[grp] = pixBlkId;
+			testCInBlkId[grp] = cInBlkId;
+			testKOutBlkId[grp] = kOutBlkId;
+			testPosId[grp] = pos_id;
+			testBatchId[grp] = batch_id;
+			testOutId[grp] = out_id;
+		}
+
+		//print_index(testId, "test temp id");
+		//print_index(testPixBlkId, "pix block id");
+		print_index(testCInBlkId, "c_in block id");
+		//print_index(testKOutBlkId, "k_out block id");
+		//print_index(testBatchId, "batch id");
+		//print_index(testOutId, "out id");
+		//print_index(testPosId, "pos id");
+
+		free(testId);
+		free(testPixBlkId);
+		free(testCInBlkId);
+		free(testKOutBlkId);
+		free(testPosId);
+		free(testBatchId);
+		free(testOutId);
+}

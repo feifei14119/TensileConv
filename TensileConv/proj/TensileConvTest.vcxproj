@@ -27,25 +27,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\common\ff_basic.h" />
-    <ClInclude Include="..\common\ff_cmd_args.h" />
-    <ClInclude Include="..\common\ff_file_opt.h" />
-    <ClInclude Include="..\common\ff_log.h" />
-    <ClInclude Include="..\common\ff_math.h" />
-    <ClInclude Include="..\common\ff_ocl_helper.h" />
-    <ClInclude Include="..\common\ff_runtime.h" />
-    <ClInclude Include="..\common\ff_runtime_ocl.h" />
-    <ClInclude Include="..\common\ff_timer.h" />
-    <ClInclude Include="..\common\ff_utils.h" />
     <ClInclude Include="..\include\TensileConv.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\common\ff_cmd_args.cpp" />
-    <ClCompile Include="..\common\ff_file_opt.cpp" />
-    <ClCompile Include="..\common\ff_log.cpp" />
-    <ClCompile Include="..\common\ff_runtime.cpp" />
-    <ClCompile Include="..\common\ff_runtime_ocl.cpp" />
-    <ClCompile Include="..\common\ff_timer.cpp" />
     <ClCompile Include="..\test_tool\TensileConvTest.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

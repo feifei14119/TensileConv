@@ -19,8 +19,13 @@ public:
 	KernelWriter(SolutionCtrlBase * solution, E_IsaArch isaArch = E_IsaArch::Gfx900) : IsaGenerater(isaArch)
 	{
 		cmdArgs = CmdArgs::GetCmdArgs();
+
 		this->solution = solution;
 		kernelName = solution->KernelName();
+		group_sz = solution->GroupSize();
+		global_sz = solution->GlobalSize();
+		group_num = global_sz / group_sz;
+
 		kernelDir = GetKernelTempPath();
 		ensure_dir(kernelDir.c_str());
 	}
@@ -56,6 +61,9 @@ protected:
 	std::string kernelName;
 	std::string kernelDir;
 	std::string kernelFile;
+	dim3 group_sz;
+	dim3 group_num;
+	dim3 global_sz;
 
 	// =======================================================================
 	// 默认寄存器和段名
@@ -107,8 +115,6 @@ protected:
 	// 需要根据arg列表自动生成,暂时写成固定的
 	virtual void writeMetadata()
 	{
-		dim3 gp = solution->GroupSize();
-
 		setTable(0);
 		wrLine(".amd_amdgpu_hsa_metadata");
 		wrLine("{ Version: [1, 0],");
@@ -116,8 +122,8 @@ protected:
 		wrLine("    - { Name: " + kernelName + ",");
 		wrLine("        SymbolName: " + kernelName + ",");
 		wrLine("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],");
-		wrLine("        Attrs: { ReqdWorkGroupSize: [ " + d2s(gp.x) + ", " + d2s(gp.y) + ", " + d2s(gp.z) + " ] }");
-		wrLine("        CodeProps: { KernargSegmentSize: 44, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : " + d2s(gp.x * gp.y) + " }");
+		wrLine("        Attrs: { ReqdWorkGroupSize: [ " + d2s(group_sz.x) + ", " + d2s(group_sz.y) + ", " + d2s(group_sz.z) + " ] }");
+		wrLine("        CodeProps: { KernargSegmentSize: 44, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : " + d2s(group_sz.x * group_sz.y) + " }");
 		wrLine("        Args:");
 		wrLine("        - { Name: d_in  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_wei , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
@@ -397,6 +403,50 @@ protected:
 	{
 		op1("s_branch", l_begin_loop);
 		wrLaber(l_end_loop);
+	}
+	
+	/************************************************************************/
+	/* 测试函数																*/
+	/************************************************************************/
+	void print_index(int *index, char* name)
+	{
+		int grpNumPerCUMax = (group_num.x + CU_NUM - 1) / CU_NUM;
+		int grpNumPerCUMin = group_num.x / CU_NUM;
+		int maxGrpCUNum = (group_num.x - grpNumPerCUMin * CU_NUM) / SE_NUM;
+		int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
+
+		int waveNumPerCUMax = grpNumPerCUMax * (group_sz.x / WAVE_SIZE);
+		int waveNumPerCUMin = grpNumPerCUMin * (group_sz.x / WAVE_SIZE);
+		int simuGrpIdx = 0;
+		int grpIdxBase;
+
+		printf("\t|---------------------------------------------------------\n");
+		printf("\t| index name = %s\n", name);
+		printf("\t| group size = %d\n", group_sz.x);
+		printf("\t| group number = %d\n", group_num.x);
+		printf("\t| group number per cu = (%d * %d) + (%d * %d)\n", grpNumPerCUMax, maxGrpCUNum, grpNumPerCUMin, minGrpCUNum);
+		printf("\t| wave number per cu = (%d * %d) + (%d * %d)\n", waveNumPerCUMax, maxGrpCUNum, waveNumPerCUMin, minGrpCUNum);
+		printf("\t|---------------------------------------------------------\n");
+		for (int se = 0; se < SE_NUM; se++)
+		{
+			printf("SE=%d:", se);
+			grpIdxBase = se;
+
+			for (int cu = 0; cu < CU_PER_SE; cu++)
+			{
+				printf("\t[%02d]: ", cu);
+				simuGrpIdx = grpIdxBase;
+
+				while (simuGrpIdx < group_num.x)
+				{
+					printf("%03d, ", index[simuGrpIdx]);
+					simuGrpIdx += CU_NUM;
+				}
+				printf("\n");
+				grpIdxBase += 4;
+			}
+			printf("\n");
+		}
 	}
 };
 }

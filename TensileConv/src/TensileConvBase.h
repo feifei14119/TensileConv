@@ -12,6 +12,10 @@
 
 namespace TensileConv {
 
+#define		MULT_SOLUTION	(1)
+#define		SIMU_INDEX		(0)
+#define		CPU_VERIFY		(1)
+
 /************************************************************************/
 /* solution得分                                                         */
 /************************************************************************/
@@ -79,9 +83,6 @@ protected:
 	virtual E_ReturnState launchKernel();
 	virtual void getBackResult() = 0;
 	virtual void releaseDevMem() = 0;
-
-	// 打印下标
-	void printIndex(int *index, char* name, dim3 g_wk, dim3 l_wk);
 };
 
 /************************************************************************/
@@ -160,7 +161,7 @@ protected:
 	double theoryElapsedTime;			// 当前正在处理的问题配置的理论执行时间
 
 	virtual E_ReturnState initHostParam() = 0;
-	virtual E_ReturnState runHostCompute() = 0;
+	virtual void runHostCompute() = 0;
 	virtual E_ReturnState verifyDevCompute() = 0;
 	virtual void releaseHostParam() = 0;
 	virtual void caculateTheoryPerformance() {}

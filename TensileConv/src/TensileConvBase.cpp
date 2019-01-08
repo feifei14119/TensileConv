@@ -14,8 +14,10 @@ void SolutionCtrlBase::RunSolution()
 	PRINT_SEPARATOR2();
 
 	// 生成解决方案空间
-	INFO("generate solution config list.");
+#if MULT_SOLUTION
+	INFO("generate solution parameters space.");
 	generateSolutionParamSpace();
+#endif
 
 	// 遍历每个problem的solution参数空间
 #define TempDo(x)	do{if(x != E_ReturnState::SUCCESS) goto CONTINUE_SEARCH;}while(0)
@@ -97,50 +99,6 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 	return E_ReturnState::SUCCESS;
 }
 
-void SolutionCtrlBase::printIndex(int *index, char* name, dim3 g_wk, dim3 l_wk)
-{
-	/*int groupNum = g_wk.x / l_wk.x;
-	int grpNumPerCUMax = (groupNum + CU_NUM - 1) / CU_NUM;
-	int grpNumPerCUMin = groupNum / CU_NUM;
-	int maxGrpCUNum = (groupNum - grpNumPerCUMin * CU_NUM) / SE_NUM;
-	int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
-
-	int waveNumPerCUMax = grpNumPerCUMax * (l_wk.x / WAVE_SIZE);
-	int waveNumPerCUMin = grpNumPerCUMin * (l_wk.x / WAVE_SIZE);
-	int simuGrpIdx = 0;
-	int grpIdxBase;
-
-	printf("\t|---------------------------------------------------------\n");
-	printf("\t| index name = %s\n", name);
-	printf("\t| group size = %d\n", l_wk.x);
-	printf("\t| group number = %d\n", groupNum);
-	printf("\t| group number per cu = (%d * %d) + (%d * %d)\n",
-		grpNumPerCUMax, maxGrpCUNum, grpNumPerCUMin, minGrpCUNum);
-	printf("\t| wave number per cu = (%d * %d) + (%d * %d)\n",
-		waveNumPerCUMax, maxGrpCUNum, waveNumPerCUMin, minGrpCUNum);
-	printf("\t|---------------------------------------------------------\n");
-	for (int se = 0; se < SE_NUM; se++)
-	{
-		printf("SE=%d:", se);
-		grpIdxBase = se;
-
-		for (int cu = 0; cu < CU_PER_SE; cu++)
-		{
-			printf("\t[%02d]: ", cu);
-			simuGrpIdx = grpIdxBase;
-
-			while (simuGrpIdx < groupNum)
-			{
-				printf("%03d, ", index[simuGrpIdx]);
-				simuGrpIdx += CU_NUM;
-			}
-			printf("\n");
-			grpIdxBase += 4;
-		}
-		printf("\n");
-	}*/
-}
-
 /************************************************************************/
 /* solver 控制															*/
 /************************************************************************/
@@ -183,9 +141,13 @@ void ProblemCtrlBase::RunProblem()
 	while (true)
 	{
 		INFO("initialize host.");				initHostParam(); caculateTheoryPerformance();
+#if CPU_VERIFY
 		INFO("run host calculate.");			runHostCompute();
+#endif
 		INFO("solve this problem.");			solver->RunSolver();
+#if CPU_VERIFY
 		INFO("verify device calculation.");		verifyDevCompute();
+#endif
 		INFO("release host.");					releaseHostParam();
 
 		if (problemParamSpace->ParamNum > 0)
