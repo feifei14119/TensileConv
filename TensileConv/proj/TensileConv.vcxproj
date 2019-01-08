@@ -118,6 +118,7 @@
       <ThreadSafeStatics>Yes</ThreadSafeStatics>
       <ExceptionHandling>Enabled</ExceptionHandling>
       <AdditionalIncludeDirectories>/opt/rocm/opencl/include/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PositionIndependentCode>true</PositionIndependentCode>
     </ClCompile>
     <PreBuildEvent>
       <Command>
