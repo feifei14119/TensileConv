@@ -6,7 +6,7 @@
 namespace TensileConv {
 
 /************************************************************************/
-/* solution控制                                                          */
+/* solution 控制										                    */
 /************************************************************************/
 class ConvFwd1x1Problem;
 class ConvFwd1x1Solution : public SolutionCtrlBase
@@ -14,6 +14,7 @@ class ConvFwd1x1Solution : public SolutionCtrlBase
 public:
 	ConvFwd1x1Solution(ConvFwd1x1Problem * problem);
 	AutoGen::T_Conv1x1KernelParam KernelParam() { return kernelParam; }
+	void GetBestKernel();
 
 private:
 	cl_mem d_in, d_wei, d_bias, d_out, d_sig;
@@ -32,7 +33,6 @@ protected:
 	E_ReturnState generateKernel();
 	E_ReturnState prepareKernelArgs();
 	void getBackResult();
-	void getBestKernel();
 	void releaseDevMem();
 
 	// 测试下标计算
@@ -40,17 +40,31 @@ protected:
 };
 
 /************************************************************************/
-/* 问题控制                                                             */
+/* solver 控制															*/
+/************************************************************************/
+class ConvFwd1x1Solver : public SolverCtrlBase
+{
+public:
+	ConvFwd1x1Solver(ConvFwd1x1Problem * problem);
+	~ConvFwd1x1Solver()	{}
+	
+protected:
+	void generateSolver();
+};
+
+
+/************************************************************************/
+/* problem 控制															*/
 /************************************************************************/
 class ConvFwd1x1Problem : public ProblemCtrlBase
 {
 public:
-	ConvFwd1x1Problem() : ProblemCtrlBase() { solution = new ConvFwd1x1Solution(this); }
-	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name) { solution = new ConvFwd1x1Solution(this); }
-	~ConvFwd1x1Problem() { delete solution; }
+	ConvFwd1x1Problem() : ProblemCtrlBase() { solver = new ConvFwd1x1Solver(this); }
+	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name) { solver = new ConvFwd1x1Solver(this); }
+	~ConvFwd1x1Problem() { delete solver; }
 
-	E_ReturnState TurnProblem();
-	E_ReturnState TurnProblem(int WH, int C, int K, int N, int UV, bool isBias, bool isRelu);
+	void TuneProblem();
+	void TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, bool isRelu);
 
 	int N() { return batch; }
 	int W() { return in_width; } int H() { return in_height; }
@@ -66,6 +80,7 @@ public:
 	int size_in, size_wei, size_bias, size_out, size_sig;
 
 private:
+	void generateProblem();
 	E_ReturnState initHostParam();
 	E_ReturnState runHostCompute();
 	E_ReturnState verifyDevCompute();

@@ -7,7 +7,7 @@ using namespace AutoGen;
 using namespace AutoTune;
 
 /************************************************************************/
-/* solution控制                                                          */
+/* solution 控制										                    */
 /************************************************************************/
 #pragma region SOLUTION
 
@@ -185,13 +185,12 @@ void ConvFwd1x1Solution::releaseDevMem()
 	rtOcl->DevFree(d_out);
 }
 
-void ConvFwd1x1Solution::getBestKernel()
-{	
+void ConvFwd1x1Solution::GetBestKernel()
+{
 	PRINT_SEPARATOR('+');
 	OUTPUT("+ ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
-	OUTPUT("+ shortest time: %.3f (us).", solutionScore.ElapsedTime * 1e6);
-	OUTPUT("+ best performence: %.1f%%.", solutionScore.Performence * 100);
-
+	OUTPUT("+ Best solution: " + solutionName);
+	OUTPUT("+ Best score: %.3f (us) = %.1f%%.", solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
 	getBestKernelParam();
 	PRINT_SEPARATOR('+');
 
@@ -285,13 +284,32 @@ void ConvFwd1x1Solution::simulateIndex()
 #pragma endregion
 
 /************************************************************************/
-/* 问题控制                                                             */
+/* solver 控制															*/
+/************************************************************************/
+#pragma region SOLVER
+
+ConvFwd1x1Solver::ConvFwd1x1Solver(ConvFwd1x1Problem * problem)
+	: SolverCtrlBase(problem)
+{
+	this->problem = problem;
+}
+
+void ConvFwd1x1Solver::generateSolver()
+{
+	ConvFwd1x1Solution * solution = new ConvFwd1x1Solution((ConvFwd1x1Problem*)problem);	
+	solutionList->push_back(solution);
+}
+
+#pragma endregion
+
+/************************************************************************/
+/* problem 控制															*/
 /************************************************************************/
 #pragma region PROBLEM
 
 #define		SkipHost		(0)
 
-E_ReturnState ConvFwd1x1Problem::TurnProblem()
+void ConvFwd1x1Problem::generateProblem()
 {
 	T_SearchParam * searchParam;
 
@@ -330,10 +348,15 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem()
 	searchParam->ValueArray.push_back(0);
 	searchParam->ValueArray.push_back(1);
 	problemParamSpace->AddOneParam(searchParam);
-
-	RunAllProblem();
 }
-E_ReturnState ConvFwd1x1Problem::TurnProblem(int WH, int C, int K, int N, int UV, bool isBias, bool isRelu)
+
+void ConvFwd1x1Problem::TuneProblem()
+{
+	generateProblem();
+	RunProblem();
+}
+
+void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, bool isRelu)
 {
 	batch = N;
 	in_width = WH;		in_height = WH;
@@ -342,7 +365,7 @@ E_ReturnState ConvFwd1x1Problem::TurnProblem(int WH, int C, int K, int N, int UV
 	enBias = isBias;
 	enRelu = isRelu;
 
-	RunAllProblem();
+	RunProblem();
 }
 
 E_ReturnState ConvFwd1x1Problem::initHostParam()

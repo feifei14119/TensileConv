@@ -5,6 +5,8 @@
 
 #include <CL/cl.h>
 
+#include "ff_cmd_args.h"
+
 namespace feifei
 {
 #define		clCheckFunc(val)			cl_checkFuncRet((val), #val, __FILE__, __LINE__)
@@ -218,5 +220,11 @@ namespace feifei
 		{
 			fprintf(stderr, "OpenCL error at %s:%d code=%d(%s) \n", file, line, static_cast<unsigned int>(errNum), clGetErrorInfo(errNum));
 		}
+	}
+
+	static std::string GetKernelTempPath()
+	{
+		CmdArgs * cmd = CmdArgs::GetCmdArgs();
+		return cmd->ExecutePath() + "/kernel";
 	}
 }

@@ -23,7 +23,7 @@ typedef struct ScoreTypde
 }T_Score;
 
 /************************************************************************/
-/* solution 控制 (so called generic solver)			                    */
+/* solution 控制										                    */
 /************************************************************************/
 class ProblemCtrlBase;
 class SolutionCtrlBase
@@ -45,6 +45,7 @@ public:
 	virtual ~SolutionCtrlBase() { delete stream; delete solutionParamSpace; }
 
 	void RunSolution();
+	virtual void GetBestKernel() { INFO("Best solution: " + solutionName); }
 
 	std::string KernelName() { return kernelName; }
 	std::string KernelFile() { return kernelFile; }
@@ -69,7 +70,6 @@ protected:
 	dim3 global_sz;
 
 	int repeatTime;
-	T_Score configScore;				// 当前配置的平均性能
 	T_Score solutionScore;				// 全部配置的平均性能
 
 	virtual E_ReturnState generateSolutionParamSpace() = 0;
@@ -79,14 +79,46 @@ protected:
 	virtual E_ReturnState launchKernel();
 	virtual void getBackResult() = 0;
 	virtual void releaseDevMem() = 0;
-	virtual void getBestKernel() {}
 
 	// 打印下标
 	void printIndex(int *index, char* name, dim3 g_wk, dim3 l_wk);
 };
 
 /************************************************************************/
-/* 问题句柄																*/
+/* solver 控制															*/
+/************************************************************************/
+class SolverCtrlBase
+{
+public:
+	SolverCtrlBase(ProblemCtrlBase * problem)
+	{
+		this->problem = problem;
+		scoreList = new std::list<T_Score>();
+		solutionList = new std::list<SolutionCtrlBase*>();
+		bestScore.ElapsedTime = (std::numeric_limits<double>::max)();
+	}
+	virtual ~SolverCtrlBase()
+	{
+		delete scoreList;
+		delete solutionList;
+	}
+
+	void RunSolver();
+	T_Score BestScore() { return bestScore; }
+	SolutionCtrlBase * BestSolution() { return bestSolution; }
+
+protected:
+	ProblemCtrlBase * problem;
+	std::list<T_Score> * scoreList;
+	std::list<SolutionCtrlBase*> * solutionList;
+	T_Score bestScore;
+	SolutionCtrlBase * bestSolution;
+
+	virtual void generateSolver() = 0;
+};
+
+/************************************************************************/
+/* problem 控制															*/
 /************************************************************************/
 class ProblemCtrlBase
 {
@@ -109,7 +141,7 @@ public:
 	}
 	virtual ~ProblemCtrlBase() { delete problemParamSpace; }
 
-	void RunAllProblem();
+	virtual void RunProblem();
 	SolutionCtrlBase * Solution() { return solution; }
 	double Calculation() { return calculation; }
 	double TheoryElapsedTime() { return theoryElapsedTime; }
@@ -120,6 +152,7 @@ protected:
 	CmdArgs * cmdArgs;
 	RuntimeOCL * rtOcl;
 	SolutionCtrlBase * solution;
+	SolverCtrlBase * solver;
 
 	std::string problemName;
 	AutoTune::SearchSpace *problemParamSpace;		// 问题参数搜索空间

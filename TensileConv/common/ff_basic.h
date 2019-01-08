@@ -35,8 +35,8 @@ namespace feifei
 
 #define CheckFunc(val)					checkFuncRet((val), #val, __FILE__, __LINE__)
 #define CheckErr(val)					checkErrNum((val), __FILE__, __LINE__)
-	typedef E_ReturnState(*PRetFunc)();
 	typedef void(*PVoidFunc)();
+	typedef E_ReturnState(*PRetFunc)();
 	typedef E_ReturnState(*PRetFunc2)(void* param);
 
 	/************************************************************************/

@@ -5,7 +5,7 @@
 /************************************************************************/
 #pragma once
 
-#include "KernelWriterBasic.h"
+#include "IsaGenerater.h"
 #include "TensileConvBase.h"
 
 #include <sys/stat.h>
@@ -13,14 +13,15 @@
 namespace TensileConv {
 namespace AutoGen {
 
-class KernelWriter : public KernelWriterBasic
+class KernelWriter : public IsaGenerater
 {
 public:
-	KernelWriter(SolutionCtrlBase * solution, E_IsaArch isaArch = E_IsaArch::Gfx900) : KernelWriterBasic(isaArch)
+	KernelWriter(SolutionCtrlBase * solution, E_IsaArch isaArch = E_IsaArch::Gfx900) : IsaGenerater(isaArch)
 	{
+		cmdArgs = CmdArgs::GetCmdArgs();
 		this->solution = solution;
 		kernelName = solution->KernelName();
-		kernelDir = "./kernel";
+		kernelDir = GetKernelTempPath();
 		ensure_dir(kernelDir.c_str());
 	}
 
@@ -42,12 +43,15 @@ public:
 		dump2_txt_file(kernelFile, kernelString);
 	}
 
+	void KernelName(std::string name) { kernelName = name; }
+	void KernelDirectory(std::string dir) { kernelDir = dir; ensure_dir(kernelDir.c_str()); }
 	std::string KernelDirectory() { return kernelDir; }
 	std::string KernelFile() { return kernelFile; }
 	std::string KernelString() { return kernelString; }
 	std::string KernelName() { return kernelName; }
 
 protected:
+	CmdArgs * cmdArgs;
 	SolutionCtrlBase * solution;
 	std::string kernelName;
 	std::string kernelDir;

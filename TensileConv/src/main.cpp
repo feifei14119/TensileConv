@@ -35,7 +35,6 @@ int main(int argc, char *argv[])
 	RuntimeOCL * pOcl = RuntimeOCL::GetInstance();
 	pOcl->SellectDevice(0); 
 	DeviceInfo();
-
 	
 	ConvFwd1x1Problem *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");
 	int WH = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_WH);
@@ -45,8 +44,10 @@ int main(int argc, char *argv[])
 	int UV = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_UV);
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	bool Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU) == 1;
-	conv1x1->TurnProblem(WH, C, K, N, UV, Bias, Relu);
-//	conv1x1->TurnProblem();
+	//WH = 7; C = 512; K = 2048; UV = 1; Bias = Relu = true;
+	conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
+
+	//conv1x1->TuneProblem();
 	
 	delete conv1x1;
 	delete pOcl;

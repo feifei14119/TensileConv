@@ -35,7 +35,7 @@
     <ClCompile Include="..\src\ConvFwd1x1.cpp" />
     <ClCompile Include="..\src\ConvFwd1x1KernelWriter.cpp" />
     <ClCompile Include="..\src\main.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\src\TensileConvBase.cpp" />
     <ClCompile Include="..\src\TensileConvLib.cpp" />
@@ -55,7 +55,7 @@
     <ClInclude Include="..\src\ConvFwd1x1.h" />
     <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h" />
     <ClInclude Include="..\src\KernelWriter.h" />
-    <ClInclude Include="..\src\KernelWriterBasic.h" />
+    <ClInclude Include="..\src\IsaGenerater.h" />
     <ClInclude Include="..\src\TensileConvBase.h" />
   </ItemGroup>
   <ItemGroup>
@@ -90,7 +90,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
     <RemoteRootDir>~/projects/TensileConv/</RemoteRootDir>
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>

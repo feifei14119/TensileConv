@@ -124,10 +124,10 @@ namespace AutoGen{
 		OP_CMPSWAP = 13,
 	}E_OpType;
 	
-	class KernelWriterBasic
+	class IsaGenerater
 	{
 	public:
-		KernelWriterBasic(E_IsaArch isaArch = E_IsaArch::Gfx900)
+		IsaGenerater(E_IsaArch isaArch = E_IsaArch::Gfx900)
 		{
 			sgprCount = 0;
 			vgprCount = 0;

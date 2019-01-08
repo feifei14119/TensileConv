@@ -75,9 +75,6 @@
     <ClInclude Include="..\src\KernelWriter.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\KernelWriterBasic.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -87,6 +84,9 @@
     </ClInclude>
     <ClInclude Include="..\common\ff_math.h">
       <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\IsaGenerater.h">
+      <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

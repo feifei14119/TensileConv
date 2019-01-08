@@ -35,7 +35,6 @@ void SolutionCtrlBase::RunSolution()
 			if (solutionParamSpace->GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search kernel parameters finished.");
-				getBestKernel();
 				break;
 			}
 		}
@@ -74,22 +73,23 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 	INFO("collect performence.");
 	{
 		// for this solution config
-		configScore.ElapsedTime = 0;
+		T_Score score;
+		score.ElapsedTime = 0;
 		for (int i = 0; i < elapsedTimes.size(); i++)
 		{
-			configScore.ElapsedTime += elapsedTimes[i];
+			score.ElapsedTime += elapsedTimes[i];
 		}
-		configScore.ElapsedTime /= elapsedTimes.size();		
-		configScore.Flops = problem->Calculation() / configScore.ElapsedTime;
-		configScore.Performence = problem->TheoryElapsedTime() / configScore.ElapsedTime;
+		score.ElapsedTime /= elapsedTimes.size();
+		score.Flops = problem->Calculation() / score.ElapsedTime;
+		score.Performence = problem->TheoryElapsedTime() / score.ElapsedTime;
 		INFO("elapsed = %.1f(us), performence = %.1f(Gflops) = %.1f%%.", 
-			configScore.ElapsedTime * 1e6, configScore.Flops * 1e-9, configScore.Performence * 100);
+			score.ElapsedTime * 1e6, score.Flops * 1e-9, score.Performence * 100);
 
 		// for this problem(all solution config)
-		if (solutionScore.ElapsedTime > configScore.ElapsedTime)
+		if (solutionScore.ElapsedTime > score.ElapsedTime)
 		{
-			solutionScore.ElapsedTime = configScore.ElapsedTime;
-			solutionScore.Performence = configScore.Performence;
+			solutionScore.ElapsedTime = score.ElapsedTime;
+			solutionScore.Performence = score.Performence;
 			solutionParamSpace->RecordBestComb();
 		}
 	}
@@ -142,9 +142,38 @@ void SolutionCtrlBase::printIndex(int *index, char* name, dim3 g_wk, dim3 l_wk)
 }
 
 /************************************************************************/
-/* 问题控制																*/
+/* solver 控制															*/
 /************************************************************************/
-void ProblemCtrlBase::RunAllProblem()
+void SolverCtrlBase::RunSolver()
+{
+	// add solutions to solver
+	generateSolver();
+
+	// 遍历solver的各个solution
+	std::list<SolutionCtrlBase*>::iterator solutionIt;
+	for (solutionIt = solutionList->begin(); solutionIt != solutionList->end(); solutionIt++)
+	{
+		SolutionCtrlBase * solution = *solutionIt;
+		solution->RunSolution();
+		
+		T_Score score = solution->SolutionScore();
+		scoreList->push_back(score);
+
+		if (bestScore.ElapsedTime > score.ElapsedTime)
+		{
+			bestScore = score;
+			bestSolution = solution;
+		}
+	}
+
+	// best solution
+	bestSolution->GetBestKernel();
+}
+
+/************************************************************************/
+/* problem 控制															*/
+/************************************************************************/
+void ProblemCtrlBase::RunProblem()
 {
 	PRINT_SEPARATOR1();
 	OUTPUT("* Problem Name: %s.", problemName.c_str());
@@ -155,7 +184,7 @@ void ProblemCtrlBase::RunAllProblem()
 	{
 		INFO("initialize host.");				initHostParam(); caculateTheoryPerformance();
 		INFO("run host calculate.");			runHostCompute();
-		INFO("solve this problem.");			solution->RunSolution();
+		INFO("solve this problem.");			solver->RunSolver();
 		INFO("verify device calculation.");		verifyDevCompute();
 		INFO("release host.");					releaseHostParam();
 

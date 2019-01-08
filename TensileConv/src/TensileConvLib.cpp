@@ -25,7 +25,7 @@ DirConv1x1Fwd::~DirConv1x1Fwd()
 
 bool DirConv1x1Fwd::AutoTune(int WH, int C, int K, int N, int stride, bool enBias, bool enRelu)
 {
-	conv1x1->TurnProblem(WH, C, K, N, stride, enBias, enRelu);
+	conv1x1->TuneProblem(WH, C, K, N, stride, enBias, enRelu);
 
 	KernelName = conv1x1->Solution()->KernelName();
 	KernelFile = conv1x1->Solution()->KernelFile();

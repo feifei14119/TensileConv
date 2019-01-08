@@ -7,6 +7,7 @@
 #include "ff_ocl_helper.h"
 #include "ff_file_opt.h"
 #include "ff_log.h"
+#include "ff_cmd_args.h"
 
 namespace feifei 
 {
@@ -152,7 +153,7 @@ namespace feifei
 		{
 			//compiler = "clang"; 
 			compiler = "/opt/rocm/opencl/bin/x86_64/clang";
-			SetKernelTempDir("./kernel");
+			SetKernelTempDir(GetKernelTempPath());
 		}
 
 	protected:

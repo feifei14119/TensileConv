@@ -40,11 +40,13 @@ namespace feifei
 		CmdArgs(int argc, char *argv[]);
 		void * GetOneArg(E_ArgId id);
 		static CmdArgs * GetCmdArgs();
+		std::string ExecutePath() { return executePath; }
 		
 	private:
 		static CmdArgs * pCmdArgs;
 		int argsNum = 0;
 		std::map<E_ArgId, T_CmdArg*> * argsMap;
+		std::string executePath;
 		
 		virtual void initCmdArgs();
 		void helpText();

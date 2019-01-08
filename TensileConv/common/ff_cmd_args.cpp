@@ -73,6 +73,19 @@ namespace feifei
 	 */
 	void CmdArgs::paserCmdArgs(int argc, char *argv[])
 	{
+		// use first arg to get current path
+		size_t p;
+		p = std::string(argv[0]).rfind('/');
+		if (p == std::string::npos)
+		{
+			executePath = "./";
+		}
+		else
+		{
+			executePath = std::string(argv[0]).substr(0, p);
+		}
+
+		// other args
 		for (int i = 1; i < argc; i++)
 		{
 			if ((std::string(argv[i]) == "--help") || (std::string(argv[i]) == "-h"))
