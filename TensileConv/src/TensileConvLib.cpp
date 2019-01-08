@@ -27,18 +27,18 @@ bool DirConv1x1Fwd::AutoTune(int WH, int C, int K, int N, int stride, bool enBia
 {
 	conv1x1->TuneProblem(WH, C, K, N, stride, enBias, enRelu);
 
-	KernelName = conv1x1->Solution()->KernelName();
-	KernelFile = conv1x1->Solution()->KernelFile();
+	KernelName = conv1x1->BestSolution()->KernelName();
+	KernelFile = conv1x1->BestSolution()->KernelFile();
 
-	GroupSize[0] = conv1x1->Solution()->GroupSize().x;
-	GroupSize[1] = conv1x1->Solution()->GroupSize().y;
-	GroupSize[2] = conv1x1->Solution()->GroupSize().z;
+	GroupSize[0] = conv1x1->BestSolution()->GroupSize().x;
+	GroupSize[1] = conv1x1->BestSolution()->GroupSize().y;
+	GroupSize[2] = conv1x1->BestSolution()->GroupSize().z;
 
-	GlobalSize[0] = conv1x1->Solution()->GlobalSize().x;
-	GlobalSize[1] = conv1x1->Solution()->GlobalSize().y;
-	GlobalSize[2] = conv1x1->Solution()->GlobalSize().z;
+	GlobalSize[0] = conv1x1->BestSolution()->GlobalSize().x;
+	GlobalSize[1] = conv1x1->BestSolution()->GlobalSize().y;
+	GlobalSize[2] = conv1x1->BestSolution()->GlobalSize().z;
 
-	ElapsedTime = conv1x1->Solution()->SolutionScore().ElapsedTime;
+	ElapsedTime = conv1x1->BestSolution()->SolutionScore().ElapsedTime;
 
 	return true;
 }

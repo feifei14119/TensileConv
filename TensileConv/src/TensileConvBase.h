@@ -142,7 +142,7 @@ public:
 	virtual ~ProblemCtrlBase() { delete problemParamSpace; }
 
 	virtual void RunProblem();
-	SolutionCtrlBase * Solution() { return solution; }
+	SolutionCtrlBase * BestSolution() { return solver->BestSolution(); }
 	double Calculation() { return calculation; }
 	double TheoryElapsedTime() { return theoryElapsedTime; }
 
@@ -151,7 +151,6 @@ public:
 protected:
 	CmdArgs * cmdArgs;
 	RuntimeOCL * rtOcl;
-	SolutionCtrlBase * solution;
 	SolverCtrlBase * solver;
 
 	std::string problemName;

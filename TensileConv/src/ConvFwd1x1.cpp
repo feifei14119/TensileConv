@@ -188,7 +188,7 @@ void ConvFwd1x1Solution::releaseDevMem()
 void ConvFwd1x1Solution::GetBestKernel()
 {
 	PRINT_SEPARATOR('+');
-	OUTPUT("+ ProbemConfig [WHCKN]=[%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
+	OUTPUT("+ Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	OUTPUT("+ Best solution: " + solutionName);
 	OUTPUT("+ Best score: %.3f (us) = %.1f%%.", solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
 	getBestKernelParam();
