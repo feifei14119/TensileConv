@@ -49,8 +49,8 @@ namespace feifei
 		addOneArg(CMD_ARG_K, E_DataType::Int, "64", 'k', "chanout", "specify output channel");
 		addOneArg(CMD_ARG_N, E_DataType::Int, "1", 'n', "batch", "specify batch size");
 		addOneArg(CMD_ARG_UV, E_DataType::Int, "1", 'u', "stride", "specify stride size");
-		addOneArg(CMD_ARG_BIAS, E_DataType::Int, "1", 'b', "bias", "specify if use fusion bias opt");
-		addOneArg(CMD_ARG_RELU, E_DataType::Int, "1", 'r', "relu", "specify if use fusion relu opt");
+		addOneArg(CMD_ARG_BIAS, E_DataType::Int, "0", 'b', "bias", "specify if use fusion bias opt");
+		addOneArg(CMD_ARG_RELU, E_DataType::Int, "0", 'r', "relu", "specify if use fusion relu opt");
 	}
 	void CmdArgs::addOneArg(E_ArgId id, E_DataType dType, std::string defaultVal, char sName, std::string lName, std::string tHelp)
 	{

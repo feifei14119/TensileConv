@@ -12,9 +12,10 @@
 
 namespace TensileConv {
 
-#define		MULT_SOLUTION	(1)
+#define		MULT_SOLUTION	(0)
 #define		SIMU_INDEX		(0)
 #define		CPU_VERIFY		(1)
+#define		REPEAT_COUNT	(1)
 
 /************************************************************************/
 /* solutionµÃ·Ö                                                         */
@@ -35,7 +36,7 @@ class SolutionCtrlBase
 public:
 	SolutionCtrlBase(ProblemCtrlBase * problem)
 	{
-		repeatTime = 100;
+		repeatTime = REPEAT_COUNT;
 		solutionScore.ElapsedTime = (std::numeric_limits<double>::max)();
 		solutionScore.Performence = 0;
 

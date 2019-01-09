@@ -44,7 +44,8 @@ int main(int argc, char *argv[])
 	int UV = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_UV);
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	bool Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU) == 1;
-	//WH = 7; C = 512; K = 2048; UV = 1; Bias = Relu = true;
+	
+	WH = 14; N = 1; C = 1024; K = 256; UV = 1; Bias = Relu = false;
 	conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 
 	//conv1x1->TuneProblem();
