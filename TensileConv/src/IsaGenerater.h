@@ -25,7 +25,8 @@ namespace AutoGen{
 	typedef enum IsaArchEnum
 	{
 		Gfx800 = 800,
-		Gfx900 = 900
+		Gfx900 = 900,
+		Gfx906 = 906
 	}E_IsaArch;
 	
 	typedef enum VarTypeEnum

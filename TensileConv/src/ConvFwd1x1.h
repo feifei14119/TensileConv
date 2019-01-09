@@ -17,10 +17,9 @@ public:
 	void GetBestKernel();
 
 private:
-	cl_mem d_in, d_wei, d_bias, d_out, d_sig;
+	cl_mem d_in, d_wei, d_bias, d_out, d_sig, d_dbg;
 	cl_mem d_a, d_b, d_c;
 	float negSlop;
-	int size_sig;
 
 protected:
 	ConvFwd1x1Problem * problem;
@@ -34,9 +33,6 @@ protected:
 	E_ReturnState prepareKernelArgs();
 	void getBackResult();
 	void releaseDevMem();
-
-	// ≤‚ ‘œ¬±Íº∆À„
-	void simulateIndex();
 };
 
 /************************************************************************/
@@ -76,8 +72,8 @@ public:
 	bool EnBias() { return enBias; } bool EnRelu() { return enRelu; }
 	float NegSlop() { return negSlop; }
 
-	float* h_in, *h_wei, *h_bias, *h_out, *out_ref, *h_sig;
-	int size_in, size_wei, size_bias, size_out, size_sig;
+	float* h_in, *h_wei, *h_bias, *h_out, *out_ref, *h_sig, *h_dbg;
+	int size_in, size_wei, size_bias, size_out, size_sig, size_dbg;
 
 private:
 	void generateProblem();

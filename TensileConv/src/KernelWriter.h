@@ -130,7 +130,10 @@ protected:
 		wrLine("        - { Name: d_bias , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_out , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
 		wrLine("        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
-		wrLine("        - { Name: d_nSlop , Size: 4, Align: 4, ValueKind: ByValue, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
+		wrLine("        - { Name: d_nSlop , Size: 4, Align: 8, ValueKind: ByValue, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
+#if KERNEL_DEBUG
+		wrLine("        - { Name: d_dbg , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
+#endif
 		wrLine("      }");
 		wrLine("}");
 		wrLine(".end_amd_amdgpu_hsa_metadata");
@@ -209,20 +212,63 @@ protected:
 	/************************************************************************/
 	/* ³£ÓÃkernelº¯Êý														 */
 	/************************************************************************/
-	void f_linear_addr(Var * s_base_addr, Var * v_addr)
+	void f_linear_addr_1d(Var * s_base_addr, Var * v_addr)
 	{
 		Var * v_tmp1 = newVgpr("v_tmp1");
 		Var * v_tmp2 = newVgpr("v_tmp2");
 
-		op3("v_lshlrev_b32", v_tmp1, log2(solution->GroupSize().x), s_gid_x);
+		// id_x = gid_x * group_sz_x + tid_x
+		op3("v_lshlrev_b32", v_tmp1, log2(group_sz.x), s_gid_x);
 		op4("v_add_lshl_u32", v_tmp1, v_tmp1, v_tid_x, 2);
 
+		// id_y = gid_y * group_sz_y + tid_y (not used for now)
+//		op3("v_lshlrev_b32", v_tmp2, log2(group_sz.y), s_gid_y);
+//		op4("v_add_lshl_u32", v_tmp2, v_tmp2, v_tid_y, 2);
+
+		s_wait_lgkmcnt(0);
 		op2("v_mov_b32", v_tmp2, *s_base_addr + 1);
 		op4("v_add_co_u32", v_addr, "vcc", s_base_addr, v_tmp1);
+		op5("v_addc_co_u32", *v_addr + 1, "vcc", 0, v_tmp2, "vcc");
+		
+		delVar(v_tmp1);
+		delVar(v_tmp2);
+	}
+	void f_linear_addr_2d(Var * s_base_addr, Var * v_addr)
+	{
+		Var * v_tmp1 = newVgpr("v_tmp1");
+		Var * v_tmp2 = newVgpr("v_tmp2");
+		Var * v_gp_id = newVgpr("v_gp_id");
+		Var * v_gid_y = newVgpr("v_gid_y");
+		Var * v_gid = newVgpr("v_gid");
+
+		// group_id = group_num.x * group_id_y + group_id_x
+		op2("v_mov_b32", v_tmp1, group_num.x);
+		op3("v_mul_u32_u24", v_gp_id, s_gid_y, v_tmp1);
+		op3(v_add_u32, v_gp_id, s_gid_x, v_gp_id);
+
+		// global_id_y = group_sz.y * group_id + thread_id_y
+		op2("v_mov_b32", v_tmp1, group_sz.y);
+		op3("v_mul_u32_u24", v_gid_y, v_tmp1, v_gp_id);
+		op3(v_add_u32, v_gid_y, v_tid_y, v_gid_y);
+		
+		// gid = group_sz.x * global_id_y + thread_id_x
+		op2("v_mov_b32", v_tmp1, group_sz.x);
+		op3("v_mul_u32_u24", v_gid, v_tmp1, v_gid_y);
+		op3(v_add_u32, v_gid, v_tid_x, v_gid);
+		
+		// byte addressing
+		op3("v_lshlrev_b32", v_gid, 2, v_gid);
+
+		s_wait_lgkmcnt(0);
+		op2("v_mov_b32", v_tmp2, *s_base_addr + 1);
+		op4("v_add_co_u32", v_addr, "vcc", s_base_addr, v_gid);
 		op5("v_addc_co_u32", *v_addr + 1, "vcc", 0, v_tmp2, "vcc");
 
 		delVar(v_tmp1);
 		delVar(v_tmp2);
+		delVar(v_gp_id);
+		delVar(v_gid_y);
+		delVar(v_gid);
 	}
 
 	void f_signal_slot_addr(Var * s_signal_slot_addr, Var * s_ptr_signal, uint slot_size_per_cu)

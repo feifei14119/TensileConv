@@ -22,6 +22,8 @@ typedef struct Conv1x1KernelParamType
 	int c_in_maps;
 	int c_in_group;
 
+	int c_in_lds_group;
+
 	// 对于一个 thread 的 output channel 划分
 	int k_out_maps;
 	int k_out_group;
@@ -29,8 +31,10 @@ typedef struct Conv1x1KernelParamType
 	int pix_group;
 
 	// 对于一个 work group 的 pixal 划分
-	int pix_per_group;
 	size_t align;
+	int pix_per_group;
+
+
 }T_Conv1x1KernelParam;
 
 class KernelWriterConv1x1 :public AutoGen::KernelWriter
@@ -55,6 +59,7 @@ protected:
 
 	int c_in_maps;
 	int c_in_group;
+	int c_in_lds_group;
 	int k_out_maps;
 	int k_out_group;
 
@@ -95,6 +100,7 @@ protected:
 	Var * v_addr_out;
 	Var * s_addr_sig;
 	Var * v_addr_out_back;
+	Var * v_lds_addr;
 
 	Var * v_in_buff_a;
 	Var * v_in_buff_b;
@@ -107,11 +113,23 @@ protected:
 
 	bool en_slop_zero = true;
 
+#if KERNEL_DEBUG
+	Var * v_debug;
+	Var * s_ptr_dbg;
+	Var * v_addr_dbg;
+#endif
+
 	void writeProgram()
 	{
+#if KERNEL_DEBUG
+		v_debug = newVgpr("v_debug");
+#endif
 		calcuIndex();
 #if SIMU_INDEX
 		simulate_index();
+#endif
+#if KERNEL_DEBUG
+		save_debug();
 #endif
 		main_conv();
 
@@ -146,7 +164,13 @@ protected:
 	void save_with_atomic(int n, Var * addr_out, Var * accum);
 	void save_with_slop_zero();
 
+	void lds_split_save();
+	void inner_group_sync();
+	void save_from_lds_split();
+	void save_with_lds_atomic();
+
 	void simulate_index();
+	void save_debug();
 };
 }
 }

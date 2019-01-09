@@ -18,7 +18,8 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 
 	solutionName = "TensileConv";
 
-	kernelParam.c_in_group = 1;
+	kernelParam.c_in_group = 2;
+	kernelParam.c_in_lds_group = 2;
 	kernelParam.k_out_maps = 16;
 	kernelParam.group_size = 64;
 }
@@ -119,6 +120,14 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	kernelParam.pix_group = _divCeil(problem->W() * problem->H() * problem->N(), kernelParam.group_size);
 	kernelParam.align = kernelParam.pix_group * kernelParam.group_size;
 
+	problem->size_sig = kernelParam.pix_group * kernelParam.k_out_group;
+	problem->h_sig = (float*)malloc(problem->size_sig * sizeof(float));
+
+#if KERNEL_DEBUG
+	problem->size_dbg = kernelParam.align * kernelParam.c_in_group * kernelParam.k_out_group;
+	problem->h_dbg = (float*)malloc(problem->size_dbg * sizeof(float));
+#endif
+
 	PRINT_SEPARATOR3();
 	OUTPUT("- Kernel Param:");
 	OUTPUT("- 	c_in_maps = %d, \tc_in_group = %d", kernelParam.c_in_maps, kernelParam.c_in_group);
@@ -126,13 +135,13 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	OUTPUT("- 	align = %d, \t\tpix_group = %d", kernelParam.align, kernelParam.pix_group);
 	OUTPUT("- 	group_size = %d", kernelParam.group_size);
 	PRINT_SEPARATOR3();
-
-	problem->size_sig = kernelParam.pix_group * kernelParam.k_out_group;
-	problem->h_sig = (float*)malloc(problem->size_sig * sizeof(float));
-
-	global_sz = dim3(kernelParam.align * kernelParam.c_in_group * kernelParam.k_out_group, 1, 1);
-	group_sz = dim3(kernelParam.group_size, 1, 1);
 	
+	// set up work size
+	global_sz.x = kernelParam.align * kernelParam.c_in_group * kernelParam.k_out_group / kernelParam.c_in_lds_group;
+	global_sz.y = kernelParam.c_in_lds_group;
+	group_sz = dim3(kernelParam.group_size, kernelParam.c_in_lds_group, 1);
+	
+	// generate kernel source
 	kernelName = "ConvFwd1x1";
 	if(rtOcl->Device()->DeviceInfo()->name == "gfx900")
 		kernelWriter = new KernelWriterConv1x1(problem, this, E_IsaArch::Gfx900);
@@ -141,6 +150,8 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 
 	kernelWriter->GenKernelString();
 	kernelWriter->SaveKernelString2File();
+
+	// build up kernel obj
 	kernel = rtOcl->CreatKernel(
 		(char *)kernelWriter->KernelFile().c_str(), kernelWriter->KernelName().c_str(), E_ProgramType::PRO_GAS_FILE);
 
@@ -157,12 +168,15 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	d_out = rtOcl->DevMalloc(problem->size_out * sizeof(float));
 	d_sig = rtOcl->DevMalloc(problem->size_sig * sizeof(float));
 	negSlop = problem->NegSlop();
+#if KERNEL_DEBUG
+	d_dbg = rtOcl->DevMalloc(problem->size_dbg * sizeof(float));
+#endif
 	
 	stream->MemCopyH2D(d_in, problem->h_in, problem->size_in * sizeof(float));
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
 	stream->MemCopyH2D(d_bias, problem->h_bias, problem->size_bias * sizeof(float));
 
-	kernel->SetArgs(&d_in, &d_wei, &d_bias, &d_out, &d_sig, &negSlop);
+	kernel->SetArgs(&d_in, &d_wei, &d_bias, &d_out, &d_sig, &negSlop, &d_dbg);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -171,6 +185,9 @@ void ConvFwd1x1Solution::getBackResult()
 {
 	stream->MemCopyD2H(problem->h_out, d_out, problem->size_out * sizeof(float));
 	stream->MemCopyD2H(problem->h_sig, d_sig, problem->size_sig * sizeof(float));
+#if KERNEL_DEBUG
+	stream->MemCopyD2H(problem->h_dbg, d_dbg, problem->size_dbg * sizeof(float));
+#endif
 }
 
 void ConvFwd1x1Solution::releaseDevMem()
@@ -189,6 +206,8 @@ void ConvFwd1x1Solution::GetBestKernel()
 	OUTPUT("+ Best score: %.3f (us) = %.1f%%.", solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
 	OUTPUT("+ Kernel name: " + kernelName);
 	OUTPUT("+ Kernel file: " + kernelFile);
+	OUTPUT("+ group_size = [%d, %d, %d].", group_sz.x, group_sz.y, group_sz.z);
+	OUTPUT("+ global_size = [%d, %d, %d].", global_sz.x, global_sz.y, global_sz.z);
 	getBestKernelParam();
 	PRINT_SEPARATOR('+');
 
@@ -355,14 +374,14 @@ E_ReturnState ConvFwd1x1Problem::initHostParam()
 	{
 		h_in[i] = 1;
 		//h_in[i] = (float)(i % 7) + 1.0f;
-		h_in[i] = (float)(rand() % 100 - 50);
+		//h_in[i] = (float)(rand() % 100 - 50);
 		//h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < size_wei; i++)
 	{
 		h_wei[i] = 1;
 		//h_wei[i] = (float)(i % 3);
-		h_wei[i] = (float)(rand() % 100 - 50);
+		//h_wei[i] = (float)(rand() % 100 - 50);
 		//h_in[i] = (double)rand() * (1.0 / RAND_MAX);
 	}
 	for (int i = 0; i < size_bias; i++)
