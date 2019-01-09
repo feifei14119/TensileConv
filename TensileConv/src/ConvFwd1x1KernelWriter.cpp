@@ -335,7 +335,8 @@ void KernelWriterConv1x1::calcuBlkIndex()
 	Var * v_tmp2 = newVgpr("v_tmp2");
 
 	// -------------------------------------------------------------------------------
-	// waveId = (gid_x * wave_per_group) + (tid_x / WAVE_SIZE);
+	// group_id = group_id_x
+	// waveId = ((group_sz.x / WAVE_SIZE) * group_sz.y * group_id) + (tid_x / WAVE_SIZE)
 	// tidInWave = tid_x % WAVE_SIZE;
 	// -------------------------------------------------------------------------------
 	op3("s_lshl_b32", s_tmp1, s_gid_x, log2(wave_per_group));					// s_tmp1 = gid_x * block_per_group
@@ -1044,7 +1045,7 @@ void KernelWriterConv1x1::simulate_index()
 
 void KernelWriterConv1x1::save_debug()
 {
-	op2("v_mov_b32", v_debug, 1234);
+	op2("v_mov_b32", v_debug, v_tid_x);
 	op2("v_cvt_f32_u32", v_debug, v_debug);
 
 	flat_store_dword(1, v_addr_dbg, v_debug, "off");
