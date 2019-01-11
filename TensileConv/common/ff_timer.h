@@ -22,6 +22,9 @@ namespace feifei
 #ifdef _WIN32
 	class WinTimer
 	{
+	public:
+		void Restart();
+		void Stop();
 	};
 #endif
 

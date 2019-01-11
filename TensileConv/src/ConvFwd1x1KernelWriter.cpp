@@ -1,42 +1,90 @@
 #pragma once
 
 #include "ConvFwd1x1KernelWriter.h"
-#include "ConvFwd1x1.h"
 
 using namespace TensileConv;
 using namespace AutoGen;
 
-KernelWriterConv1x1::KernelWriterConv1x1(ConvFwd1x1Problem * problem, ConvFwd1x1Solution * solution, E_IsaArch isaArch)
-	:KernelWriter(solution, isaArch)
+KernelWriterConv1x1::KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_IsaArch isaArch)
+	:KernelWriter(isaArch)
 {
-	this->problem = problem;
-	this->solution = solution;
+	kernelName = "ConvFwd1x1";
 
-	in_chan_stride = problem->W() * problem->H();
-	in_batch_stride = problem->W() * problem->H() * problem->C();
-	wei_chan_stride = problem->C();
-	out_chan_stride = problem->W() * problem->H();
-	out_batch_stride = problem->W() * problem->H() * problem->K();
+	// -------------------------------------------------------------------------------
+	// 复制参数, 方便使用
+	// -------------------------------------------------------------------------------
+	this->kernelParam = kernelParam;
+	N = kernelParam.N;
+	C = kernelParam.C; K = kernelParam.K;
+	W = kernelParam.W; H = kernelParam.H;
+	enBias = kernelParam.EnBias; enRelu = kernelParam.EnRelu;
 
-	kernelParam = solution->KernelParam();
-	c_in_maps = kernelParam.c_in_maps;
-	c_in_group = kernelParam.c_in_group;
-	c_in_lds_group = kernelParam.c_in_lds_group;
+	c_l2_split_group = kernelParam.c_l2_split_group;
+	c_l2_atomic_group = kernelParam.c_l2_atomic_group;
+	c_lds_split_group = kernelParam.c_lds_split_group;
+	c_lds_atomic_group = kernelParam.c_lds_atomic_group;
 	k_out_maps = kernelParam.k_out_maps;
-	k_out_group = kernelParam.k_out_group;
+	group_sz.x = kernelParam.group_size_x;
+	PCK_order = kernelParam.PCK_order;
 
-	c_in_maps_once = kernelParam.c_in_maps_once;
+	// -------------------------------------------------------------------------------
+	// 中间变量计算
+	// -------------------------------------------------------------------------------
+	in_chan_stride = W * H;
+	in_batch_stride = W * H * C;
+	wei_chan_stride = C;
+	out_chan_stride = W * H;
+	out_batch_stride = W * H * K;
+
+	c_in_lds_group = c_lds_split_group * c_lds_atomic_group;
+	c_in_l2_group = c_l2_split_group * c_l2_atomic_group;
+	c_in_group = c_in_l2_group * c_in_lds_group;
+	c_in_maps = C / c_in_group;
 	if (c_in_maps_once <= c_in_maps / unroll_time)
+	{
 		c_in_maps_once_real = c_in_maps_once;
+	}
 	else
+	{
 		c_in_maps_once_real = c_in_maps / unroll_time;
+	}
 	conv_loop = c_in_maps / c_in_maps_once_real / 2;
-			
-	wave_per_group = solution->GroupSize().x / WAVE_SIZE;
 
-	en_input_offset = ((problem->W() <= 28) && (IsaArch == E_IsaArch::Gfx900));
+	k_out_group = _divCeil(K, k_out_maps);
+	pix_group = _divCeil(W * H * N, group_sz.x);
+	pix_wave = group_sz.x / WAVE_SIZE * pix_group;
+	align = pix_group * group_sz.x;
+
+	if ((IsaArch == E_IsaArch::Gfx900) && (W*H <= 4095))
+	{
+		en_input_offset = true;
+	}
+	else
+	{
+		en_input_offset = false;
+	}
 	offset_grp_num = c_in_maps_once_real * 2 / 2;
-	en_wei_addr_offset = true;
+
+	size_dbg = align * c_in_group * k_out_group;
+	size_sig = pix_group * k_out_group;
+
+	// -------------------------------------------------------------------------------
+	// work load
+	// -------------------------------------------------------------------------------
+	global_sz.x = align * c_in_l2_group * k_out_group;
+	global_sz.y = c_in_lds_group;
+	global_sz.z = 1;
+	group_sz.y = c_in_lds_group;
+	group_sz.z = 1;
+	group_num = global_sz / group_sz;
+	group_wave_num_x = group_sz.x / WAVE_SIZE;
+
+	print_kernel_param();
+}
+E_ReturnState KernelWriterConv1x1::checkKernelParam()
+{
+
+	return E_ReturnState::SUCCESS;
 }
 
 /************************************************************************************/
@@ -106,17 +154,17 @@ void KernelWriterConv1x1::main_conv()
 		delVar(v_addr_in);
 	}
 	delVar(s_addr_wei);
-	if (problem->EnBias() == true)
+	if (enBias == true)
 	{
 		//delVar(s_addr_bias);
 		delVar(v_addr_bias);
 	}
-	if (problem->EnRelu() == true)
+	if (enRelu == true)
 	{
 		delVar(s_slop);
 	}
 	delVar(v_addr_out);
-	if (c_in_lds_group > 1)
+	if (c_lds_split_group > 1)
 	{
 		delVar(v_lds_addr);
 	}
@@ -214,14 +262,17 @@ void KernelWriterConv1x1::conv_one_accum(Var * in_buff, Var * wei_buff, Var * ac
 /************************************************************************************/
 void KernelWriterConv1x1::calcuIndex()
 {
+	// -------------------------------------------------------------------------------
+	// kenrel 参数
+	// -------------------------------------------------------------------------------
 	s_ptr_in = newSgpr("s_ptr_in", 2, 2);
 	s_ptr_wei = newSgpr("s_ptr_wei", 2, 2);
-	if (problem->EnBias() == true)
+	s_ptr_out = newSgpr("s_ptr_out", 2, 2);
+	if (enBias == true)
 	{
 		s_ptr_bias = newSgpr("s_ptr_bias", 2, 2);
 	}
-	s_ptr_out = newSgpr("s_ptr_out", 2, 2);
-	if (problem->EnRelu() == true)
+	if (enRelu == true)
 	{
 		s_slop = newSgpr("s_slop");
 		if (en_slop_zero == true)
@@ -234,15 +285,20 @@ void KernelWriterConv1x1::calcuIndex()
 #endif
 
 	// -------------------------------------------------------------------------------
-	v_waveId = newVgpr("v_waveId");
-	v_tidInWave = newVgpr("v_tidInWave");
-	v_pixBlkId = newVgpr("v_pixBlkId");
-	v_cInBlkId = newVgpr("v_cInBlkId");
-	v_kOutBlkId = newVgpr("v_kOutBlkId");
-	v_posId = newVgpr("v_posId");
-	v_batchId = newVgpr("v_batchId");
-	v_outId = newVgpr("v_outId");
+	// 中间变量
+	// -------------------------------------------------------------------------------
+	v_wave_id_x = newVgpr("v_wave_id_x");
+	v_wave_tid_x = newVgpr("v_wave_tid_x");
+	v_pix_blk_id = newVgpr("v_pix_blk_id");
+	v_c_blk_id = newVgpr("v_c_blk_id");
+	v_c_l2_blk_id = newVgpr("v_c_l2_blk_id");
+	v_k_blk_id = newVgpr("v_k_blk_id");
+	v_pos_id = newVgpr("v_pos_id");
+	v_batch_id = newVgpr("v_batch_id");
+	v_out_id = newVgpr("v_out_id");
 
+	// -------------------------------------------------------------------------------
+	// 实际地址
 	// -------------------------------------------------------------------------------
 	if (en_input_offset == true)
 	{
@@ -253,57 +309,45 @@ void KernelWriterConv1x1::calcuIndex()
 		v_addr_in = newVgpr("v_addr_in", 2, 2);
 	}
 	s_addr_wei = newSgpr("s_addr_wei", 2, 2);
-	if (problem->EnBias() == true)
+	v_addr_out = newVgpr("v_addr_out", 2, 2);
+	if (enBias == true)
 	{
 		v_addr_bias = newVgpr("v_addr_bias", 2, 2);
 	}
-	if ((problem->EnRelu() == true)&&(en_slop_zero == true))
+	if ((enRelu == true)&&(en_slop_zero == true))
 	{
 		s_addr_sig = newSgpr("s_addr_sig", 2, 2);
 	}
-	v_addr_out = newVgpr("v_addr_out", 2, 2);
-	if (c_in_lds_group > 1)
+	if (c_lds_split_group > 1)
 	{
 		v_lds_addr = newVgpr("v_ds_addr");
 	}
 #if KERNEL_DEBUG
 	v_addr_dbg = newVgpr("v_addr_dbg", 2, 2);
 #endif
-
+	
 	// -------------------------------------------------------------------------------
-	s_load_dword(2, s_ptr_in, s_kernelArg, 0x00);
-	s_load_dword(2, s_ptr_wei, s_kernelArg, 0x08);
-	if (problem->EnBias() == true)
-	{
-		s_load_dword(2, s_ptr_bias, s_kernelArg, 0x10);
-	}
-	s_load_dword(2, s_ptr_out, s_kernelArg, 0x18);
-	if ((problem->EnRelu() == true) && (en_slop_zero == true))
-	{
-		s_load_dword(2, s_ptr_sig, s_kernelArg, 0x20);
-	}
-	if (problem->EnRelu() == true)
-	{
-		s_load_dword(1, s_slop, s_kernelArg, 0x28);
-	}
+	// 计算过程
+	// -------------------------------------------------------------------------------
+	loadKernelArgs();
+	calcuWaveIndex();
+	calcuBlkIndex();
+	calcuPosIndex();
+	calcuOffset();
 #if KERNEL_DEBUG
-	s_load_dword(2, s_ptr_dbg, s_kernelArg, 0x30);
 	f_linear_addr_2d(s_ptr_dbg, v_addr_dbg);
 	save_debug();
 #endif
 
 	// -------------------------------------------------------------------------------
-	calcuBlkIndex();
-	calcuPosIndex();
-	calcuOffset();
-
+	// 销毁变量
 	// -------------------------------------------------------------------------------
 	if (en_input_offset == false)
 	{
 		delVar(s_ptr_in);
 	}
 	delVar(s_ptr_wei);
-	if (problem->EnBias() == true)
+	if (enBias == true)
 	{
 		delVar(s_ptr_bias);
 	}
@@ -312,49 +356,154 @@ void KernelWriterConv1x1::calcuIndex()
 	delVar(s_ptr_dbg);
 #endif
 
-	delVar(v_waveId);
-	delVar(v_tidInWave);
-	delVar(v_pixBlkId);
+	delVar(v_wave_id_x);
+	delVar(v_wave_tid_x);
+	delVar(v_pix_blk_id);
 	if (c_in_group == 1)
 	{
-		delVar(v_cInBlkId);
+		delVar(v_c_l2_blk_id);
 	}
-	delVar(v_kOutBlkId);
-	delVar(v_posId);
-	delVar(v_batchId);
-	delVar(v_outId);
-	if ((problem->EnRelu() == true) && (en_slop_zero == true))
+	delVar(v_c_blk_id);
+	delVar(v_k_blk_id);
+	delVar(v_pos_id);
+	delVar(v_batch_id);
+	delVar(v_out_id);
+	if ((enRelu == true) && (en_slop_zero == true))
 	{
 		delVar(s_ptr_sig);
 	}
 }
-void KernelWriterConv1x1::calcuBlkIndex()
+void KernelWriterConv1x1::loadKernelArgs()
+{
+	int offset = 0;
+
+	s_load_dword(2, s_ptr_in, s_kernelArg, offset);			offset += 8;
+	s_load_dword(2, s_ptr_wei, s_kernelArg, offset);		offset += 8;
+	s_load_dword(2, s_ptr_out, s_kernelArg, offset);		offset += 8;
+
+	if (enBias == true)
+		s_load_dword(2, s_ptr_bias, s_kernelArg, offset);	
+	offset += 8;	
+
+	if ((enRelu == true) && (en_slop_zero == true))
+		s_load_dword(2, s_ptr_sig, s_kernelArg, offset);	
+	offset += 8;
+	
+	if (enRelu == true)
+		s_load_dword(1, s_slop, s_kernelArg, offset);		
+	offset += 8;
+	
+#if KERNEL_DEBUG
+	s_load_dword(2, s_ptr_dbg, s_kernelArg, offset);		offset += 8;
+#endif
+}
+void KernelWriterConv1x1::calcuWaveIndex()
 {
 	Var * s_tmp1 = newSgpr("s_tmp1");
 	Var * v_tmp1 = newVgpr("v_tmp1");
-	Var * v_tmp2 = newVgpr("v_tmp2");
 
 	// -------------------------------------------------------------------------------
-	// group_id = group_id_x
-	// waveId = ((group_sz.x / WAVE_SIZE) * group_sz.y * group_id) + (tid_x / WAVE_SIZE)
-	// tidInWave = tid_x % WAVE_SIZE;
+	// wave_id_x = (group_wave_num_x * gid_x) + (tid_x / WAVE_SIZE);
+	// wave_tid_x = tid_x % WAVE_SIZE;
 	// -------------------------------------------------------------------------------
-	op3("s_lshl_b32", s_tmp1, s_gid_x, log2(wave_per_group));					// s_tmp1 = gid_x * block_per_group
-	op3("v_lshrrev_b32", v_tmp1, log2(WAVE_SIZE), v_tid_x);						// v_tmp1 = tid_x / WAVE_SIZE
-	op4(v_addc_u32, v_waveId, "vcc", v_tmp1, s_tmp1);							// v_waveId = waveId
-	op3("v_and_b32", v_tidInWave, modMask(WAVE_SIZE), v_tid_x);					// v_tidInWave = tidInWave
-
-	// -------------------------------------------------------------------------------
-	// pixBlkId = waveId / k_out_group / c_in_group;
-	// cInBlkId = waveId / k_out_group % c_in_group;
-	// kOutBlkId = waveId % k_out_group;
-	// -------------------------------------------------------------------------------
-	op3("v_lshrrev_b32", v_tmp2, log2(k_out_group), v_waveId);					// v_tmp2 = waveId / k_out_group
-	op3("v_lshrrev_b32", v_pixBlkId, log2(c_in_group), v_tmp2);					// v_pixBlkId = pixBlkId
-	op3("v_and_b32", v_cInBlkId, modMask(c_in_group), v_tmp2);					// v_cInBlkId = cInBlkId
-	op3("v_and_b32", v_kOutBlkId, modMask(k_out_group), v_waveId);				// v_kOutBlkId = kOutBlkId
+	op3("s_lshl_b32", s_tmp1, s_gid_x, log2(group_wave_num_x));		// s_tmp1 = gid_x * block_per_group
+	op3("v_lshrrev_b32", v_tmp1, log2(WAVE_SIZE), v_tid_x);			// v_tmp1 = tid_x / WAVE_SIZE
+	op3(v_add_u32, v_wave_id_x, v_tmp1, s_tmp1);					// v_wave_id_x = s_tmp1 + v_tmp1
+	op3("v_and_b32", v_wave_tid_x, modMask(WAVE_SIZE), v_tid_x);	// v_wave_tid_x = tid_x % WAVE_SIZE
 
 	delVar(s_tmp1);
+	delVar(v_tmp1);
+}
+void KernelWriterConv1x1::calcuBlkIndex()
+{
+	Var * v_tmp1 = newVgpr("v_tmp1");
+	Var * v_tmp2 = newVgpr("v_tmp2");
+
+	if (PCK_order == 321)
+	{
+		// -------------------------------------------------------------------------------
+		// k_out --> c_in --> pix
+		// k_blk_id = wave_id_x % k_out_group;
+		// c_l2_blk_id = wave_id_x / k_out_group % c_in_l2_group;
+		// pix_blk_id = wave_id_x / k_out_group / c_in_l2_group;
+		// -------------------------------------------------------------------------------
+		op2("v_mov_b32", v_tmp1, k_out_group);
+		fv_div_u32(v_wave_id_x, v_tmp1, v_tmp2, v_k_blk_id);
+		op2("v_mov_b32", v_tmp1, c_in_l2_group);
+		fv_div_u32(v_tmp2, v_tmp1, v_pix_blk_id, v_c_l2_blk_id);
+	}
+	else if (PCK_order == 312)
+	{
+		// -------------------------------------------------------------------------------
+		// c_in --> k_out --> pix
+		// c_l2_blk_id = wave_id_x % c_in_l2_group;
+		// k_blk_id = wave_id_x / c_in_l2_group % k_out_group;
+		// pix_blk_id = wave_id_x / c_in_l2_group / k_out_group;
+		// -------------------------------------------------------------------------------
+		op2("v_mov_b32", v_tmp1, c_in_l2_group);
+		fv_div_u32(v_wave_id_x, v_tmp1, v_tmp2, v_c_l2_blk_id);
+		op2("v_mov_b32", v_tmp1, k_out_group);
+		fv_div_u32(v_tmp2, v_tmp1, v_pix_blk_id, v_k_blk_id);
+	}
+	else if (PCK_order == 123)
+	{
+		// -------------------------------------------------------------------------------
+		// pix --> c_in --> k_out
+		// pix_blk_id = wave_id_x % pix_wave;
+		// c_l2_blk_id = wave_id_x / pix_wave % c_in_l2_group;
+		// k_blk_id = wave_id_x / pix_wave / c_in_l2_group;
+		// -------------------------------------------------------------------------------
+		op2("v_mov_b32", v_tmp1, pix_wave);
+		fv_div_u32(v_wave_id_x, v_tmp1, v_tmp2, v_pix_blk_id);
+		op2("v_mov_b32", v_tmp1, c_in_l2_group);
+		fv_div_u32(v_tmp2, v_tmp1, v_k_blk_id, v_c_l2_blk_id);
+	}
+	else if (PCK_order == 132)
+	{
+		// -------------------------------------------------------------------------------
+		// pix --> k_out --> c_in
+		// pix_blk_id = wave_id_x % pix_wave;
+		// k_blk_id = wave_id_x / pix_wave % k_out_group;
+		// c_l2_blk_id = wave_id_x / pix_wave / k_out_group;
+		// -------------------------------------------------------------------------------
+		op2("v_mov_b32", v_tmp1, pix_wave);
+		fv_div_u32(v_wave_id_x, v_tmp1, v_tmp2, v_pix_blk_id);
+		op2("v_mov_b32", v_tmp1, k_out_group);
+		fv_div_u32(v_tmp2, v_tmp1, v_c_l2_blk_id, v_k_blk_id);
+	}
+	else if (PCK_order == 213)
+	{
+		// -------------------------------------------------------------------------------
+		// c_in --> pix --> k_out
+		// c_l2_blk_id = wave_id_x % c_in_l2_group;
+		// pix_blk_id = wave_id_x / c_in_l2_group % pix_wave;
+		// k_blk_id = wave_id_x / c_in_l2_group / pix_wave;
+		// -------------------------------------------------------------------------------
+		op2("v_mov_b32", v_tmp1, c_in_l2_group);
+		fv_div_u32(v_wave_id_x, v_tmp1, v_tmp2, v_c_l2_blk_id);
+		op2("v_mov_b32", v_tmp1, pix_wave);
+		fv_div_u32(v_tmp2, v_tmp1, v_k_blk_id, v_pix_blk_id);
+	}
+	else if (PCK_order == 231)
+	{
+		// -------------------------------------------------------------------------------
+		// k_out --> pix --> c_in
+		// k_blk_id = wave_id_x % k_out_group;
+		// pix_blk_id = wave_id_x / k_out_group % pix_wave;
+		// c_l2_blk_id = wave_id_x / k_out_group / pix_wave;
+		// -------------------------------------------------------------------------------
+		op2("v_mov_b32", v_tmp1, k_out_group);
+		fv_div_u32(v_wave_id_x, v_tmp1, v_tmp2, v_k_blk_id);
+		op2("v_mov_b32", v_tmp1, pix_wave);
+		fv_div_u32(v_tmp2, v_tmp1, v_c_l2_blk_id, v_pix_blk_id);
+	}
+
+	// -------------------------------------------------------------------------------
+	// c_blk_id = c_in_lds_group * c_l2_blk_id + tid_y;
+	// -------------------------------------------------------------------------------
+	op3("v_lshlrev_b32", v_tmp1, log2(c_in_lds_group), v_c_l2_blk_id); 
+	op3(v_add_u32, v_c_blk_id, v_tmp1, v_tid_y);
+
 	delVar(v_tmp1);
 	delVar(v_tmp2);
 }
@@ -364,25 +513,23 @@ void KernelWriterConv1x1::calcuPosIndex()
 	Var * v_tmp2 = newVgpr("v_tmp2");
 
 	// -------------------------------------------------------------------------------
-	// pos_id   = (pixBlkId * WAVE_SIZE + tidInWave) % in_chan_stride;
-	// batch_id = (pixBlkId * WAVE_SIZE + tidInWave) / in_chan_stride;
-	// out_id   = kOutBlkId * k_out_maps;
+	// pos_id   = (pix_blk_id * WAVE_SIZE + wave_tid_x) % in_chan_stride;
+	// batch_id = (pix_blk_id * WAVE_SIZE + wave_tid_x) / in_chan_stride;
+	// out_id   = k_blk_id * k_out_maps;
 	// -------------------------------------------------------------------------------
-	op3("v_lshlrev_b32", v_tmp1, log2(WAVE_SIZE), v_pixBlkId);
-	op4(v_addc_u32, v_tmp1, "vcc", v_tidInWave, v_tmp1);						// v_tmp1 = (pixBlkId * WAVE_SIZE + tidInWave)
+	op3("v_lshlrev_b32", v_tmp1, log2(WAVE_SIZE), v_pix_blk_id);
+	op3(v_add_u32, v_tmp1, v_wave_tid_x, v_tmp1);					// v_tmp1 = pix_blk_id * WAVE_SIZE + wave_tid_x
 	op2("v_mov_b32", v_tmp2, in_chan_stride);
-	fv_div_u32(v_tmp1, v_tmp2, v_batchId, v_posId);								// v_batchId = batch_id; v_posId = pos
-	op3("v_lshlrev_b32", v_outId, log2(k_out_maps), v_kOutBlkId);				// v_outId = out_id
+	fv_div_u32(v_tmp1, v_tmp2, v_batch_id, v_pos_id);
+	op3("v_mul_u32_u24", v_out_id, k_out_maps, v_k_blk_id);
 
 	// -------------------------------------------------------------------------------
 	// if (batch_id >= extProbCfg->N)
 	//		return;
 	// -------------------------------------------------------------------------------
-	op2("v_mov_b32", v_tmp1, problem->N());
-	op3("v_cmpx_lt_u32", "vcc", v_batchId, v_tmp1); 
-	//op1("s_nop", 5);
+	op2("v_mov_b32", v_tmp1, N);
+	op3("v_cmpx_lt_u32", "vcc", v_batch_id, v_tmp1); 
 	op1("s_cbranch_execz", l_end_prg);
-
 
 	delVar(v_tmp1);
 	delVar(v_tmp2);
@@ -394,69 +541,93 @@ void KernelWriterConv1x1::calcuOffset()
 	Var * v_tmp2 = newVgpr("v_tmp2");
 	Var * v_tmp3 = newVgpr("v_tmp3");
 
-	// -------------------------------------------------------------------------------
-	// gbl_in_off  = (batch_id * in_batch_stride) + (cInBlkId * c_in_maps * in_chan_stride) + pos_id;
-	// -------------------------------------------------------------------------------
-	op2("v_mov_b32", v_tmp1, in_batch_stride);
-	op3("v_mul_u32_u24", v_tmp1, v_batchId, v_tmp1);						// v_tmp1 = (batch_id * in_batch_stride)
-	op3("v_lshlrev_b32", v_tmp2, log2(c_in_maps), v_cInBlkId);
-	op2("v_mov_b32", v_tmp3, in_chan_stride);
-	op3("v_mul_u32_u24", v_tmp2, v_tmp2, v_tmp3);							// v_tmp2 = (cInBlkId * c_in_maps * in_chan_stride)
+	s_wait_lgkmcnt(0);
 
-	if (IsaArch == E_IsaArch::Gfx800)
+	// -------------------------------------------------------------------------------
+	// wei_off = (out_id * wei_chan_stride) + (c_blk_id * c_in_maps);
+	// -------------------------------------------------------------------------------
 	{
-		op4(v_addc_u32, v_tmp3, "vcc", v_tmp1, v_tmp2);
-		//op1("s_nop", 1);
-		op5(v_addc_co_u32, v_tmp3, "vcc", v_tmp3, v_posId, "vcc");
-		//op1("s_nop", 1);
+		op2("v_mov_b32", v_tmp1, wei_chan_stride);
+		op3("v_mul_u32_u24", v_tmp1, v_out_id, v_tmp1);		// v_tmp1 = out_id * wei_chan_stride
+		op2("v_mov_b32", v_tmp2, c_in_maps);
+		op3("v_mul_u32_u24", v_tmp2, v_c_blk_id, v_tmp2);	// v_tmp2 = c_blk_id * c_in_maps
+		op3(v_add_u32, v_tmp1, v_tmp1, v_tmp2);
+		op2("v_readfirstlane_b32", s_tmp1, v_tmp1);			// s_tmp1 = wei_off
+		op3("s_lshl_b32", s_tmp1, s_tmp1, 2);				// s_tmp1 = wei_off (BYTE)
+		op3("s_add_u32", s_addr_wei, s_ptr_wei, s_tmp1);
+		op3("s_addc_u32", *s_addr_wei + 1, 0, *s_ptr_wei + 1);
 	}
-	else if (IsaArch == E_IsaArch::Gfx900)
-	{
-		op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_posId);						// v_tmp3 = gbl_in_off
-	}
-	op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);								// v_tmp3 = gbl_in_off (BYTE)
 
-	if (en_input_offset == true)
+	// -------------------------------------------------------------------------------
+	// gbl_in_off = (batch_id * in_batch_stride) + (c_blk_id * c_in_maps * in_chan_stride) + pos_id;
+	// -------------------------------------------------------------------------------
 	{
-		op2("v_mov_b32", v_global_offset, v_tmp3);
-		op2("v_mov_b32", v_tmp1, in_chan_stride * 2 * 4);
-		for (int i = 0; i < offset_grp_num; i++)
+		op2("v_mov_b32", v_tmp1, in_batch_stride);
+		op3("v_mul_u32_u24", v_tmp1, v_tmp1, v_batch_id);	// v_tmp1 = batch_id * in_batch_stride
+		op2("v_mov_b32", v_tmp2, c_in_maps);
+		op3("v_mul_u32_u24", v_tmp2, v_tmp2, v_c_blk_id);
+		op2("v_mov_b32", v_tmp3, in_chan_stride);
+		op3("v_mul_u32_u24", v_tmp2, v_tmp3, v_tmp2);		// v_tmp2 = c_blk_id * c_in_maps * in_chan_stride
+
+		if (IsaArch == E_IsaArch::Gfx800)
 		{
-			op4(v_addc_u32, *v_global_offset + 2 * (i + 1), "vcc", *v_global_offset + 2 * i, v_tmp1);
+			op4(v_addc_u32, v_tmp3, "vcc", v_tmp1, v_tmp2);
+			op5(v_addc_co_u32, v_tmp3, "vcc", v_tmp3, v_pos_id, "vcc");
+		}
+		else if (IsaArch == E_IsaArch::Gfx900)
+		{
+			op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_pos_id);
+		}
+		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);			// v_tmp3 = gbl_in_off (BYTE)
+
+		if (en_input_offset == true)
+		{
+			op2("v_mov_b32", v_global_offset, v_tmp3);
+			op2("v_mov_b32", v_tmp1, in_chan_stride * 2 * 4);
+			for (int i = 0; i < offset_grp_num; i++)
+			{
+				op4(v_addc_u32, *v_global_offset + 2 * (i + 1), "vcc", *v_global_offset + 2 * i, v_tmp1);
+			}
+		}
+		else
+		{
+			op2("v_mov_b32", *v_addr_in + 1, *s_ptr_in + 1);
+			op4(v_addc_u32, v_addr_in, "vcc", s_ptr_in, v_tmp3);
+			op5(v_addc_co_u32, *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
 		}
 	}
-	else
-	{
-		s_wait_lgkmcnt(0);
-		op2("v_mov_b32", *v_addr_in + 1, *s_ptr_in + 1);
-		op4(v_addc_u32, v_addr_in, "vcc", s_ptr_in, v_tmp3);
-		//op1("s_nop", 5);
-		op5(v_addc_co_u32, *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
-		//op1("s_nop", 5);
-	}
 
 	// -------------------------------------------------------------------------------
-	// wei_off = (out_id * wei_chan_stride) + (cInBlkId * c_in_maps);
+	// gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
 	// -------------------------------------------------------------------------------
-	op2("v_mov_b32", v_tmp1, wei_chan_stride);
-	op3("v_mul_u32_u24", v_tmp1, v_outId, v_tmp1);							// v_tmp1 = (out_id * wei_chan_stride)
-	op3("v_lshlrev_b32", v_tmp2, log2(c_in_maps), v_cInBlkId);				// v_tmp2 = (cInBlkId * c_in_maps)
-	op4(v_addc_u32, v_tmp1, "vcc", v_tmp1, v_tmp2);
-	op2("v_readfirstlane_b32", s_tmp1, v_tmp1);								// s_tmp1 = wei_off
-	//op1("s_nop", 5);			
-	op3("s_lshl_b32", s_tmp1, s_tmp1, 2);									// s_tmp1 = wei_off (BYTE)
-	s_wait_lgkmcnt(0);
-	op3("s_add_u32", s_addr_wei, s_ptr_wei, s_tmp1);
-	op3("s_addc_u32", *s_addr_wei + 1, 0, *s_ptr_wei + 1);
+	{
+		op2("v_mov_b32", v_tmp1, out_batch_stride);
+		op3("v_mul_u32_u24", v_tmp1, v_batch_id, v_tmp1);		// v_tmp1 = batch_id * out_batch_stride
+		op2("v_mov_b32", v_tmp2, out_chan_stride);
+		op3("v_mul_u32_u24", v_tmp2, v_out_id, v_tmp2);			// v_tmp2 = out_id * out_chan_stride
+
+		if (IsaArch == E_IsaArch::Gfx800)
+		{
+			op4(v_addc_u32, v_tmp3, "vcc", v_tmp1, v_tmp2);
+			op5(v_addc_co_u32, v_tmp3, "vcc", v_tmp3, v_pos_id, "vcc");
+		}
+		else if (IsaArch == E_IsaArch::Gfx900)
+		{
+			op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_pos_id);
+		}
+		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);				// v_tmp3 = gbl_out_off (BYTE)
+
+		op2("v_mov_b32", *v_addr_out + 1, *s_ptr_out + 1);
+		op4(v_addc_u32, v_addr_out, "vcc", s_ptr_out, v_tmp3);
+		op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+	}
 
 	// -------------------------------------------------------------------------------
 	// bias_off = out_id
 	// -------------------------------------------------------------------------------
-	if (problem->EnBias() == true)
+	if (enBias == true)
 	{
-		//op3("s_add_u32", s_addr_bias, s_ptr_bias, s_tmp1);
-		//op3("s_addc_u32", *s_addr_bias + 1, 0, *s_ptr_bias + 1);
-		op3("v_lshlrev_b32", v_tmp1, 2, v_outId);
+		op3("v_lshlrev_b32", v_tmp1, 2, v_out_id);
 		op2("v_mov_b32", *v_addr_bias + 1, *s_ptr_bias + 1);
 		op4(v_addc_u32, v_addr_bias, "vcc", s_ptr_bias, v_tmp1);
 		op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
@@ -465,10 +636,10 @@ void KernelWriterConv1x1::calcuOffset()
 	// -------------------------------------------------------------------------------
 	// sig_off = pixBlkId * k_out_group + kOutBlkId
 	// -------------------------------------------------------------------------------
-	if ((problem->EnRelu() == true)&&(en_slop_zero == true))
+	if ((enRelu == true)&&(en_slop_zero == true))
 	{
-		op3("v_mul_u32_u24", v_tmp1, v_pixBlkId, k_out_group);				// v_tmp1 = pixBlkId * k_out_group
-		op4(v_addc_u32, v_tmp1, "vcc", v_tmp1, v_kOutBlkId);
+		op3("v_mul_u32_u24", v_tmp1, v_pix_blk_id, k_out_group);				// v_tmp1 = pixBlkId * k_out_group
+		op4(v_addc_u32, v_tmp1, "vcc", v_tmp1, v_k_blk_id);
 		op2("v_readfirstlane_b32", s_tmp1, v_tmp1);							// s_tmp1 = sig_off
 		op3("s_lshl_b32", s_tmp1, s_tmp1, 2);								// s_tmp1 = sig_off (BYTE)
 		s_wait_lgkmcnt(0);
@@ -484,34 +655,10 @@ void KernelWriterConv1x1::calcuOffset()
 	// -------------------------------------------------------------------------------
 	if (c_in_lds_group > 1)
 	{
-		//ldsByteCount += c_in_lds_group * WAVE_SIZE * k_out_maps * 4;	// 申请lds字节数
+		//ldsByteCount += c_lds_split_group * WAVE_SIZE * k_out_maps * 4;	// 申请lds字节数
 		ldsByteCount += WAVE_SIZE * k_out_maps * 4;	// 申请lds字节数
 		op3("v_lshlrev_b32", v_lds_addr, 2, v_tid_x);
 	}
-
-	// -------------------------------------------------------------------------------
-	// gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
-	// -------------------------------------------------------------------------------
-	op2("v_mov_b32", v_tmp1, out_batch_stride);
-	op3("v_mul_u32_u24", v_tmp1, v_batchId, v_tmp1);						// v_tmp1 = (batch_id * out_batch_stride)
-	op2("v_mov_b32", v_tmp2, out_chan_stride);
-	op3("v_mul_u32_u24", v_tmp2, v_outId, v_tmp2);							// v_tmp2 = (out_id * out_chan_stride)
-
-	if (IsaArch == E_IsaArch::Gfx800)
-	{
-		op4(v_addc_u32, v_tmp3, "vcc", v_tmp1, v_tmp2);
-		//op1("s_nop", 1);
-		op5(v_addc_co_u32, v_tmp3, "vcc", v_tmp3, v_posId, "vcc");
-	}
-	else if (IsaArch == E_IsaArch::Gfx900)
-	{
-		op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_posId);					// v_tmp3 = gbl_out_off
-	}
-	op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);								// v_tmp3 = gbl_out_off (BYTE)
-	op2("v_mov_b32", *v_addr_out + 1, *s_ptr_out + 1);
-	op4(v_addc_u32, v_addr_out, "vcc", s_ptr_out, v_tmp3);
-	//op1("s_nop", 1);
-	op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 
 	delVar(s_tmp1);
 	delVar(v_tmp1);
@@ -606,7 +753,7 @@ void KernelWriterConv1x1::init_output()
 
 	if (c_in_group == 1)
 	{
-		if (problem->EnBias() == true)
+		if (enBias == true)
 		{
 			//s_load_dword(k_out_maps, s_wei_buff_a, s_addr_bias, "off");
 			for (int i = 0; i < k_out_maps; i++)
@@ -626,12 +773,12 @@ void KernelWriterConv1x1::init_output()
 		Var * l_end_init = newLaber("SEG_2");
 		Var * v_init = newVgpr("v_init");
 
-		op2("v_readfirstlane_b32", s_cInBlkId, v_cInBlkId);
+		op2("v_readfirstlane_b32", s_cInBlkId, v_c_l2_blk_id);
 		//op1("s_nop", 5);
 		op2("s_cmpk_eq_i32", s_cInBlkId, 0);
 		op1("s_cbranch_scc0", l_end_init); 
 		{
-			if ((problem->EnRelu() == true) && (en_slop_zero == true))
+			if ((enRelu == true) && (en_slop_zero == true))
 			{
 				Var * s_tmp = newSgpr("s_tmp");
 				op2("s_mov_b32", s_tmp, 100);
@@ -645,7 +792,7 @@ void KernelWriterConv1x1::init_output()
 			op2("v_mov_b32", v_init, 0);
 			for (int i = 0; i < k_out_maps; i++)
 			{
-				if (problem->EnBias() == true)
+				if (enBias == true)
 				{
 					flat_store_dword(1, v_addr_out, v_init, "off");
 				}
@@ -659,7 +806,7 @@ void KernelWriterConv1x1::init_output()
 				op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 			}
 
-			if (problem->EnBias() == true)
+			if (enBias == true)
 			{
 				for (int i = 0; i < k_out_maps; i++)
 				{
@@ -672,7 +819,7 @@ void KernelWriterConv1x1::init_output()
 			op2("v_mov_b32", *v_addr_out + 1, *v_addr_save + 1);
 
 
-			if ((problem->EnRelu() == true) && (en_slop_zero == true))
+			if ((enRelu == true) && (en_slop_zero == true))
 			{
 				s_wait_lgkmcnt(0);
 			}
@@ -698,7 +845,7 @@ void KernelWriterConv1x1::save_result()
 		op2("v_mov_b32", v_addr_out_back, v_addr_out);
 		op2("v_mov_b32", *v_addr_out_back + 1, *v_addr_out + 1);
 
-		if (c_in_lds_group > 1)
+		if (c_lds_split_group > 1)
 		{
 //			lds_split_save();
 //			inner_group_sync();
@@ -711,7 +858,7 @@ void KernelWriterConv1x1::save_result()
 			save_with_atomic(i, v_addr_out, *v_acc_buff + i);
 		}
 
-		if ((problem->EnRelu() == true) && (en_slop_zero == true))
+		if ((enRelu == true) && (en_slop_zero == true))
 		{
 			save_with_slop_zero();
 		}*/
@@ -756,7 +903,7 @@ void KernelWriterConv1x1::save_with_lds_atomic()
 	// -------------------------------------------------------------------------------
 	for (int i = 0; i < k_out_maps; i++)
 	{
-		/*if ((problem->EnRelu()) && (extSolCfg->l2_rdc_group <= 1))
+		/*if ((enRelu) && (extSolCfg->l2_rdc_group <= 1))
 		{
 			op3("v_cmpx_lt_f32", "vcc", *v_acc_buff + i, 0);
 			{
@@ -776,9 +923,9 @@ void KernelWriterConv1x1::save_with_lds_atomic()
 		}*/
 
 		// debug
-		op2("v_mov_b32", v_debug, 1234);
-		op2("v_mov_b32", *v_acc_buff + i, v_debug);
-		op2("v_cvt_f32_u32", *v_acc_buff + i, *v_acc_buff + i);
+		//op2("v_mov_b32", v_debug, 1234);
+		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
+		//op2("v_cvt_f32_u32", *v_acc_buff + i, *v_acc_buff + i);
 
 		flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
 
@@ -817,7 +964,7 @@ void KernelWriterConv1x1::save_without_atomic()
 		// debug
 		//op2("v_mov_b32", *v_acc_buff + i, v_in_buff_b);
 		//op2("v_cvt_f32_u32", *v_acc_buff + i, *v_acc_buff + i);
-		if (problem->EnRelu())
+		if (enRelu)
 		{
 			s_exec_save = newSgpr("s_exec_save", 2, 2);
 			op2("s_mov_b64", *s_exec_save ^ 2, "exec");
@@ -852,7 +999,7 @@ void KernelWriterConv1x1::save_with_atomic(int n, Var * addr_out, Var * accum)
 	wrLaber(l_atomic_add);
 
 
-	if ((problem->EnRelu() == true) && (en_slop_zero == false))
+	if ((enRelu == true) && (en_slop_zero == false))
 	{
 		//op4("v_fma_f32", v_src_cmp, accum, s_slop, *v_src_cmp + 1);
 		/*
@@ -920,7 +1067,7 @@ void KernelWriterConv1x1::save_with_slop_zero()
 			
 	// 读取信号
 	Var * s_cInBlkId = newSgpr("s_cInBlkId");
-	op2("v_readfirstlane_b32", s_cInBlkId, v_cInBlkId);
+	op2("v_readfirstlane_b32", s_cInBlkId, v_c_l2_blk_id);
 	op2("s_cmpk_eq_i32", s_cInBlkId, 0);
 	op1("s_cbranch_scc0", l_end_prg);
 
@@ -963,86 +1110,115 @@ void KernelWriterConv1x1::save_with_slop_zero()
 }
 
 /************************************************************************************/
-/* 测试下标																			*/
+/* 测试																				*/
 /************************************************************************************/
-void KernelWriterConv1x1::simulate_index()
+void KernelWriterConv1x1::print_kernel_param()
 {
-	int *testId = (int*)malloc(group_num.x * sizeof(int));
-	int *testPixBlkId = (int*)malloc(group_num.x * sizeof(int));
-	int *testCInBlkId = (int*)malloc(group_num.x * sizeof(int));
-	int *testKOutBlkId = (int*)malloc(group_num.x * sizeof(int));
-	int *testPosId = (int*)malloc(group_num.x * sizeof(int));
-	int *testBatchId = (int*)malloc(group_num.x * sizeof(int));
-	int *testOutId = (int*)malloc(group_num.x * sizeof(int));
+	PRINT_SEPARATOR3();
+	OUTPUT("- Kernel Param:");
+	OUTPUT("- 	c_lds_split = %d, \tc_lds_atomic = %d", c_lds_split_group, c_lds_atomic_group);
+	OUTPUT("- 	c_l2_split = %d, \tc_l2_atomic = %d", c_l2_split_group, c_l2_atomic_group);
+	OUTPUT("- 	c_in_maps = %d, \tc_in_group = %d", c_in_maps, c_in_group);
+	OUTPUT("- 	k_out_maps = %d, \tk_out_group = %d", k_out_maps, k_out_group);
+	OUTPUT("- 	align = %d, \t\tpix_group = %d", align, pix_group);
+	OUTPUT("- 	group_size = %d, %d", group_sz.x, group_sz.y);
+	PRINT_SEPARATOR3();
+}
+E_ReturnState KernelWriterConv1x1::simulate_index()
+{
+	uint tid_x = 1, tid_y = 1, gid_x;
+	int wave_id_x = -1, wave_tid_x = -1;
+	int pix_blk_id = -1, k_blk_id = -1, c_l2_blk_id = -1, c_blk_id = -1;
+	int pos_id = -1, batch_id = -1, out_id = -1;
+	int gbl_in_off = -1, wei_off = -1, gbl_out_off = -1;
+	int lds_space = 0;
 
-	uint in_chan_stride = problem->W() * problem->H();
-	uint in_batch_stride = problem->W() * problem->H() * problem->C();
-	uint wei_chan_stride = problem->C();
-	uint out_chan_stride = problem->W() * problem->H();
-	uint out_batch_stride = problem->W() * problem->H() * problem->K();
-
-	uint c_in_maps = kernelParam.c_in_maps;
-	uint c_in_group = kernelParam.c_in_group;
-	uint k_out_maps = kernelParam.k_out_maps;
-	uint k_out_group = kernelParam.k_out_group;
-
-	uint wave_per_group = group_sz.x / WAVE_SIZE;
-	uint conv_loop = problem->C() / kernelParam.c_in_maps_once / 2;
-
+	int *test_idx1 = (int*)malloc(group_num.x * sizeof(int));
+	
 	for (int grp = 0; grp < group_num.x; grp++)
 	{
-		uint tid_x = 5 * 64 + 40;
-		uint gid_x = grp;
-		int waveId = -1, tidInWave = -1;
-		int pixBlkId = -1, kOutBlkId = -1, cInBlkId = -1;
-		int pos_id = -1, batch_id = -1, out_id = -1;
-		int gbl_in_off = -1, wei_off = -1, gbl_out_off = -1;
+		gid_x = grp;
 
-		waveId = gid_x * wave_per_group + tid_x / WAVE_SIZE;
-		tidInWave = tid_x % WAVE_SIZE;
+		// calcuWaveIndex()
+		// wave_id = (group_wave_num_x * (group_sz.y * gid_x + tid_y)) + (tid_x / WAVE_SIZE);
+		wave_id_x = (group_wave_num_x * gid_x) + (tid_x / WAVE_SIZE);
+		wave_tid_x = tid_x % WAVE_SIZE;
 
-		cInBlkId = waveId / k_out_group % c_in_group;
-		pixBlkId = waveId / k_out_group / c_in_group;
-		kOutBlkId = waveId % k_out_group;
+		// calcuBlkIndex();
+		if (PCK_order == 321)
+		{
+			// k_out --> c_in --> pix
+			k_blk_id = wave_id_x % k_out_group;
+			c_l2_blk_id = wave_id_x / k_out_group % c_in_l2_group;
+			pix_blk_id = wave_id_x / k_out_group / c_in_l2_group;
+		}
+		else if(PCK_order == 312)
+		{
+			// c_in --> k_out --> pix
+			c_l2_blk_id = wave_id_x % c_in_l2_group;
+			k_blk_id = wave_id_x / c_in_l2_group % k_out_group;
+			pix_blk_id = wave_id_x / c_in_l2_group / k_out_group;
+		}
+		else if (PCK_order == 123)
+		{
+			// pix --> c_in --> k_out
+			pix_blk_id = wave_id_x % pix_wave;
+			c_l2_blk_id = wave_id_x / pix_wave % c_in_l2_group;
+			k_blk_id = wave_id_x / pix_wave / c_in_l2_group;
+		}
+		else if (PCK_order == 132)
+		{
+			// pix --> k_out --> c_in
+			pix_blk_id = wave_id_x % pix_wave;
+			k_blk_id = wave_id_x / pix_wave % k_out_group;
+			c_l2_blk_id = wave_id_x / pix_wave / k_out_group;
+		}
+		else if (PCK_order == 213)
+		{
+			// c_in --> pix --> k_out
+			c_l2_blk_id = wave_id_x % c_in_l2_group;
+			pix_blk_id = wave_id_x / c_in_l2_group % pix_wave;
+			k_blk_id = wave_id_x / c_in_l2_group / pix_wave;
+		}
+		else if (PCK_order == 231)
+		{
+			// k_out --> pix --> c_in
+			k_blk_id = wave_id_x % k_out_group;
+			pix_blk_id = wave_id_x / k_out_group % pix_wave;
+			c_l2_blk_id = wave_id_x / k_out_group / pix_wave;
+		}
+		c_blk_id = c_in_lds_group * c_l2_blk_id + tid_y;
 
-		pos_id = (pixBlkId * WAVE_SIZE + tidInWave) % in_chan_stride;
-		batch_id = (pixBlkId * WAVE_SIZE + tidInWave) / in_chan_stride;
-		out_id = kOutBlkId * k_out_maps;
+		// calcuPosIndex()
+		pos_id = (pix_blk_id * WAVE_SIZE + wave_tid_x) % in_chan_stride;
+		batch_id = (pix_blk_id * WAVE_SIZE + wave_tid_x) / in_chan_stride;
+		out_id = k_blk_id * k_out_maps;
 
-		if (batch_id >= problem->N())
-			goto STORE_IDX;
-
-		gbl_in_off = (batch_id * in_batch_stride) + (cInBlkId * c_in_maps * in_chan_stride) + pos_id;
-		wei_off = (out_id * wei_chan_stride) + (cInBlkId * c_in_maps);
+		// calcuOffset()
+		if (batch_id >= N)
+			goto L_END_PRG;
+		
+		wei_off = (out_id * wei_chan_stride) + (c_blk_id * c_in_maps);
+		gbl_in_off = (batch_id * in_batch_stride) + (c_blk_id * c_in_maps * in_chan_stride) + pos_id;
 		gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
 
-	STORE_IDX:
-		testId[grp] = wei_off;
-		testPixBlkId[grp] = pixBlkId;
-		testCInBlkId[grp] = cInBlkId;
-		testKOutBlkId[grp] = kOutBlkId;
-		testPosId[grp] = pos_id;
-		testBatchId[grp] = batch_id;
-		testOutId[grp] = out_id;
+		// 先split后atomic, tid_y = 0,1(split), tid_y = 2,3(atomic) 
+		if (c_in_lds_group > 1)
+		{
+			lds_space = group_sz.x * k_out_maps * c_lds_atomic_group;
+
+			int lds_id = tid_y % c_lds_atomic_group;
+		}		
+
+	L_END_PRG:
+		test_idx1[grp] = c_blk_id;
 	}
 
-	//print_index(testId, "test temp id");
-	//print_index(testPixBlkId, "pix block id");
-	print_index(testCInBlkId, "c_in block id");
-	//print_index(testKOutBlkId, "k_out block id");
-	//print_index(testBatchId, "batch id");
-	//print_index(testOutId, "out id");
-	//print_index(testPosId, "pos id");
-
-	free(testId);
-	free(testPixBlkId);
-	free(testCInBlkId);
-	free(testKOutBlkId);
-	free(testPosId);
-	free(testBatchId);
-	free(testOutId);
+	print_index(test_idx1, "c_blk_id");
+	free(test_idx1);
+	
+	return E_ReturnState::FAIL;
 }
-
 void KernelWriterConv1x1::save_debug()
 {
 	op2("v_mov_b32", v_debug, v_tid_x);
@@ -1051,3 +1227,4 @@ void KernelWriterConv1x1::save_debug()
 	flat_store_dword(1, v_addr_dbg, v_debug, "off");
 	op1("s_branch", l_end_prg);
 }
+

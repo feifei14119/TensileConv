@@ -124,8 +124,10 @@ void SolverCtrlBase::RunSolver()
 		}
 	}
 
+#if MULT_SOLUTION
 	// best solution
 	bestSolution->GetBestKernel();
+#endif
 }
 
 /************************************************************************/

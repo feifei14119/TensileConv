@@ -6,39 +6,31 @@
 #pragma once
 
 #include "IsaGenerater.h"
-#include "TensileConvBase.h"
 
 #include <sys/stat.h>
 
 namespace TensileConv {
 namespace AutoGen {
+#define		KERNEL_DEBUG	(1)
 
 class KernelWriter : public IsaGenerater
 {
 public:
-	KernelWriter(SolutionCtrlBase * solution, E_IsaArch isaArch = E_IsaArch::Gfx900) : IsaGenerater(isaArch)
+	KernelWriter(E_IsaArch isaArch = E_IsaArch::Gfx900) : IsaGenerater(isaArch)
 	{
-		cmdArgs = CmdArgs::GetCmdArgs();
-
-		this->solution = solution;
-		kernelName = solution->KernelName();
-		group_sz = solution->GroupSize();
-		global_sz = solution->GlobalSize();
-		group_num = global_sz / group_sz;
-
 		kernelDir = GetKernelTempPath();
 		ensure_dir(kernelDir.c_str());
 	}
 
 public:
-	void GenKernelString()
+	E_ReturnState GenKernelString()
 	{
 		clearString();
-		writeContent();
+		CheckFunc(writeContent());
 
 		clearString();
 		writeSignature();
-		writeContent();
+		CheckFunc(writeContent());
 		writeMetadata();
 	}
 	void SaveKernelString2File()
@@ -54,10 +46,10 @@ public:
 	std::string KernelFile() { return kernelFile; }
 	std::string KernelString() { return kernelString; }
 	std::string KernelName() { return kernelName; }
+	dim3 GroupSize() { return group_sz; }
+	dim3 GlobalSize() { return global_sz; }
 
 protected:
-	CmdArgs * cmdArgs;
-	SolutionCtrlBase * solution;
 	std::string kernelName;
 	std::string kernelDir;
 	std::string kernelFile;
@@ -80,7 +72,7 @@ protected:
 
 	Var * l_start_prog;
 	Var * l_end_prg;
-
+	
 	/************************************************************************/
 	/* kernel文件生成函数                                                    */
 	/************************************************************************/
@@ -104,16 +96,16 @@ protected:
 		wrLine(".amdgpu_hsa_kernel " + kernelName);
 		wrLine("");
 	}
-	void writeContent()
+	virtual E_ReturnState checkKernelParam() {}
+	E_ReturnState writeContent()
 	{
 		initialDefaultGprs();
 		setTable(0);
 		wrLine(kernelName + ":");
 		writeCodeObj();
-		_writeProgram();
+		CheckFunc(_writeProgram());
 	}
-	// 需要根据arg列表自动生成,暂时写成固定的
-	virtual void writeMetadata()
+	virtual void writeMetadata()// 需要根据arg列表自动生成,暂时写成固定的
 	{
 		setTable(0);
 		wrLine(".amd_amdgpu_hsa_metadata");
@@ -127,8 +119,8 @@ protected:
 		wrLine("        Args:");
 		wrLine("        - { Name: d_in  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_wei , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
-		wrLine("        - { Name: d_bias , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_out , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
+		wrLine("        - { Name: d_bias , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
 		wrLine("        - { Name: d_nSlop , Size: 4, Align: 8, ValueKind: ByValue, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 #if KERNEL_DEBUG
@@ -195,19 +187,19 @@ protected:
 		wrLine(".end_amd_kernel_code_t");
 		wrLine("");
 	}
-	void _writeProgram()
+	E_ReturnState _writeProgram()
 	{
 		setTable(0);
 		wrLine(getVar(l_start_prog) + ":");
 		indent();
-		writeProgram();
+		CheckFunc(writeProgram());
 		setTable(0);
 		wrLine(getVar(l_end_prg) + ":");
 		indent();
 		wrLine("s_endpgm\n");
 		clrVar();
 	}
-	virtual void writeProgram() = 0;
+	virtual E_ReturnState writeProgram() = 0;
 
 	/************************************************************************/
 	/* 常用kernel函数														 */
@@ -461,17 +453,16 @@ protected:
 		int maxGrpCUNum = (group_num.x - grpNumPerCUMin * CU_NUM) / SE_NUM;
 		int minGrpCUNum = (CU_NUM - maxGrpCUNum * SE_NUM) / SE_NUM;
 
-		int waveNumPerCUMax = grpNumPerCUMax * (group_sz.x / WAVE_SIZE);
-		int waveNumPerCUMin = grpNumPerCUMin * (group_sz.x / WAVE_SIZE);
 		int simuGrpIdx = 0;
 		int grpIdxBase;
 
 		printf("\t|---------------------------------------------------------\n");
 		printf("\t| index name = %s\n", name);
-		printf("\t| group size = %d\n", group_sz.x);
-		printf("\t| group number = %d\n", group_num.x);
-		printf("\t| group number per cu = (%d * %d) + (%d * %d)\n", grpNumPerCUMax, maxGrpCUNum, grpNumPerCUMin, minGrpCUNum);
-		printf("\t| wave number per cu = (%d * %d) + (%d * %d)\n", waveNumPerCUMax, maxGrpCUNum, waveNumPerCUMin, minGrpCUNum);
+		printf("\t| work load = [%d, %d, %d] * %d\n", group_sz.x, group_sz.y, group_sz.z, group_num.x);
+		if(maxGrpCUNum == 0)
+			printf("\t| group per cu = (%d gp * %d cu)\n", grpNumPerCUMin, minGrpCUNum);
+		else
+			printf("\t| group per cu = (%d gp * %d cu) + (%d gp * %d cu)\n", grpNumPerCUMax, maxGrpCUNum, grpNumPerCUMin, minGrpCUNum);
 		printf("\t|---------------------------------------------------------\n");
 		for (int se = 0; se < SE_NUM; se++)
 		{

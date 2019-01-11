@@ -18,7 +18,7 @@ namespace feifei
 		if (retVel != E_ReturnState::SUCCESS)
 		{
 			fprintf(stderr, "[!ERROR!] at %s:%d \"%s\" \n", file, line, func);
-
+			
 			exit(EXIT_FAILURE);
 		}
 	}
@@ -33,8 +33,9 @@ namespace feifei
 		}
 	}
 
-#define CheckFunc(val)					checkFuncRet((val), #val, __FILE__, __LINE__)
-#define CheckErr(val)					checkErrNum((val), __FILE__, __LINE__)
+#define CheckFunc(val)		do{if(val != E_ReturnState::SUCCESS) return E_ReturnState::FAIL;}while(0)
+//#define CheckFunc(val)					checkFuncRet((val), #val, __FILE__, __LINE__)
+//#define CheckErr(val)					checkErrNum((val), __FILE__, __LINE__)
 	typedef void(*PVoidFunc)();
 	typedef E_ReturnState(*PRetFunc)();
 	typedef E_ReturnState(*PRetFunc2)(void* param);

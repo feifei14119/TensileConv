@@ -18,10 +18,13 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 
 	solutionName = "TensileConv";
 
-	kernelParam.c_in_group = 2;
-	kernelParam.c_in_lds_group = 2;
+	kernelParam.PCK_order = 321;
+	kernelParam.c_l2_split_group = 1;
+	kernelParam.c_l2_atomic_group = 1;
+	kernelParam.c_lds_split_group = 1;
+	kernelParam.c_lds_atomic_group = 1;
 	kernelParam.k_out_maps = 16;
-	kernelParam.group_size = 64;
+	kernelParam.group_size_x = 64;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -36,7 +39,6 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 //	searchParam->ValueArray.push_back(16);
 //	searchParam->ValueArray.push_back(32);
 	solutionParamSpace->AddOneParam(searchParam);
-	//--------------------------------
 	searchParam = new T_SearchParam("k_out_maps");
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
@@ -44,7 +46,6 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
 	solutionParamSpace->AddOneParam(searchParam);
-	//--------------------------------
 	searchParam = new T_SearchParam("group_size");
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
@@ -68,7 +69,7 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 
 		if (param->Name == "c_in_group")
 		{
-			kernelParam.c_in_group = param->CurrValue;
+//			kernelParam.c_in_group = param->CurrValue;
 		}
 		if (param->Name == "k_out_maps")
 		{
@@ -76,9 +77,13 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 		}
 		if (param->Name == "group_size")
 		{
-			kernelParam.group_size = param->CurrValue;
+			kernelParam.group_size_x = param->CurrValue;
 		}
 	}
+
+	kernelParam.N = problem->N();
+	kernelParam.C = problem->C(); kernelParam.K = problem->K();
+	kernelParam.W = problem->W(); kernelParam.H = problem->H();
 }
 
 E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
@@ -96,7 +101,7 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 
 		if (param->Name == "c_in_group")
 		{
-			kernelParam.c_in_group = param->BestValue;
+//			kernelParam.c_in_group = param->BestValue;
 		}
 		if (param->Name == "k_out_maps")
 		{
@@ -104,58 +109,48 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 		}
 		if (param->Name == "group_size")
 		{
-			kernelParam.group_size = param->BestValue;
+			kernelParam.group_size_x = param->BestValue;
 		}
 		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
 	}
+
+	kernelParam.N = problem->N();
+	kernelParam.C = problem->C(); kernelParam.K = problem->K();
+	kernelParam.W = problem->W(); kernelParam.H = problem->H();
+	kernelParam.EnBias = problem->EnBias(); kernelParam.EnRelu = problem->EnRelu();
 }
 
 E_ReturnState ConvFwd1x1Solution::generateKernel()
-{	
-	kernelParam.c_in_maps = problem->C() / kernelParam.c_in_group;
-	kernelParam.k_out_group = _divCeil(problem->K(), kernelParam.k_out_maps);
+{		
+	// generate kernel source
+	if (rtOcl->Device()->DeviceInfo()->name == "gfx900")
+	{
+		kernelWriter = new KernelWriterConv1x1(kernelParam, E_IsaArch::Gfx900);
+	}
+	else if (rtOcl->Device()->DeviceInfo()->name == "gfx803")
+	{
+		kernelWriter = new KernelWriterConv1x1(kernelParam, E_IsaArch::Gfx800);
+	}
 
-	kernelParam.c_in_maps_once = 8;
-	kernelParam.pix_per_group = 64;
-	kernelParam.pix_group = _divCeil(problem->W() * problem->H() * problem->N(), kernelParam.group_size);
-	kernelParam.align = kernelParam.pix_group * kernelParam.group_size;
+	CheckFunc(kernelWriter->GenKernelString());
+	kernelWriter->SaveKernelString2File();
 
-	problem->size_sig = kernelParam.pix_group * kernelParam.k_out_group;
+	// get back kernel info
+	kernelName = kernelWriter->KernelName();
+	kernelFile = kernelWriter->KernelFile();
+	group_sz = kernelWriter->GroupSize();
+	global_sz = kernelWriter->GlobalSize();
+
+	problem->size_sig = kernelWriter->SlotSize();
 	problem->h_sig = (float*)malloc(problem->size_sig * sizeof(float));
 
 #if KERNEL_DEBUG
-	problem->size_dbg = kernelParam.align * kernelParam.c_in_group * kernelParam.k_out_group;
+	problem->size_dbg = kernelWriter->DebugSize();
 	problem->h_dbg = (float*)malloc(problem->size_dbg * sizeof(float));
 #endif
 
-	PRINT_SEPARATOR3();
-	OUTPUT("- Kernel Param:");
-	OUTPUT("- 	c_in_maps = %d, \tc_in_group = %d", kernelParam.c_in_maps, kernelParam.c_in_group);
-	OUTPUT("- 	k_out_maps = %d, \tk_out_group = %d", kernelParam.k_out_maps, kernelParam.k_out_group);
-	OUTPUT("- 	align = %d, \t\tpix_group = %d", kernelParam.align, kernelParam.pix_group);
-	OUTPUT("- 	group_size = %d", kernelParam.group_size);
-	PRINT_SEPARATOR3();
-	
-	// set up work size
-	global_sz.x = kernelParam.align * kernelParam.c_in_group * kernelParam.k_out_group / kernelParam.c_in_lds_group;
-	global_sz.y = kernelParam.c_in_lds_group;
-	group_sz = dim3(kernelParam.group_size, kernelParam.c_in_lds_group, 1);
-	
-	// generate kernel source
-	kernelName = "ConvFwd1x1";
-	if(rtOcl->Device()->DeviceInfo()->name == "gfx900")
-		kernelWriter = new KernelWriterConv1x1(problem, this, E_IsaArch::Gfx900);
-	else if (rtOcl->Device()->DeviceInfo()->name == "gfx803")
-		kernelWriter = new KernelWriterConv1x1(problem, this, E_IsaArch::Gfx800);
-
-	kernelWriter->GenKernelString();
-	kernelWriter->SaveKernelString2File();
-
 	// build up kernel obj
-	kernel = rtOcl->CreatKernel(
-		(char *)kernelWriter->KernelFile().c_str(), kernelWriter->KernelName().c_str(), E_ProgramType::PRO_GAS_FILE);
-
-	kernelFile = kernelWriter->KernelFile();
+	kernel = rtOcl->CreatKernel((char*)kernelFile.c_str(), kernelName.c_str(), E_ProgramType::PRO_GAS_FILE);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -176,7 +171,7 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
 	stream->MemCopyH2D(d_bias, problem->h_bias, problem->size_bias * sizeof(float));
 
-	kernel->SetArgs(&d_in, &d_wei, &d_bias, &d_out, &d_sig, &negSlop, &d_dbg);
+	kernel->SetArgs(&d_in, &d_wei, &d_out, &d_bias, &d_sig, &negSlop, &d_dbg);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -243,7 +238,6 @@ void ConvFwd1x1Solver::generateSolver()
 /* problem ¿ØÖÆ															*/
 /************************************************************************/
 #pragma region PROBLEM
-
 
 void ConvFwd1x1Problem::generateProblem()
 {
