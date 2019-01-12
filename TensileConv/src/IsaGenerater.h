@@ -517,6 +517,10 @@ namespace AutoGen{
 		{
 			return value - 1;
 		}
+		bool isPow2(int value)
+		{
+			return ((value & (value - 1)) == 0);
+		}
 
 #pragma region ISA_REGION
 		E_IsaArch IsaArch = E_IsaArch::Gfx900;
@@ -2531,6 +2535,37 @@ namespace AutoGen{
 			else if (IsaArch == E_IsaArch::Gfx800)
 			{
 				op4("v_sub_u32", d, "vcc", a, d);		// d = a - c * b
+			}
+		}
+		E_ReturnState fv_div_u32(Var * a, int v, Var * c, Var *d)
+		{
+			if (isPow2(v) == true)
+			{
+				op3("v_lshrrev_b32", c, log2(v), a);
+				op3("v_and_b32", d, a, modMask(v));
+			}
+			else
+			{
+				Var * b = newVgpr("b");
+				op2("v_mov_b32", b, v);
+
+				op2("v_cvt_f32_u32", c, a);		// c = (float)a
+				op2("v_mov_b32", d, 0.1);
+				op3("v_add_f32", c, c, d);
+				op2("v_cvt_f32_u32", d, b);		// d = (float)b
+				op2("v_rcp_f32", d, d);			// d = 1/(float)b
+				op3("v_mul_f32", d, c, d);		// d = a/(float)b
+				op2("v_cvt_flr_i32_f32", c, d);		// c = (int)(a/(float)b)
+				op3("v_mul_u32_u24", d, c, b);	// d = c * b
+				if (IsaArch == E_IsaArch::Gfx900)
+				{
+					op3("v_sub_u32", d, a, d);		// d = a - c * b
+				}
+				else if (IsaArch == E_IsaArch::Gfx800)
+				{
+					op4("v_sub_u32", d, "vcc", a, d);		// d = a - c * b
+				}
+				delVar(b);
 			}
 		}
 

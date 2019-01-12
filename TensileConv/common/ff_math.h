@@ -19,6 +19,8 @@ namespace feifei
 	while (value > 1) { value = value / 2; log2++; } \
 	return log2; } while(0)
 
+#define _isPow2(value)  do{ return ((value & (value - 1)) == 0);} while(0)
+
 #define _divCeil(a,b)	((a + b - 1) / b)
 
 }

@@ -6,15 +6,26 @@
 namespace TensileConv {
 namespace AutoGen {
 
+typedef enum LdsReduceEnum
+{
+	LDS_SPLIT = 1,
+	LDS_ATOMIC = 2
+}E_LdsReduce;
+typedef enum L2ReduceEnum
+{
+	ATOMIC_SPLIT = 1,
+	SPLIT_ATOMIC = 2
+}E_L2Reduce;
 typedef struct Conv1x1KernelParamType
 {
 	int group_size_x;
 	
+	E_LdsReduce lds_method;
+	E_L2Reduce l2_method;
 	int PCK_order;
-	int c_l2_split_group;
-	int c_l2_atomic_group;
-	int c_lds_split_group;
-	int c_lds_atomic_group;
+	int c_in_lds_group;
+	int c_in_l2_split_group;
+	int c_in_l2_atomic_group;
 	int k_out_maps;
 
 	int N, C, H, W, K;
@@ -42,14 +53,14 @@ protected:
 	bool enBias, enRelu;
 
 	int PCK_order;
+	E_LdsReduce lds_method;
+	E_L2Reduce l2_method;
 	int c_in_maps;
 	int c_in_group;				// c_in_l2_group * c_in_lds_group
-	int c_in_l2_group;			// c_l2_split_group * c_l2_atomic_group
 	int c_in_lds_group;			// c_lds_split_group * c_lds_atomic_group = group_sz.y
-	int c_l2_split_group;
-	int c_l2_atomic_group;
-	int c_lds_split_group;
-	int c_lds_atomic_group;
+	int c_in_l2_group;			// c_l2_split_group * c_l2_atomic_group
+	int c_in_l2_split_group;
+	int c_in_l2_atomic_group;
 	int	c_in_maps_once = 8;		// 对于一次循环的 input channel 的划分 [8,16]
 	int c_in_maps_once_real;
 	int unroll_time = 2;
@@ -62,7 +73,7 @@ protected:
 	int pix_wave;				// 所有像素被分到几个wave
 	int pix_per_group = 64;
 
-	int size_sig, size_dbg;
+	int size_sig, size_dbg, size_l2_split;
 
 	// -------------------------------------------------------------------------------
 	int in_chan_stride;		// IN_CHANNEL_STRIDE
@@ -92,6 +103,8 @@ protected:
 	Var * v_c_l2_blk_id;	// in_grp_block
 	Var * v_c_blk_id;
 	Var * v_k_blk_id;		// out_grp_block
+	Var * v_lds_split_id;
+	Var * v_l2_split_id;
 	Var * v_pos_id;
 	Var * v_batch_id;
 	Var * v_out_id;
@@ -126,15 +139,14 @@ protected:
 	E_ReturnState writeProgram()
 	{
 		CheckFunc(checkKernelParam());
+		CheckFunc(simulate_index());
+		CheckFunc(calcuIndex());
+		main_conv();
+
 #if KERNEL_DEBUG
 		v_debug = newVgpr("v_debug");
-#endif
-		calcuIndex();
-		CheckFunc(simulate_index());
-#if KERNEL_DEBUG
 		save_debug();
 #endif
-		main_conv();
 
 		clrVar();
 	}
@@ -150,12 +162,12 @@ protected:
 	/************************************************************************************/
 	/* 计算下标																			*/
 	/************************************************************************************/
-	void calcuIndex();
-	void loadKernelArgs();
-	void calcuWaveIndex();
-	void calcuBlkIndex();
-	void calcuPosIndex();
-	void calcuOffset();
+	E_ReturnState calcuIndex();
+	E_ReturnState loadKernelArgs();
+	E_ReturnState calcuWaveIndex();
+	E_ReturnState calcuBlkIndex();
+	E_ReturnState calcuPosIndex();
+	E_ReturnState calcuOffset();
 
 	/************************************************************************************/
 	/* 数据读取与存储																		*/
@@ -164,15 +176,18 @@ protected:
 	void load_weight(Var * wei_buff);
 	void prefetch_weight();
 	void init_output();
+
 	void save_result();
-	void save_without_atomic();
+	void save_to_lds_split();
+	void save_to_lds_atomic();
+	void save_to_l2_split();
+	void save_to_l2_atomic();
+	void save_to_l2_direct();
+	
 	void save_with_atomic(int n, Var * addr_out, Var * accum);
 	void save_with_slop_zero();
 
-	void lds_split_save();
 	void inner_group_sync();
-	void save_from_lds_split();
-	void save_with_lds_atomic();
 
 	E_ReturnState simulate_index();
 	void save_debug();
