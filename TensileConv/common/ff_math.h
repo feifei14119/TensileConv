@@ -11,6 +11,8 @@ namespace feifei
 #define FLT_MAX				(3.402823466e+38f)
 #define	MIN_FP32_ERR		(1e-6)
 
+#define MAX_16BIT_UINT		(65535)
+
 #define _next2pow(n)	do{ int base = 1; \
 	for (int i = 0; i < 32; i++) { base = 1 << i; if (n <= base) { break; }} \
 	return base; } while (0)

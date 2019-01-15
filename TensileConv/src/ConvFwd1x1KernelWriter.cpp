@@ -183,13 +183,8 @@ void KernelWriterConv1x1::main_conv()
 	if (c_in_lds_group > 1)			delVar(v_addr_lds);
 	if (c_in_l2_split_group > 1)	delVar(v_addr_l2);
 
-	// 销毁数据buffer
-	delVar(v_in_buff_a);
-	delVar(v_in_buff_b);
-	delVar(s_wei_buff_a);
-	delVar(s_wei_buff_b);
+	// 销毁结果buffer
 	delVar(v_acc_buff);
-	delVar(s_prefetch);
 }
 void KernelWriterConv1x1::conv_one_loop(Var * in_buff, bool is_pang_buff)
 {
@@ -803,7 +798,7 @@ void KernelWriterConv1x1::init_output()
 
 		for (int i = 0; i < k_out_maps; i++)
 		{
-			if (group_sz.x * k_out_maps * 4 <= 65535) // 16-bit uint
+			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT)
 			{
 				ds_write_dword(1, v_lds_addr_tmp, v_init, group_sz.x * i * 4);
 			}
@@ -985,6 +980,13 @@ void KernelWriterConv1x1::prefetch_weight()
 
 void KernelWriterConv1x1::save_result()
 {
+	// 销毁数据buffer
+	delVar(v_in_buff_a);
+	delVar(v_in_buff_b);
+	delVar(s_wei_buff_a);
+	delVar(s_wei_buff_b);
+	delVar(s_prefetch);
+
 	if (c_in_lds_group > 1)
 	{
 		if (lds_method == LDS_SPLIT)
@@ -1042,20 +1044,94 @@ void KernelWriterConv1x1::save_result()
 }
 void KernelWriterConv1x1::save_to_lds_split()
 {
+	Var * l_end_lds = newLaber("END_LDS_SPLIT");
+	Var * v_lds_addr_tmp = newVgpr("v_lds_addr_bck");
+	Var * v_tmp1 = newVgpr("v_tmp1");
+
+	// -------------------------------------------------------------------------------
+	// 将当前wave的结果存到lds
+	// -------------------------------------------------------------------------------
+	op2("v_mov_b32", v_lds_addr_tmp, v_addr_lds);
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		//op2("v_mov_b32", *v_acc_buff +i, 1.000001);
+		//op2("v_mov_b32", v_debug, 1111);
+		//op2("v_cvt_f32_u32", v_debug, v_debug);
+		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
-		op2("ds_add_f32", v_addr_lds, *v_acc_buff + i, WAVE_SIZE * i * 4);
+		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+		{
+			ds_write_dword(1, v_lds_addr_tmp, *v_acc_buff + i, group_sz.x * i * 4);
+		}
+		else
+		{
+			ds_write_dword(1, v_lds_addr_tmp, *v_acc_buff + i, 0);
+			op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
+		}
 	}
 	s_wait_lgkmcnt(0);
 
+	// -------------------------------------------------------------------------------
+	// 同步
+	// -------------------------------------------------------------------------------
+	inner_group_sync();
+
+	// -------------------------------------------------------------------------------
+	// 最后一个 tid_y 读取LDS并累加到 v_acc_buff
+	// -------------------------------------------------------------------------------
+	op3("v_cmpx_eq_u32", "vcc", v_tid_y, group_sz.y - 1);
+	op1("s_cbranch_execz", l_end_prg);
+
+	Var * v_acc_buff2 = newVgpr("v_accum2", k_out_maps);
+	op3("v_lshlrev_b32", v_addr_lds, 2, v_tid_x);			// v_addr_lds 指向第一块LDS
+
+	Var * v_acc_bck = newVgpr("v_acc_bck", k_out_maps);
+
+	// 第一轮
+	for (int i = 0; i < k_out_maps; i++)
+	{
+		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+		{
+			ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
+		}
+		else
+		{
+			ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
+			op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+		}
+	}
+	for (int c = 0; c < c_in_lds_group; c++)
+	{
+		// 地址调整
+		if (group_sz.x * k_out_maps * (c_in_lds_group - 1) * 4 <= MAX_16BIT_UINT)
+		{
+			op3(v_add_u32, v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
+		}
+		// 读取下一组
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+			{
+				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
+			}
+			else
+			{
+				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
+				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+			}
+		}
+		s_wait_lgkmcnt(k_out_maps);
+		// 累加上一组
+	}
+
+	wrLaber(l_end_lds);
+
+	delVar(v_tmp1);
+	delVar(v_lds_addr_tmp);
 }
 void KernelWriterConv1x1::save_to_lds_atomic()
 {
 	Var * l_end_lds = newLaber("END_LDS_ATOMIC");
-//	Var * s_exec_bck = newSgpr("s_exec_bck", 2, 2);
 
 	// -------------------------------------------------------------------------------
 	// 将当前wave的结果存到lds
@@ -1066,11 +1142,11 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		op2("v_mov_b32", v_debug, 1111);
-		op2("v_cvt_f32_u32", v_debug, v_debug);
-		op2("v_mov_b32", *v_acc_buff + i, v_debug);
+		//op2("v_mov_b32", v_debug, 1111);
+		//op2("v_cvt_f32_u32", v_debug, v_debug);
+		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
-		if (group_sz.x * k_out_maps * 4 <= 65535) // 16-bit uint
+		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
 		{
 			op2("ds_add_f32", v_lds_addr_tmp, *v_acc_buff + i, group_sz.x * i * 4);
 		}
@@ -1096,7 +1172,7 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 	
 	for (int i = 0; i < k_out_maps; i++)
 	{
-		if (group_sz.x * k_out_maps * 4 <= 65535) // 16-bit uint
+		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
 		{
 			ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
 		}
