@@ -49,16 +49,16 @@ namespace feifei
 
 	typedef struct dim3
 	{
-		unsigned int x, y, z;
-		dim3(unsigned int vx = 1, unsigned int vy = 1, unsigned int vz = 1) : x(vx), y(vy), z(vz) {}
+		size_t x, y, z;
+		dim3(size_t vx = 1, size_t vy = 1, size_t vz = 1) : x(vx), y(vy), z(vz) {}
 		size_t * arr() { return new size_t[3]{ x,y,z }; }
 
 		dim3 operator/(dim3 b)
 		{
-			x = this->x / b.x;
-			y = this->y / b.y;
-			z = this->z / b.z;
-			dim3 c(x, y, z);
+			int x2 = this->x / b.x;
+			int y2 = this->y / b.y;
+			int z2 = this->z / b.z;
+			dim3 c(x2, y2, z2);
 			return c;
 		}
 	}dim3;

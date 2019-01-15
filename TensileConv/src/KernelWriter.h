@@ -18,11 +18,13 @@ class KernelWriter : public IsaGenerater
 public:
 	KernelWriter(E_IsaArch isaArch = E_IsaArch::Gfx900) : IsaGenerater(isaArch)
 	{
+		ldsByteCount = 0;
 		kernelDir = GetKernelTempPath();
 		ensure_dir(kernelDir.c_str());
 	}
 
 public:
+	// TODO: where to clear LDS used byte???
 	E_ReturnState GenKernelString()
 	{
 		clearString();
@@ -32,6 +34,8 @@ public:
 		writeSignature();
 		CheckFunc(writeContent());
 		writeMetadata();
+
+		return E_ReturnState::SUCCESS;
 	}
 	void SaveKernelString2File()
 	{
@@ -102,8 +106,10 @@ protected:
 		initialDefaultGprs();
 		setTable(0);
 		wrLine(kernelName + ":");
-		writeCodeObj();
+		CheckFunc(writeCodeObj());
 		CheckFunc(_writeProgram());
+
+		return E_ReturnState::SUCCESS;
 	}
 	virtual void writeMetadata()// 需要根据arg列表自动生成,暂时写成固定的
 	{
@@ -115,17 +121,16 @@ protected:
 		wrLine("        SymbolName: " + kernelName + ",");
 		wrLine("        Language: OpenCL C, LanguageVersion: [ 1, 2 ],");
 		wrLine("        Attrs: { ReqdWorkGroupSize: [ " + d2s(group_sz.x) + ", " + d2s(group_sz.y) + ", " + d2s(group_sz.z) + " ] }");
-		wrLine("        CodeProps: { KernargSegmentSize: 44, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : " + d2s(group_sz.x * group_sz.y) + " }");
+		wrLine("        CodeProps: { KernargSegmentSize: 64, GroupSegmentFixedSize : 0, PrivateSegmentFixedSize : 0, KernargSegmentAlign : 8, WavefrontSize : 64, MaxFlatWorkGroupSize : " + d2s(group_sz.x * group_sz.y) + " }");
 		wrLine("        Args:");
 		wrLine("        - { Name: d_in  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_wei , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_out , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
-		wrLine("        - { Name: d_bias , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
+		wrLine("        - { Name: d_bias, Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_sig , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
-		wrLine("        - { Name: d_nSlop , Size: 4, Align: 8, ValueKind: ByValue, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
-#if KERNEL_DEBUG
+		wrLine("        - { Name: d_l2  , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
+		wrLine("        - { Name: d_nSlop,Size: 4, Align: 8, ValueKind: ByValue,	  ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global, IsConst: true }");
 		wrLine("        - { Name: d_dbg , Size: 8, Align: 8, ValueKind: GlobalBuffer, ValueType: F32, TypeName: 'float*', AddrSpaceQual: Global  }");
-#endif
 		wrLine("      }");
 		wrLine("}");
 		wrLine(".end_amd_amdgpu_hsa_metadata");
@@ -149,7 +154,7 @@ protected:
 		l_start_prog = newLaber("START_PROG");
 		l_end_prg = newLaber("END_PROG");
 	}
-	void writeCodeObj()
+	E_ReturnState writeCodeObj()
 	{
 		setTable(1);
 		wrLine(".amd_kernel_code_t");
@@ -186,6 +191,12 @@ protected:
 		backSpace();
 		wrLine(".end_amd_kernel_code_t");
 		wrLine("");
+
+		if (sgprCountMax > MAX_SGPR_COUNT)	return E_ReturnState::FAIL;
+		if (vgprCountMax > MAX_VGPR_COUNT)	return E_ReturnState::FAIL;
+		if (ldsByteCount > MAX_LDS_SIZE)	return E_ReturnState::FAIL;
+
+		return E_ReturnState::SUCCESS;
 	}
 	E_ReturnState _writeProgram()
 	{
@@ -198,6 +209,8 @@ protected:
 		indent();
 		wrLine("s_endpgm\n");
 		clrVar();
+
+		return E_ReturnState::SUCCESS;
 	}
 	virtual E_ReturnState writeProgram() = 0;
 
@@ -238,6 +251,8 @@ protected:
 		op3("v_mul_u32_u24", v_gp_id, s_gid_y, v_tmp1);
 		op3(v_add_u32, v_gp_id, s_gid_x, v_gp_id);
 
+		op2("v_mov_b32", v_gp_id, s_gid_x);
+
 		// global_id_y = group_sz.y * group_id + thread_id_y
 		op2("v_mov_b32", v_tmp1, group_sz.y);
 		op3("v_mul_u32_u24", v_gid_y, v_tmp1, v_gp_id);
@@ -253,8 +268,8 @@ protected:
 
 		s_wait_lgkmcnt(0);
 		op2("v_mov_b32", v_tmp2, *s_base_addr + 1);
-		op4("v_add_co_u32", v_addr, "vcc", s_base_addr, v_gid);
-		op5("v_addc_co_u32", *v_addr + 1, "vcc", 0, v_tmp2, "vcc");
+		op4(v_addc_u32, v_addr, "vcc", s_base_addr, v_gid);
+		op5(v_addc_co_u32, *v_addr + 1, "vcc", 0, v_tmp2, "vcc");
 
 		delVar(v_tmp1);
 		delVar(v_tmp2);

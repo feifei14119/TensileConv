@@ -36,8 +36,9 @@ class KernelWriterConv1x1 :public AutoGen::KernelWriter
 {
 public:
 	KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_IsaArch isaArch = E_IsaArch::Gfx900);
-	int SlotSize() { return size_sig; }
-	int DebugSize() { return size_dbg; }
+	size_t SlotSize() { return size_sig; }
+	size_t DebugSize() { return size_dbg; }
+	size_t L2Size() { return size_l2_split; };
 
 protected:
 	T_Conv1x1KernelParam kernelParam;
@@ -73,7 +74,7 @@ protected:
 	int pix_wave;				// 所有像素被分到几个wave
 	int pix_per_group = 64;
 
-	int size_sig, size_dbg, size_l2_split;
+	size_t size_sig, size_dbg, size_l2_split;
 
 	// -------------------------------------------------------------------------------
 	int in_chan_stride;		// IN_CHANNEL_STRIDE
@@ -81,6 +82,7 @@ protected:
 	int wei_chan_stride;	// WEI_CHANNEL_STRIDE
 	int out_chan_stride;	// OUT_CHANNEL_STRIDE
 	int out_batch_stride;	// OUT_BATCH_STRIDE
+	int out_size;			
 	int group_wave_num_x;	// PIX_BLK_PER_GROUP
 	int conv_loop;			// LOOP
 	
@@ -90,34 +92,40 @@ protected:
 	Var * v_global_offset;
 	int wei_offset;
 
+	// -------------------------------------------------------------------------------
 	Var * s_ptr_in;
 	Var * s_ptr_wei;
-	Var * s_ptr_bias;
 	Var * s_ptr_out;
+	Var * s_ptr_bias;
 	Var * s_ptr_sig;
+	Var * s_ptr_l2;
 	Var * s_slop;
 
+	// -------------------------------------------------------------------------------
 	Var * v_wave_id_x;		// 全局x方向的wave id, 不关心LDS方向的wave id
-	Var * v_wave_tid_x;		// 一个wave内的thread id
-	Var * v_pix_blk_id;		// grp_id0_faked
-	Var * v_c_l2_blk_id;	// in_grp_block
-	Var * v_c_blk_id;
-	Var * v_k_blk_id;		// out_grp_block
-	Var * v_lds_split_id;
-	Var * v_l2_split_id;
+	Var * v_wave_tid_x;
+	Var * v_pix_blk_id;
+	Var * v_c_blk_id;		// c_in 全部拆分的block id, 考虑LDS拆分
+	Var * v_c_l2_blk_id;	// c_in 在L2拆分的block id, 不考虑LDS拆分
+	Var * v_k_blk_id;	
+
 	Var * v_pos_id;
 	Var * v_batch_id;
 	Var * v_out_id;
+	Var * v_l2_pos_id;		// 指向l2_split的第几块l2
+	Var * v_lds_pos_id;		// 指向lds_split的第几块lds
 
 	Var * v_addr_in;
 	Var * s_addr_wei;
-	Var * s_addr_bias;
-	Var * v_addr_bias;
 	Var * v_addr_out;
+	Var * v_addr_bias;
 	Var * s_addr_sig;
-	Var * v_addr_out_back;
-	Var * v_lds_addr;
+	Var * v_addr_lds;
+	Var * v_addr_l2;
+	Var * s_addr_bias;		// ???
+	Var * v_addr_out_back;	// ???
 
+	// -------------------------------------------------------------------------------
 	Var * v_in_buff_a;
 	Var * v_in_buff_b;
 	Var * s_wei_buff_a;
@@ -131,6 +139,7 @@ protected:
 
 #if KERNEL_DEBUG
 	Var * v_debug;
+	Var * v_debug2;
 	Var * s_ptr_dbg;
 	Var * v_addr_dbg;
 #endif
@@ -138,17 +147,18 @@ protected:
 	E_ReturnState checkKernelParam();
 	E_ReturnState writeProgram()
 	{
+		v_debug = newVgpr("v_debug");
+		v_debug2 = newVgpr("v_debug2");
+
 		CheckFunc(checkKernelParam());
-		CheckFunc(simulate_index());
+//		CheckFunc(simulate_index());
 		CheckFunc(calcuIndex());
 		main_conv();
-
-#if KERNEL_DEBUG
-		v_debug = newVgpr("v_debug");
 		save_debug();
-#endif
-
+		
 		clrVar();
+
+		return E_ReturnState::SUCCESS;
 	}
 
 	/************************************************************************************/
@@ -182,7 +192,7 @@ protected:
 	void save_to_lds_atomic();
 	void save_to_l2_split();
 	void save_to_l2_atomic();
-	void save_to_l2_direct();
+	void save_to_output();
 	
 	void save_with_atomic(int n, Var * addr_out, Var * accum);
 	void save_with_slop_zero();

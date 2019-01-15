@@ -24,6 +24,7 @@ namespace feifei
 #define CACHE_LINE			(16)
 #define	MAX_VGPR_COUNT		(256)
 #define	MAX_SGPR_COUNT		(800)
+#define MAX_LDS_SIZE		(64*1024)
 
 	class KernelOCL;
 	class CmdQueueOCL;

@@ -27,7 +27,9 @@ void SolutionCtrlBase::RunSolution()
 		INFO("generate program and build kernel.");	TempDo(generateKernel());
 		INFO("initialize device.");					TempDo(prepareKernelArgs());
 		INFO("launch kernel.");						TempDo(launchKernel());
-		//INFO("copy result back to cpu.");			TempDo(getBackResult());
+#if !MULT_SOLUTION
+		INFO("copy result back to cpu.");			getBackResult();
+#endif
 		INFO("release resource.");					releaseDevMem();
 		INFO("search kernel parameters.");
 

@@ -335,7 +335,6 @@ namespace AutoGen{
 			memset(SgprState, 0, sizeof(int)*MAX_SGPR_COUNT);
 			memset(VgprState, 0, sizeof(int)*MAX_VGPR_COUNT);
 			OperatorMap->clear();
-			ldsByteCount = 0;
 		}
 
 		std::string getVar(Var * opter, int len = 1)

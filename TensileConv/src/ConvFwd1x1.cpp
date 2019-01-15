@@ -25,7 +25,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	kernelParam.c_in_l2_split_group = 1;
 	kernelParam.c_in_l2_atomic_group = 1;
 	kernelParam.k_out_maps = 16;
-	kernelParam.group_size_x = 64;
+	kernelParam.group_size_x = 256;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -142,13 +142,14 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	group_sz = kernelWriter->GroupSize();
 	global_sz = kernelWriter->GlobalSize();
 
-	problem->size_sig = kernelWriter->SlotSize();
-	problem->h_sig = (float*)malloc(problem->size_sig * sizeof(float));
+	size_sig = kernelWriter->SlotSize();
+	if (size_sig > 0)		h_sig = (float*)malloc(size_sig * sizeof(float));
 
-#if KERNEL_DEBUG
-	problem->size_dbg = kernelWriter->DebugSize();
-	problem->h_dbg = (float*)malloc(problem->size_dbg * sizeof(float));
-#endif
+	size_l2 = kernelWriter->L2Size();
+	if (size_l2 > 0)		h_l2 = (float*)malloc(size_l2 * sizeof(float));
+
+	size_dbg = kernelWriter->DebugSize();
+	if (size_dbg > 0)		h_dbg = (float*)malloc(size_dbg * sizeof(float));
 
 	// build up kernel obj
 	kernel = rtOcl->CreatKernel((char*)kernelFile.c_str(), kernelName.c_str(), E_ProgramType::PRO_GAS_FILE);
@@ -157,22 +158,25 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 }
 
 E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
-{	
+{
+	negSlop = problem->NegSlop();
 	d_in = rtOcl->DevMalloc(problem->size_in * sizeof(float));
 	d_wei = rtOcl->DevMalloc(problem->size_wei * sizeof(float));
 	d_bias = rtOcl->DevMalloc(problem->size_bias * sizeof(float));
 	d_out = rtOcl->DevMalloc(problem->size_out * sizeof(float));
-	d_sig = rtOcl->DevMalloc(problem->size_sig * sizeof(float));
-	negSlop = problem->NegSlop();
-#if KERNEL_DEBUG
-	d_dbg = rtOcl->DevMalloc(problem->size_dbg * sizeof(float));
-#endif
-	
+	d_sig = d_l2 = d_dbg = NULL;
+	if (size_sig > 0)
+		d_sig = rtOcl->DevMalloc(size_sig * sizeof(float));
+	if (size_l2 > 0)
+		d_l2 = rtOcl->DevMalloc(size_l2 * sizeof(float));
+	if (size_dbg > 0)
+		d_dbg = rtOcl->DevMalloc(size_dbg * sizeof(float));
+
 	stream->MemCopyH2D(d_in, problem->h_in, problem->size_in * sizeof(float));
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
 	stream->MemCopyH2D(d_bias, problem->h_bias, problem->size_bias * sizeof(float));
 
-	kernel->SetArgs(&d_in, &d_wei, &d_out, &d_bias, &d_sig, &negSlop, &d_dbg);
+	kernel->SetArgs(&d_in, &d_wei, &d_out, &d_bias, &d_sig, &d_l2, &negSlop, &d_dbg);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -180,18 +184,28 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 void ConvFwd1x1Solution::getBackResult()
 {
 	stream->MemCopyD2H(problem->h_out, d_out, problem->size_out * sizeof(float));
-	stream->MemCopyD2H(problem->h_sig, d_sig, problem->size_sig * sizeof(float));
-#if KERNEL_DEBUG
-	stream->MemCopyD2H(problem->h_dbg, d_dbg, problem->size_dbg * sizeof(float));
-#endif
+
+	if (size_sig > 0)
+		stream->MemCopyD2H(h_sig, d_sig, size_sig * sizeof(float));
+	if (size_l2 > 0)
+		stream->MemCopyD2H(h_l2, d_l2, size_l2 * sizeof(float));
+	if (size_dbg > 0)
+		stream->MemCopyD2H(h_dbg, d_dbg, size_dbg * sizeof(float));
 }
 
 void ConvFwd1x1Solution::releaseDevMem()
 {
 	rtOcl->DevFree(d_in);
 	rtOcl->DevFree(d_wei);
-	rtOcl->DevFree(d_bias);
 	rtOcl->DevFree(d_out);
+	rtOcl->DevFree(d_bias);
+	if (size_sig > 0)		rtOcl->DevFree(d_sig);
+	if (size_l2 > 0)		rtOcl->DevFree(d_l2);
+	if (size_dbg > 0)		rtOcl->DevFree(d_dbg);
+
+	if (size_sig > 0)		free(h_sig);
+	if (size_l2 > 0)		free(h_l2);
+	if (size_dbg > 0)		free(h_dbg);
 }
 
 void ConvFwd1x1Solution::GetBestKernel()
