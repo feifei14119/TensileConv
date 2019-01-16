@@ -19,9 +19,8 @@ KernelWriterConv1x1::KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_Isa
 	W = kernelParam.W; H = kernelParam.H;
 	enBias = kernelParam.EnBias; enRelu = kernelParam.EnRelu;
 
-	lds_method = kernelParam.lds_method;
-	l2_method = kernelParam.l2_method;
-	c_in_lds_group = kernelParam.c_in_lds_group;
+	c_in_lds_split_group = kernelParam.c_in_lds_split_group;
+	c_in_lds_atomic_group = kernelParam.c_in_lds_atomic_group;
 	c_in_l2_split_group = kernelParam.c_in_l2_split_group;
 	c_in_l2_atomic_group = kernelParam.c_in_l2_atomic_group;
 	k_out_maps = kernelParam.k_out_maps;
@@ -38,6 +37,7 @@ KernelWriterConv1x1::KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_Isa
 	out_batch_stride = W * H * K;
 	out_size = W * H * K * N;
 
+	c_in_lds_group = c_in_lds_split_group * c_in_lds_atomic_group;
 	c_in_l2_group = c_in_l2_split_group * c_in_l2_atomic_group;
 	c_in_group = c_in_l2_group * c_in_lds_group;
 	c_in_maps = C / c_in_group;
@@ -75,11 +75,11 @@ KernelWriterConv1x1::KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_Isa
 		en_slop_zero = false;	// 实际应用于prelu
 	}
 
-	size_sig = size_l2_split = size_dbg = 0;
+	size_sig = size_l2 = size_dbg = 0;
 	if ((en_slop_zero == true) || (c_in_l2_split_group > 1))
 		size_sig = pix_group * k_out_group;
 	if (c_in_l2_split_group > 1)
-		size_l2_split = out_size * c_in_l2_split_group;
+		size_l2 = out_size * c_in_l2_split_group;
 #ifdef KERNEL_DEBUG
 	size_dbg = align * c_in_group * k_out_group;	// total thread number, 2D
 #endif
@@ -176,12 +176,12 @@ void KernelWriterConv1x1::main_conv()
 	delVar(v_addr_out);
 	if (enBias == true)				delVar(v_addr_bias);
 	if (enRelu == true)				delVar(s_slop);
-	if ((en_slop_zero == true) || (c_in_l2_split_group > 1))
+	if ((en_slop_zero == true) || (c_in_l2_group > 1))
 	{
 		delVar(s_addr_sig);
 	}
 	if (c_in_lds_group > 1)			delVar(v_addr_lds);
-	if (c_in_l2_split_group > 1)	delVar(v_addr_l2);
+	delVar(v_addr_l2);
 
 	// 销毁结果buffer
 	delVar(v_acc_buff);
@@ -283,11 +283,11 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		{
 			s_ptr_bias = newSgpr("s_ptr_bias", 2, 2);
 		}
-		if ((en_slop_zero == true) || (c_in_l2_split_group > 1))
+		if ((en_slop_zero == true) || (c_in_l2_group > 1))
 		{
 			s_ptr_sig = newSgpr("s_ptr_sig", 2, 2);
 		}
-		if (c_in_l2_split_group > 1)
+		if (c_in_l2_group > 1)
 		{
 			s_ptr_l2 = newSgpr("s_ptr_l2", 2, 2);
 		}
@@ -313,8 +313,8 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		v_pos_id = newVgpr("v_pos_id");
 		v_batch_id = newVgpr("v_batch_id");
 		v_out_id = newVgpr("v_out_id");
-		if (c_in_l2_split_group > 1)	v_l2_pos_id = newVgpr("v_l2_pos_id");
-		if (c_in_lds_group > 1)			v_lds_pos_id = newVgpr("v_lds_id");
+		v_l2_pos_id = newVgpr("v_l2_pos_id");
+		v_lds_pos_id = newVgpr("v_lds_id");
 	}
 
 	// -------------------------------------------------------------------------------
@@ -335,7 +335,7 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		{
 			v_addr_bias = newVgpr("v_addr_bias", 2, 2);
 		}
-		if ((en_slop_zero == true) || (c_in_l2_split_group > 1))
+		if ((en_slop_zero == true) || (c_in_l2_group > 1))
 		{
 			s_addr_sig = newSgpr("s_addr_sig", 2, 2);
 		}
@@ -343,10 +343,7 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		{
 			v_addr_lds = newVgpr("v_ds_addr");
 		}
-		if (c_in_l2_split_group > 1)
-		{
-			v_addr_l2 = newVgpr("v_addr_l2", 2, 2);
-		}
+		v_addr_l2 = newVgpr("v_addr_l2", 2, 2);
 #if KERNEL_DEBUG
 		v_addr_dbg = newVgpr("v_addr_dbg", 2, 2);
 #endif
@@ -375,7 +372,7 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		{
 			delVar(s_ptr_sig);
 		}
-		if (c_in_l2_split_group > 1)	delVar(s_ptr_l2);
+		if (c_in_l2_group > 1)			delVar(s_ptr_l2);
 #if KERNEL_DEBUG
 		delVar(s_ptr_dbg);
 #endif
@@ -388,13 +385,14 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		delVar(v_wave_id_x);
 		delVar(v_wave_tid_x);
 		delVar(v_pix_blk_id);
-		delVar(v_c_blk_id);
+	//	delVar(v_c_blk_id);			// will be used in init
 		delVar(v_c_l2_blk_id);
 		delVar(v_k_blk_id);
 		delVar(v_pos_id);
 		delVar(v_batch_id);
-		if (c_in_l2_split_group > 1)	delVar(v_out_id);
-		if (c_in_lds_group > 1)			delVar(v_lds_pos_id);
+		delVar(v_out_id);
+		delVar(v_lds_pos_id);
+		delVar(v_l2_pos_id);
 	}
 
 	return E_ReturnState::SUCCESS;
@@ -523,7 +521,8 @@ E_ReturnState KernelWriterConv1x1::calcuBlkIndex()
 	// -------------------------------------------------------------------------------
 	// c_blk_id = c_in_lds_group * c_l2_blk_id + tid_y;
 	// -------------------------------------------------------------------------------
-	op3("v_lshlrev_b32", v_tmp1, log2(c_in_lds_group), v_c_l2_blk_id); 
+	op2("v_mov_b32", v_tmp1, c_in_lds_group);
+	op3("v_mul_u32_u24", v_tmp1, v_tmp1, v_c_l2_blk_id);
 	op3(v_add_u32, v_c_blk_id, v_tmp1, v_tid_y);
 
 	delVar(v_tmp1);
@@ -534,7 +533,6 @@ E_ReturnState KernelWriterConv1x1::calcuBlkIndex()
 E_ReturnState KernelWriterConv1x1::calcuPosIndex()
 {
 	Var * v_tmp1 = newVgpr("v_tmp1");
-	Var * v_tmp2 = newVgpr("v_tmp2");
 
 	// -------------------------------------------------------------------------------
 	// pos_id   = (pix_blk_id * WAVE_SIZE + wave_tid_x) % in_chan_stride;
@@ -555,50 +553,20 @@ E_ReturnState KernelWriterConv1x1::calcuPosIndex()
 	op1("s_cbranch_execz", l_end_prg);
 	
 	// -------------------------------------------------------------------------------
-	// LDS_SPLIT:
-	// lds_space_size = group_sz.x * k_out_maps * c_in_lds_group;
-	// lds_pos_id = tid_y % c_in_lds_group;
-	// LDS_ATOMIC:
-	// lds_space_size = group_sz.x * k_out_maps;
-	// lds_pos_id = 0;
+	// lds_space_size = group_sz.x * k_out_maps * c_in_lds_split_group;
+	// lds_pos_id = tid_y % c_in_lds_split_group;
 	// -------------------------------------------------------------------------------
-	if (c_in_lds_group > 1)
-	{
-		if (lds_method == LDS_SPLIT)
-		{
-			ldsByteCount += group_sz.x * k_out_maps * c_in_lds_group * 4;
-
-			fv_div_u32(v_tid_y, c_in_lds_group, v_tmp2, v_lds_pos_id);
-		}
-		if (lds_method == LDS_ATOMIC)
-		{
-			ldsByteCount += group_sz.x * k_out_maps * 4;
-		}
-	}
+	ldsByteCount += group_sz.x * k_out_maps * c_in_lds_split_group * 4;
+	fv_div_u32(v_tid_y, c_in_lds_split_group, v_tmp1, v_lds_pos_id);
 
 	// -------------------------------------------------------------------------------
-	// L2_ATOMIC_SPLIT:
-	// l2_pos_id = c_l2_blk_id / c_in_l2_atomic_group;
-	// L2_ATOMIC_SPLIT:
-	// l2_pos_id = c_l2_blk_id % c_in_l2_split_group;
 	// l2_space_size = group_sz.x * k_out_maps * c_in_l2_split_group;
+	// l2_pos_id = c_l2_blk_id % c_in_l2_split_group;
 	// -------------------------------------------------------------------------------
-	if (c_in_l2_group > 1)
-	{
-		size_l2_split = group_sz.x * k_out_maps * c_in_l2_split_group;
-		
-		if (l2_method == ATOMIC_SPLIT)
-		{
-			fv_div_u32(v_c_l2_blk_id, c_in_l2_atomic_group, v_l2_pos_id, v_tmp1);
-		}
-		if (l2_method == SPLIT_ATOMIC)
-		{
-			fv_div_u32(v_c_l2_blk_id, c_in_l2_split_group, v_tmp1, v_l2_pos_id);
-		}
-	}
+	size_l2 = group_sz.x * k_out_maps * c_in_l2_split_group * 4;
+	fv_div_u32(v_c_l2_blk_id, c_in_l2_split_group, v_tmp1, v_l2_pos_id);
 
 	delVar(v_tmp1);
-	delVar(v_tmp2);
 	
 	return E_ReturnState::SUCCESS;
 }
@@ -708,7 +676,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	// -------------------------------------------------------------------------------
 	// sig_off = pixBlkId * k_out_group + kOutBlkId
 	// -------------------------------------------------------------------------------
-	if ((en_slop_zero == true) || (c_in_l2_split_group > 1))
+	if ((en_slop_zero == true) || (c_in_l2_group > 1))
 	{
 		op3("v_mul_u32_u24", v_tmp1, v_pix_blk_id, k_out_group);				// v_tmp1 = pixBlkId * k_out_group
 		op4(v_addc_u32, v_tmp1, "vcc", v_tmp1, v_k_blk_id);
@@ -720,39 +688,34 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	}
 	
 	// -------------------------------------------------------------------------------
-	// LDS_SPLIT:
 	// lds_off = (group_sz.x * k_out_maps) * lds_pos_id + tid_x
-	// LDS_ATOMIC:
-	// lds_off = tid_x
 	// -------------------------------------------------------------------------------
 	if (c_in_lds_group > 1)
 	{
-		if (lds_method == LDS_SPLIT)
-		{
-			op2("v_mov_b32", v_tmp1, group_sz.x * k_out_maps);
-			op3("v_mul_u32_u24", v_tmp1, v_lds_pos_id, v_tmp1);		// v_tmp1 = (group_sz.x * k_out_maps) * lds_pos_id
-			op3(v_add_u32, v_tmp1, v_tmp1, v_tid_x);
-			op3("v_lshlrev_b32", v_addr_lds, 2, v_tmp1);
-		}
-		if (lds_method == LDS_ATOMIC)
-		{
-			op3("v_lshlrev_b32", v_addr_lds, 2, v_tid_x);
-		}
+		op2("v_mov_b32", v_tmp1, group_sz.x * k_out_maps);
+		op3("v_mul_u32_u24", v_tmp1, v_lds_pos_id, v_tmp1);		// v_tmp1 = (group_sz.x * k_out_maps) * lds_pos_id
+		op3(v_add_u32, v_tmp1, v_tmp1, v_tid_x);				// v_tmp1 = lds_off
+		op3("v_lshlrev_b32", v_addr_lds, 2, v_tmp1);
 	}
-
+	
 	// -------------------------------------------------------------------------------
 	// l2_off = out_size * l2_pos_id + gbl_out_off
 	// -------------------------------------------------------------------------------
 	if (c_in_l2_split_group > 1)
 	{
 		op2("v_mov_b32", v_tmp1, out_size);
-		op3("v_mul_u32_u24", v_tmp1, v_l2_pos_id, v_tmp1);	// v_tmp1 = out_size * l2_pos_id
-		op3(v_add_u32, v_tmp1, v_tmp1, v_out_off_tmp);		// v_tmp1 = l2_off
+		op3("v_mul_u32_u24", v_tmp1, v_l2_pos_id, v_tmp1);		// v_tmp1 = out_size * l2_pos_id
+		op3(v_add_u32, v_tmp1, v_tmp1, v_out_off_tmp);			// v_tmp1 = l2_off
 		op3("v_lshlrev_b32", v_tmp1, 2, v_tmp1);
 
 		op2("v_mov_b32", *v_addr_l2 + 1, *s_ptr_l2 + 1);
 		op4(v_addc_u32, v_addr_l2, "vcc", s_ptr_l2, v_tmp1);
 		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+	}
+	else
+	{
+		op2("v_mov_b32", v_addr_l2, v_addr_out);
+		op2("v_mov_b32", *v_addr_l2 + 1, *v_addr_out + 1);
 	}
 
 	// -------------------------------------------------------------------------------
@@ -786,11 +749,14 @@ void KernelWriterConv1x1::init_output()
 	// 第一个 tid_y 做LDS ATOMIC 初始化
 	// -------------------------------------------------------------------------------
 	Var * l_end_lds_atomic_init = newLaber("END_LDS_ATOMIC_INIT");
-	if ((c_in_lds_group > 1) && (lds_method == LDS_ATOMIC))
+	if (c_in_lds_atomic_group > 1)
 	{
-		Var * s_tid_y = newSgpr("s_tid_y");
-		op2("v_readfirstlane_b32", s_tid_y, v_tid_y);
-		op2("s_cmpk_eq_i32", s_tid_y, 0);
+		Var * s_id_tmp = newSgpr("s_id_tmp");
+		//op2("v_readfirstlane_b32", s_id_tmp, v_c_blk_id);
+		//op2("s_cmpk_eq_i32", s_id_tmp, 0);
+		//op1("s_cbranch_scc0", l_end_lds_atomic_init);
+		op2("v_readfirstlane_b32", s_id_tmp, v_tid_y);
+		op2("s_cmpk_eq_i32", s_id_tmp, 0);
 		op1("s_cbranch_scc0", l_end_lds_atomic_init);
 
 		Var * v_lds_addr_tmp = newVgpr("v_lds_addr_tmp");
@@ -808,16 +774,46 @@ void KernelWriterConv1x1::init_output()
 				op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
 			}
 		}
-
-		delVar(s_tid_y);
+		delVar(s_id_tmp);
 		delVar(v_lds_addr_tmp);
 	}
 	s_wait_lgkmcnt(0);
 	wrLaber(l_end_lds_atomic_init);
+
+
+	// -------------------------------------------------------------------------------
+	// 第一个 c_in_blk 的第一个 tid_y 做L2 ATOMIC 初始化
+	// -------------------------------------------------------------------------------
+	Var * l_end_l2_atomic_init = newLaber("END_L2_ATOMIC_INIT");
+	if (c_in_l2_atomic_group > 1)
+	{
+		Var * s_id_tmp = newSgpr("s_id_tmp");
+		op2("v_readfirstlane_b32", s_id_tmp, v_c_blk_id);
+		op2("s_cmpk_eq_i32", s_id_tmp, 0);
+		op1("s_cbranch_scc0", l_end_l2_atomic_init);
+		op2("v_readfirstlane_b32", s_id_tmp, v_tid_y);
+		op2("s_cmpk_eq_i32", s_id_tmp, 0);
+		op1("s_cbranch_scc0", l_end_l2_atomic_init);
+
+		Var * v_l2_addr_tmp = newVgpr("v_addr_tmp", 2, 2);
+		op2("v_mov_b32", v_l2_addr_tmp, v_addr_l2);
+		op2("v_mov_b32", *v_l2_addr_tmp + 1, *v_addr_l2 + 1);
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			flat_store_dword(1, v_l2_addr_tmp, v_init, "off");
+			op4(v_addc_u32, v_l2_addr_tmp, "vcc", out_chan_stride * 4, v_l2_addr_tmp);
+			op5(v_addc_co_u32, *v_l2_addr_tmp + 1, "vcc", 0, *v_l2_addr_tmp + 1, "vcc");
+		}
+		delVar(s_id_tmp);
+		delVar(v_l2_addr_tmp);
+	}
+	s_wait_lgkmcnt(0);
+	wrLaber(l_end_l2_atomic_init);
+
 	
 	delVar(v_init);
 
-	inner_group_sync();
+	inner_group_sync();	// just for now
 /*
 	if (c_in_group == 1)
 	{
@@ -986,34 +982,20 @@ void KernelWriterConv1x1::save_result()
 	delVar(s_wei_buff_a);
 	delVar(s_wei_buff_b);
 	delVar(s_prefetch);
-
+	
 	if (c_in_lds_group > 1)
 	{
-		if (lds_method == LDS_SPLIT)
-		{
-			save_to_lds_split();
-		}
-		if (lds_method == LDS_ATOMIC)
-		{
-			save_to_lds_atomic();
-		}
+		if (c_in_lds_atomic_group > 1)		save_to_lds_atomic();
+		if (c_in_lds_split_group > 1)		save_to_lds_split();
 	}
 
-//	if (c_in_l2_group > 1)
-//	{
-//		if (lds_method == ATOMIC_SPLIT)
-//		{
-//			save_to_l2_atomic();
-//			save_to_l2_split();
-//		}
-//		if (lds_method == SPLIT_ATOMIC)
-//		{
-//			save_to_l2_split();
-//			save_to_l2_atomic();
-//		}
-//	}
+	if (c_in_l2_group > 1)
+	{
+		if (c_in_l2_atomic_group > 1)		save_to_l2_atomic();
+	}
 
-	save_to_output();
+	if(c_in_l2_split_group > 1)
+		save_to_output();
 
 //	if (c_in_group == 1)
 //	{
@@ -1042,156 +1024,6 @@ void KernelWriterConv1x1::save_result()
 //		delVar(v_addr_out_back);
 //	}
 }
-void KernelWriterConv1x1::save_to_lds_split()
-{
-	Var * l_end_lds = newLaber("END_LDS_SPLIT");
-	Var * v_lds_addr_tmp = newVgpr("v_lds_addr_bck");
-	Var * v_tmp1 = newVgpr("v_tmp1");
-
-	// -------------------------------------------------------------------------------
-	// 将当前wave的结果存到lds
-	// -------------------------------------------------------------------------------
-	op2("v_mov_b32", v_lds_addr_tmp, v_addr_lds);
-	for (int i = 0; i < k_out_maps; i++)
-	{
-		// debug
-		//op2("v_mov_b32", v_debug, 1111);
-		//op2("v_cvt_f32_u32", v_debug, v_debug);
-		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
-
-		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
-		{
-			ds_write_dword(1, v_lds_addr_tmp, *v_acc_buff + i, group_sz.x * i * 4);
-		}
-		else
-		{
-			ds_write_dword(1, v_lds_addr_tmp, *v_acc_buff + i, 0);
-			op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
-		}
-	}
-	s_wait_lgkmcnt(0);
-
-	// -------------------------------------------------------------------------------
-	// 同步
-	// -------------------------------------------------------------------------------
-	inner_group_sync();
-
-	// -------------------------------------------------------------------------------
-	// 最后一个 tid_y 读取LDS并累加到 v_acc_buff
-	// -------------------------------------------------------------------------------
-	op3("v_cmpx_eq_u32", "vcc", v_tid_y, group_sz.y - 1);
-	op1("s_cbranch_execz", l_end_prg);
-
-	Var * v_acc_buff2 = newVgpr("v_accum2", k_out_maps);
-	op3("v_lshlrev_b32", v_addr_lds, 2, v_tid_x);			// v_addr_lds 指向第一块LDS
-
-	Var * v_acc_bck = newVgpr("v_acc_bck", k_out_maps);
-
-	// 第一轮
-	for (int i = 0; i < k_out_maps; i++)
-	{
-		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
-		{
-			ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
-		}
-		else
-		{
-			ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
-			op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
-		}
-	}
-	for (int c = 0; c < c_in_lds_group; c++)
-	{
-		// 地址调整
-		if (group_sz.x * k_out_maps * (c_in_lds_group - 1) * 4 <= MAX_16BIT_UINT)
-		{
-			op3(v_add_u32, v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
-		}
-		// 读取下一组
-		for (int i = 0; i < k_out_maps; i++)
-		{
-			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
-			{
-				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
-			}
-			else
-			{
-				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
-				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
-			}
-		}
-		s_wait_lgkmcnt(k_out_maps);
-		// 累加上一组
-	}
-
-	wrLaber(l_end_lds);
-
-	delVar(v_tmp1);
-	delVar(v_lds_addr_tmp);
-}
-void KernelWriterConv1x1::save_to_lds_atomic()
-{
-	Var * l_end_lds = newLaber("END_LDS_ATOMIC");
-
-	// -------------------------------------------------------------------------------
-	// 将当前wave的结果存到lds
-	// -------------------------------------------------------------------------------
-	Var * v_lds_addr_tmp = newVgpr("v_lds_addr_bck");
-	op2("v_mov_b32", v_lds_addr_tmp, v_addr_lds);
-
-	for (int i = 0; i < k_out_maps; i++)
-	{
-		// debug
-		//op2("v_mov_b32", v_debug, 1111);
-		//op2("v_cvt_f32_u32", v_debug, v_debug);
-		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
-
-		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
-		{
-			op2("ds_add_f32", v_lds_addr_tmp, *v_acc_buff + i, group_sz.x * i * 4);
-		}
-		else
-		{
-			op2("ds_add_f32", v_lds_addr_tmp, *v_acc_buff + i, 0);
-			op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
-		}
-	}
-	s_wait_lgkmcnt(0);
-	delVar(v_lds_addr_tmp);
-
-	// -------------------------------------------------------------------------------
-	// 同步
-	// -------------------------------------------------------------------------------
-	inner_group_sync();
-
-	// -------------------------------------------------------------------------------
-	// 最后一个 tid_y 读取LDS到 v_acc_buff
-	// -------------------------------------------------------------------------------
-	op3("v_cmpx_eq_u32", "vcc", v_tid_y, group_sz.y - 1);
-	op1("s_cbranch_execz", l_end_prg);
-	
-	for (int i = 0; i < k_out_maps; i++)
-	{
-		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
-		{
-			ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
-		}
-		else
-		{
-			ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
-			op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
-		}
-	}
-	s_wait_lgkmcnt(0);
-			
-	wrLaber(l_end_lds);
-}
-void KernelWriterConv1x1::save_to_l2_split()
-{
-}
-void KernelWriterConv1x1::save_to_l2_atomic()
-{
-}
 void KernelWriterConv1x1::save_to_output()
 {
 	for (int i = 0; i < k_out_maps; i++)
@@ -1216,83 +1048,345 @@ void KernelWriterConv1x1::save_to_output()
 		op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 	}
 }
+void KernelWriterConv1x1::save_to_lds_atomic()
+{
+	Var * l_end_lds_atomic = newLaber("END_LDS_ATOMIC");
 
+	// -------------------------------------------------------------------------------
+	// 将当前wave的结果存到lds
+	// -------------------------------------------------------------------------------
+	Var * v_lds_addr_tmp = newVgpr("v_lds_addr_bck");
+	op2("v_mov_b32", v_lds_addr_tmp, v_addr_lds);
 
-void KernelWriterConv1x1::save_with_atomic(int n, Var * addr_out, Var * accum)
+	for (int i = 0; i < k_out_maps; i++)
+	{
+		// debug
+		op2("v_mov_b32", v_debug, 1111);
+		op2("v_cvt_f32_u32", v_debug, v_debug);
+		op2("v_mov_b32", *v_acc_buff + i, v_debug);
+
+		if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+		{
+			op2("ds_add_f32", v_lds_addr_tmp, *v_acc_buff + i, group_sz.x * i * 4);
+		}
+		else
+		{
+			op2("ds_add_f32", v_lds_addr_tmp, *v_acc_buff + i, 0);
+			op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
+		}
+	}
+	s_wait_lgkmcnt(0);
+	delVar(v_lds_addr_tmp);
+
+	// -------------------------------------------------------------------------------
+	// 如果不进行split, 则需要读出数据
+	// -------------------------------------------------------------------------------
+	if (c_in_lds_split_group < 2)
+	{
+		// -------------------------------------------------------------------------------
+		// 同步
+		// -------------------------------------------------------------------------------
+		inner_group_sync();
+
+		// -------------------------------------------------------------------------------
+		// 最后一个 tid_y 读取LDS到 v_acc_buff
+		// -------------------------------------------------------------------------------
+		op3("v_cmpx_eq_u32", "vcc", v_tid_y, group_sz.y - 1);
+		op1("s_cbranch_execz", l_end_prg);
+
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+			{
+				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
+			}
+			else
+			{
+				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
+				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+			}
+		}
+		s_wait_lgkmcnt(0);
+	}
+
+	wrLaber(l_end_lds_atomic);
+}
+void KernelWriterConv1x1::save_to_lds_split()
+{
+	Var * l_end_lds_split = newLaber("END_LDS_SPLIT");
+	Var * v_lds_addr_tmp = newVgpr("v_lds_addr_bck");
+	Var * v_tmp1 = newVgpr("v_tmp1");
+
+	// -------------------------------------------------------------------------------
+	// 如果不进行atomic, 则需要进行存储
+	// -------------------------------------------------------------------------------
+	if (c_in_lds_atomic_group < 2)
+	{
+		// -------------------------------------------------------------------------------
+		// 将当前wave的结果存到lds
+		// -------------------------------------------------------------------------------
+		op2("v_mov_b32", v_lds_addr_tmp, v_addr_lds);
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			// debug
+			op2("v_mov_b32", v_debug, 1111);
+			op2("v_cvt_f32_u32", v_debug, v_debug);
+			op2("v_mov_b32", *v_acc_buff + i, v_debug);
+
+			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+			{
+				ds_write_dword(1, v_lds_addr_tmp, *v_acc_buff + i, group_sz.x * i * 4);
+			}
+			else
+			{
+				ds_write_dword(1, v_lds_addr_tmp, *v_acc_buff + i, 0);
+				op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
+			}
+		}
+		s_wait_lgkmcnt(0);
+	}
+
+	// -------------------------------------------------------------------------------
+	// 同步
+	// -------------------------------------------------------------------------------
+	inner_group_sync();
+
+	// -------------------------------------------------------------------------------
+	// 最后一个 tid_y 读取LDS并累加到 v_acc_buff
+	// -------------------------------------------------------------------------------
+	op3("v_cmpx_eq_u32", "vcc", v_tid_y, group_sz.y - 1);
+	op1("s_cbranch_execz", l_end_prg);
+
+	Var * v_acc_buff1 = newVgpr("v_accum1", k_out_maps);
+	Var * v_acc_buff2 = newVgpr("v_accum2", k_out_maps);
+	Var * v_acc_buff0 = v_acc_buff1;
+
+	// 第一轮
+	{
+		// 地址调整: v_addr_lds 指向第一块LDS
+		op3("v_lshlrev_b32", v_addr_lds, 2, v_tid_x);
+		// 读取第一组			
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+			{
+				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, group_sz.x * i * 4);
+			}
+			else
+			{
+				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
+				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+			}
+		}
+		// 交换buffer
+		v_acc_buff0 = v_acc_buff1;
+	}
+	// 循环
+	for (int blk = 0; blk < c_in_lds_split_group - 2; blk++)
+	{
+		// 地址调整
+		if (group_sz.x * k_out_maps * (c_in_lds_split_group - 1) * 4 <= MAX_16BIT_UINT)
+		{
+			op3(v_add_u32, v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
+		}
+		// 读取下一组
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+			{
+				ds_read_dword(1, *v_acc_buff0 + i, v_addr_lds, group_sz.x * i * 4);
+			}
+			else
+			{
+				ds_read_dword(1, *v_acc_buff0 + i, v_addr_lds, 0);
+				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+			}
+		}
+		// 交换buffer
+		if (v_acc_buff0 == v_acc_buff1)
+		{
+			v_acc_buff0 = v_acc_buff2;
+		}
+		else
+		{
+			v_acc_buff0 = v_acc_buff1;
+		}
+		// 累加上一组
+		if (blk > 0)
+		{
+			if (k_out_maps > 15)
+				s_wait_lgkmcnt(15);
+			else
+				s_wait_lgkmcnt(k_out_maps);
+			for (int i = 0; i < k_out_maps; i++)
+			{
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff0 + i);
+			}
+		}
+	}
+	// 最后一轮
+	{
+		// 地址调整
+		if (group_sz.x * k_out_maps * (c_in_lds_split_group - 1) * 4 <= MAX_16BIT_UINT)
+		{
+			op3(v_add_u32, v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
+		}
+		// 读取最后一组
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
+			{
+				ds_read_dword(1, *v_acc_buff0 + i, v_addr_lds, group_sz.x * i * 4);
+			}
+			else
+			{
+				ds_read_dword(1, *v_acc_buff0 + i, v_addr_lds, 0);
+				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+			}
+		}
+		// 累加
+		s_wait_lgkmcnt(0);
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			if (c_in_lds_split_group == 2)
+			{
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff1 + i);
+			}
+			else
+			{
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff1 + i);
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff2 + i);
+			}
+		}
+	}
+
+	wrLaber(l_end_lds_split);
+
+	delVar(v_tmp1);
+	delVar(v_lds_addr_tmp);
+}
+void KernelWriterConv1x1::save_to_l2_atomic()
 {
 	// v_newVal = v_src_cmp
 	// v_prevVal = v_src_cmp + 1
 	Var * v_src_cmp = newVgpr("v_src_cmp", 2, 2);
 	Var * v_rtn = newVgpr("v_rtn");
-	//Var * l_atomic_add = newLaber("ATOMIC_ADD_" + d2s(n));
-	Var * l_atomic_add = newLaber("SEG_3_" + d2s(n));
 	Var * v_tmp = newVgpr("v_tmp");
 	Var * s_exec2 = newSgpr("s_exec2", 2, 2);
+	Var * s_exec_bck = newSgpr("s_exec_bck", 2, 2);
 
-	// debug
-	//op2("v_mov_b32", accum, 1.0001);
-	//op2("v_mov_b32", accum, v_in_buff_a);
-
-	flat_load_dword(1, *v_src_cmp + 1, addr_out, "off", 0, true);
-	s_wait_vmcnt(0);
-	wrLaber(l_atomic_add);
-
-
-	if ((enRelu == true) && (en_slop_zero == false))
+	// -------------------------------------------------------------------------------
+	// 将当前wave的结果存到l2
+	// -------------------------------------------------------------------------------
+	Var * l_l2_atomic;
+	op2("s_mov_b64", *s_exec_bck ^ 2, "exec");
+	for (int i = 0; i < k_out_maps; i++)
 	{
-		//op4("v_fma_f32", v_src_cmp, accum, s_slop, *v_src_cmp + 1);
-		/*
-		if (old < 0)
+		// debug
+		op2("v_mov_b32", v_debug, 1234);
+		op2("v_cvt_f32_u32", v_debug, v_debug);
+		op2("v_mov_b32", *v_acc_buff + i, v_debug);
+
+		flat_load_dword(1, *v_src_cmp + 1, v_addr_l2, "off", 0, true);
+		s_wait_vmcnt(0);
+		l_l2_atomic = newLaber("L2_ATOMIC_" + d2s(i));
+		wrLaber(l_l2_atomic);
 		{
-			tmp = 1 / slop;
-			old = old * tmp;
+			if ((enRelu == true)&&(en_slop_zero == false))
+			{
+				/* -------------------------------------------------------------------------------
+				if (old < 0)
+				{
+					tmp = 1 / slop;
+					old = old * tmp;
+				}
+				xin = old + acc;
+				if (xin < 0)
+					xin *= slop;
+				------------------------------------------------------------------------------- */
+				op2("s_mov_b64", *s_exec2 ^ 2, "exec");
+				op2("v_mov_b32", v_tmp, *v_src_cmp + 1);
+				op3("v_cmpx_lt_f32", "vcc", *v_src_cmp + 1, 0);
+				op2("v_rcp_f32", v_tmp, s_slop);				// v_tmp = 1 / s_slop
+				op3("v_mul_f32", v_tmp, *v_src_cmp + 1, v_tmp);	// v_tmp = old / s_slop
+				op2("s_mov_b64", "exec", *s_exec2 ^ 2);
+				op3("v_add_f32", v_src_cmp, v_tmp, *v_acc_buff + i);
+				op3("v_cmpx_lt_f32", "vcc", v_src_cmp, 0);
+				op3("v_mul_f32", v_src_cmp, v_src_cmp, s_slop);
+				op2("s_mov_b64", "exec", *s_exec2 ^ 2);
+			}
+			else
+			{
+				op3("v_add_f32", v_src_cmp, *v_src_cmp + 1, *v_acc_buff + i);
+			}
+
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				op3("flat_atomic_cmpswap", v_rtn, *v_addr_l2 ^ 2, *v_src_cmp ^ 2, true);
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op4("global_atomic_cmpswap", v_rtn, *v_addr_l2 ^ 2, *v_src_cmp ^ 2, "off", true);
+			}
+			s_wait_vmcnt(0);
+			op3("v_cmpx_neq_f32", "vcc", *v_src_cmp + 1, v_rtn);
+			op2("v_mov_b32", *v_src_cmp + 1, v_rtn);
+			op1("s_cbranch_execnz", l_l2_atomic);
 		}
-		xin = old + acc;
-		if (xin < 0)
-			xin *= slop;
-		*/
-		op2("s_mov_b64", *s_exec2 ^ 2, "exec");
-		op2("v_mov_b32", v_tmp, *v_src_cmp + 1);
-		op3("v_cmpx_lt_f32", "vcc", *v_src_cmp + 1, 0);
-		op2("v_rcp_f32", v_tmp, s_slop);				// v_tmp = 1 / s_slop
-		op3("v_mul_f32", v_tmp, *v_src_cmp + 1, v_tmp);	// v_tmp = old / s_slop
-		op2("s_mov_b64", "exec", *s_exec2 ^ 2);
-		//op1("s_nop", 5);
-		op3("v_add_f32", v_src_cmp, v_tmp, accum);
-		op3("v_cmpx_lt_f32", "vcc", v_src_cmp, 0);
-		op3("v_mul_f32", v_src_cmp, v_src_cmp, s_slop);
-		op2("s_mov_b64", "exec", *s_exec2 ^ 2);
-		//op1("s_nop", 5);
+
+		op0("s_barrier");
+		op2("s_mov_b64", "exec", *s_exec_bck ^ 2);
+		op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
+		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
 	}
-	else
-	{
-		op3("v_add_f32", v_src_cmp, *v_src_cmp + 1, accum);
-	}
-	if (IsaArch == E_IsaArch::Gfx800)
-	{
-		op3("flat_atomic_cmpswap", v_rtn, *addr_out ^ 2, *v_src_cmp ^ 2, true);
-	}
-	else if (IsaArch == E_IsaArch::Gfx900)
-	{
-		op4("global_atomic_cmpswap", v_rtn, *addr_out ^ 2, *v_src_cmp ^ 2, "off", true);
-	}
-	s_wait_vmcnt(0);
-	op3("v_cmpx_neq_f32", "vcc", *v_src_cmp + 1, v_rtn);
-	op2("v_mov_b32", *v_src_cmp + 1, v_rtn);
-	//op1("s_nop", 5);
-	op1("s_cbranch_execnz", l_atomic_add);
-	op0("s_barrier");
-	op2("s_mov_b64", "exec", *s_exec_save ^ 2);
-	//op1("s_nop", 5);
-	op4(v_addc_u32, v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
-	//op1("s_nop", 1);
-	op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
 
 	delVar(v_src_cmp);
 	delVar(v_rtn);
-	delVar(s_exec2);
 	delVar(v_tmp);
+	delVar(s_exec2);
+	delVar(s_exec_bck);
 }
+void KernelWriterConv1x1::save_to_l2_split()
+{
+}
+
+/************************************************************************************/
+/* wave 间同步																		*/
+/************************************************************************************/
+void KernelWriterConv1x1::inner_group_sync()
+{
+	op0("s_barrier");
+}
+void KernelWriterConv1x1::btwn_group_sync()
+{
+	// 写信号
+	Var * s_exec_bck = newSgpr("exec_bck", 2, 2);
+	Var * s_sig = newSgpr("s_sig");
+	Var * v_sig = newVgpr("v_sig");
+	Var * v_addr_sig = newVgpr("addr_sig", 2, 2);
+	op2("s_mov_b64", *s_exec_bck ^ 2, "exec");
+	op2("v_mov_b32", v_addr_sig, s_addr_sig);
+	op2("v_mov_b32", *v_addr_sig + 1, *s_addr_sig + 1);
+	op2("s_mov_b64", "exec", 1);
+	op2("v_mov_b32", v_sig, 1);
+	op3("flat_atomic_add", v_sig, *v_addr_sig ^ 2, v_sig);
+	op2("s_mov_b64", "exec", *s_exec_bck ^ 2);
+	s_wait_vmcnt(0);
+
+	// c_in_block = 0 的 wave 读取信号
+	Var * l_btwn_gp_sync = newLaber("BTWN_GP_SYNC");
+	wrLaber(l_btwn_gp_sync);
+	{
+		s_load_dword(1, s_sig, s_addr_sig, 0, true);
+		s_wait_lgkmcnt(0);
+		op2("s_cmpk_eq_i32", s_sig, c_in_l2_split_group);
+		op1("s_cbranch_scc0", l_btwn_gp_sync);
+	}
+}
+
+
+
+#if 0
 void KernelWriterConv1x1::save_with_slop_zero()
 {
 	// 写信号
@@ -1347,10 +1441,7 @@ void KernelWriterConv1x1::save_with_slop_zero()
 	delVar(v_sig);
 	delVar(v_addr_sig);
 }
-void KernelWriterConv1x1::inner_group_sync()
-{
-	op0("s_barrier");
-}
+#endif
 
 /************************************************************************************/
 /* 测试																				*/
@@ -1359,8 +1450,8 @@ void KernelWriterConv1x1::print_kernel_param()
 {
 	PRINT_SEPARATOR3();
 	OUTPUT("- Kernel Param:");
-	OUTPUT("- 	c_in_lds_group = %d", c_in_lds_group);
-	OUTPUT("- 	c_l2_split = %d, \tc_l2_atomic = %d", c_in_l2_split_group, c_in_l2_atomic_group);
+	OUTPUT("- 	c_lds_atomic = %d, \tc_lds_split = %d", c_in_lds_atomic_group, c_in_lds_split_group);
+	OUTPUT("- 	c_l2_atomic = %d, \tc_l2_split = %d", c_in_l2_atomic_group, c_in_l2_split_group);
 	OUTPUT("- 	c_in_maps = %d, \tc_in_group = %d", c_in_maps, c_in_group);
 	OUTPUT("- 	k_out_maps = %d, \tk_out_group = %d", k_out_maps, k_out_group);
 	OUTPUT("- 	align = %d, \t\tpix_group = %d", align, pix_group);
@@ -1449,34 +1540,34 @@ E_ReturnState KernelWriterConv1x1::simulate_index()
 		gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
 
 		// LDS 
-		if (c_in_lds_group > 1)
-		{
-			if (lds_method == LDS_SPLIT)
-			{
-				lds_space_size = group_sz.x * k_out_maps * c_in_lds_group;
-				lds_split_id = tid_y % c_in_lds_group;
-			}
-			if (lds_method == LDS_ATOMIC)
-			{
-				lds_space_size = group_sz.x * k_out_maps;
-				lds_split_id = 0;
-			}
-		}
+		//if (c_in_lds_group > 1)
+		//{
+		//	if (lds_method == LDS_SPLIT)
+		//	{
+		//		lds_space_size = group_sz.x * k_out_maps * c_in_lds_group;
+		//		lds_split_id = tid_y % c_in_lds_group;
+		//	}
+		//	if (lds_method == LDS_ATOMIC)
+		//	{
+		//		lds_space_size = group_sz.x * k_out_maps;
+		//		lds_split_id = 0;
+		//	}
+		//}
 
 		// L2 
-		if (c_in_l2_group > 1)
-		{
-			l2_space_size = group_sz.x * k_out_maps * c_in_l2_split_group;
-
-			if (l2_method == ATOMIC_SPLIT)
-			{
-				l2_split_id = c_l2_blk_id / c_in_l2_atomic_group;
-			}
-			if (l2_method == SPLIT_ATOMIC)
-			{
-				l2_split_id = c_l2_blk_id % c_in_l2_split_group;
-			}
-		}
+		//if (c_in_l2_group > 1)
+		//{
+		//	l2_space_size = group_sz.x * k_out_maps * c_in_l2_split_group;
+		//
+		//	if (l2_method == ATOMIC_SPLIT)
+		//	{
+		//		l2_split_id = c_l2_blk_id / c_in_l2_atomic_group;
+		//	}
+		//	if (l2_method == SPLIT_ATOMIC)
+		//	{
+		//		l2_split_id = c_l2_blk_id % c_in_l2_split_group;
+		//	}
+		//}
 
 	L_END_PRG:
 		test_idx1[grp] = c_blk_id;

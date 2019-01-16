@@ -6,24 +6,13 @@
 namespace TensileConv {
 namespace AutoGen {
 
-typedef enum LdsReduceEnum
-{
-	LDS_SPLIT = 1,
-	LDS_ATOMIC = 2
-}E_LdsReduce;
-typedef enum L2ReduceEnum
-{
-	ATOMIC_SPLIT = 1,
-	SPLIT_ATOMIC = 2
-}E_L2Reduce;
 typedef struct Conv1x1KernelParamType
 {
 	int group_size_x;
 	
-	E_LdsReduce lds_method;
-	E_L2Reduce l2_method;
 	int PCK_order;
-	int c_in_lds_group;
+	int c_in_lds_split_group;
+	int c_in_lds_atomic_group;
 	int c_in_l2_split_group;
 	int c_in_l2_atomic_group;
 	int k_out_maps;
@@ -38,7 +27,7 @@ public:
 	KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_IsaArch isaArch = E_IsaArch::Gfx900);
 	size_t SlotSize() { return size_sig; }
 	size_t DebugSize() { return size_dbg; }
-	size_t L2Size() { return size_l2_split; };
+	size_t L2Size() { return size_l2; };
 
 protected:
 	T_Conv1x1KernelParam kernelParam;
@@ -54,11 +43,11 @@ protected:
 	bool enBias, enRelu;
 
 	int PCK_order;
-	E_LdsReduce lds_method;
-	E_L2Reduce l2_method;
 	int c_in_maps;
 	int c_in_group;				// c_in_l2_group * c_in_lds_group
 	int c_in_lds_group;			// c_lds_split_group * c_lds_atomic_group = group_sz.y
+	int c_in_lds_split_group;
+	int c_in_lds_atomic_group;
 	int c_in_l2_group;			// c_l2_split_group * c_l2_atomic_group
 	int c_in_l2_split_group;
 	int c_in_l2_atomic_group;
@@ -74,7 +63,7 @@ protected:
 	int pix_wave;				// 所有像素被分到几个wave
 	int pix_per_group = 64;
 
-	size_t size_sig, size_dbg, size_l2_split;
+	size_t size_sig, size_dbg, size_l2;
 
 	// -------------------------------------------------------------------------------
 	int in_chan_stride;		// IN_CHANNEL_STRIDE
@@ -154,7 +143,7 @@ protected:
 //		CheckFunc(simulate_index());
 		CheckFunc(calcuIndex());
 		main_conv();
-		save_debug();
+//		save_debug();
 		
 		clrVar();
 
@@ -193,11 +182,9 @@ protected:
 	void save_to_l2_split();
 	void save_to_l2_atomic();
 	void save_to_output();
-	
-	void save_with_atomic(int n, Var * addr_out, Var * accum);
-	void save_with_slop_zero();
 
 	void inner_group_sync();
+	void btwn_group_sync();
 
 	E_ReturnState simulate_index();
 	void save_debug();
