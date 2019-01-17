@@ -84,6 +84,8 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 	kernelParam.N = problem->N();
 	kernelParam.C = problem->C(); kernelParam.K = problem->K();
 	kernelParam.W = problem->W(); kernelParam.H = problem->H();
+	kernelParam.EnBias = problem->EnBias();
+	kernelParam.Relu = problem->Relu();
 }
 
 E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
@@ -117,7 +119,8 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 	kernelParam.N = problem->N();
 	kernelParam.C = problem->C(); kernelParam.K = problem->K();
 	kernelParam.W = problem->W(); kernelParam.H = problem->H();
-	kernelParam.EnBias = problem->EnBias(); kernelParam.EnRelu = problem->EnRelu();
+	kernelParam.EnBias = problem->EnBias(); 
+	kernelParam.Relu = problem->Relu();
 }
 
 E_ReturnState ConvFwd1x1Solution::generateKernel()
@@ -301,14 +304,14 @@ void ConvFwd1x1Problem::TuneProblem()
 	RunProblem();
 }
 
-void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, bool isRelu)
+void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu)
 {
 	batch = N;
 	in_width = WH;		in_height = WH;
 	in_chan = C;		out_chan = K;
 	stride_x = UV;		stride_y = UV;
 	enBias = isBias;
-	enRelu = isRelu;
+	relu = (E_Relu)Relu;
 
 	RunProblem();
 }
@@ -353,8 +356,10 @@ E_ReturnState ConvFwd1x1Problem::initHostParam()
 	pad_x = 0;		pad_y = 0;		// padding
 
 	PRINT_SEPARATOR1();
-	OUTPUT("* WHCKN=[%d * %d, %d, %d, %d] stride=[%d, %d]", in_width, in_height, in_chan, out_chan, batch, stride_x, stride_y);
-	OUTPUT("* Bias = %s, Relu = %s", enBias ? "True" : "False", enRelu ? "True" : "False");
+	OUTPUT("* WHCKN=[%d * %d, %d, %d, %d]", in_width, in_height, in_chan, out_chan, batch);
+	OUTPUT("* stride=[%d, %d]", stride_x, stride_y);
+	OUTPUT("* Bias = %s", enBias ? "True" : "False");
+	OUTPUT("* Relu = %s", relu == NORELU ? "No Relu" : relu == RELU ? "Relu" : "PRelu");
 	PRINT_SEPARATOR1();
 
 	out_width = in_width + pad_x * 2 - wei_width + 1;
@@ -467,7 +472,22 @@ void ConvFwd1x1Problem::runHostCompute()
 							}
 						}
 					}
-					if (enRelu == true)
+					if (relu == NORELU)
+					{
+						out_ref[o * stride_n_out + w * stride_k_out + i * out_width + j] = acc;
+					}
+					else if (relu == RELU)
+					{
+						if (acc > 0)
+						{
+							out_ref[o * stride_n_out + w * stride_k_out + i * out_width + j] = acc;
+						}
+						else
+						{
+							out_ref[o * stride_n_out + w * stride_k_out + i * out_width + j] = 0;
+						}
+					}
+					else if (relu == PRELU)
 					{
 						if (acc < 0)
 						{
@@ -477,10 +497,6 @@ void ConvFwd1x1Problem::runHostCompute()
 						{
 							out_ref[o * stride_n_out + w * stride_k_out + i * out_width + j] = acc;
 						}
-					}
-					else
-					{
-						out_ref[o * stride_n_out + w * stride_k_out + i * out_width + j] = acc;
 					}
 				}
 			}

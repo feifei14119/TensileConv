@@ -61,7 +61,7 @@ public:
 	~ConvFwd1x1Problem() { delete solver; }
 
 	void TuneProblem();
-	void TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, bool isRelu);
+	void TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu);
 
 	int N() { return batch; }
 	int W() { return in_width; } int H() { return in_height; }
@@ -70,7 +70,8 @@ public:
 	int R() { return pad_x; } int S() { return pad_y; }
 	int U() { return stride_x; } int V() { return stride_y; }
 	int OutW() { return out_width; } int OutH() { return out_height; }
-	bool EnBias() { return enBias; } bool EnRelu() { return enRelu; }
+	int EnBias() { return enBias; } 
+	E_Relu Relu() { return relu; }
 	float NegSlop() { return negSlop; }
 
 	float* h_in, *h_wei, *h_bias, *h_out, *out_ref;
@@ -91,7 +92,8 @@ private:
 	int pad_x, pad_y;			// padding 
 	int stride_x, stride_y;		// stride
 	int out_width, out_height;	// output size
-	bool enBias, enRelu;
+	bool enBias;
+	E_Relu relu;
 	float negSlop;
 };
 }

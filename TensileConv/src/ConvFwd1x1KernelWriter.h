@@ -4,6 +4,12 @@
 
 
 namespace TensileConv {
+	typedef enum ReluType
+	{
+		NORELU = 0,
+		RELU = 1,
+		PRELU = 2
+	}E_Relu;
 namespace AutoGen {
 
 typedef struct Conv1x1KernelParamType
@@ -18,7 +24,8 @@ typedef struct Conv1x1KernelParamType
 	int k_out_maps;
 
 	int N, C, H, W, K;
-	bool EnBias, EnRelu;
+	bool EnBias;
+	E_Relu Relu;
 }T_Conv1x1KernelParam;
 
 class KernelWriterConv1x1 :public AutoGen::KernelWriter
@@ -40,7 +47,8 @@ protected:
 
 	// -------------------------------------------------------------------------------
 	int N, C, H, W, K;
-	bool enBias, enRelu;
+	bool EnBias;
+	E_Relu Relu;
 
 	int PCK_order;
 	int c_in_maps;
@@ -75,11 +83,9 @@ protected:
 	int group_wave_num_x;	// PIX_BLK_PER_GROUP
 	int conv_loop;			// LOOP
 	
+	bool en_l2_sync;
 	bool en_input_offset;
-	bool en_wei_addr_offset = true;
-	int offset_grp_num;
-	Var * v_global_offset;
-	int wei_offset;
+	bool en_wei_addr_offset;
 
 	// -------------------------------------------------------------------------------
 	Var * s_ptr_in;
@@ -95,8 +101,9 @@ protected:
 	Var * v_wave_tid_x;
 	Var * v_pix_blk_id;
 	Var * v_c_blk_id;		// c_in 全部拆分的block id, 考虑LDS拆分
+	Var * s_c_blk_id;
 	Var * v_c_l2_blk_id;	// c_in 在L2拆分的block id, 不考虑LDS拆分
-	Var * v_k_blk_id;	
+	Var * v_k_blk_id;
 
 	Var * v_pos_id;
 	Var * v_batch_id;
@@ -114,6 +121,9 @@ protected:
 	Var * s_addr_bias;		// ???
 	Var * v_addr_out_back;	// ???
 
+	int wei_offset;
+	Var * v_global_offset;
+
 	// -------------------------------------------------------------------------------
 	Var * v_in_buff_a;
 	Var * v_in_buff_b;
@@ -123,9 +133,7 @@ protected:
 	Var * s_prefetch;
 
 	Var * s_exec_save;
-
-	bool en_slop_zero = true;
-
+	
 #if KERNEL_DEBUG
 	Var * v_debug;
 	Var * v_debug2;
@@ -183,8 +191,8 @@ protected:
 	void save_to_l2_atomic();
 	void save_to_output();
 
-	void inner_group_sync();
-	void btwn_group_sync();
+	void lds_wave_sync();
+	void l2_wave_sync();
 
 	E_ReturnState simulate_index();
 	void save_debug();
