@@ -328,7 +328,7 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		delVar(s_ptr_out);
 		if (EnBias == true)				delVar(s_ptr_bias);
 		if (en_l2_sync)					delVar(s_ptr_sig);
-		if (c_in_l2_split_group > 1)	delVar(s_ptr_l2);
+		// if (c_in_l2_split_group > 1)	delVar(s_ptr_l2);		will be used in split accum
 #if KERNEL_DEBUG
 		delVar(s_ptr_dbg);
 #endif
@@ -520,10 +520,8 @@ E_ReturnState KernelWriterConv1x1::calcuPosIndex()
 	fv_div_u32(v_tid_y, c_in_lds_split_group, v_tmp1, v_lds_pos_id);
 
 	// -------------------------------------------------------------------------------
-	// l2_space_size = group_sz.x * k_out_maps * c_in_l2_split_group;
 	// l2_pos_id = c_l2_blk_id % c_in_l2_split_group;
 	// -------------------------------------------------------------------------------
-	size_l2 = group_sz.x * k_out_maps * c_in_l2_split_group * 4;
 	fv_div_u32(v_c_l2_blk_id, c_in_l2_split_group, v_tmp1, v_l2_pos_id);
 
 	delVar(v_tmp1);
@@ -738,12 +736,17 @@ void KernelWriterConv1x1::init_output()
 		op2("s_cmpk_eq_i32", s_c_blk_id, 0);
 		op1("s_cbranch_scc0", l_end_l2_atomic_init);
 
-		Var *v_init_addr0;
 		Var * v_init_addr_tmp = newVgpr("v_l2_addr_tmp", 2, 2);
-		if (c_in_l2_split_group > 1)	v_init_addr0 = v_addr_l2;
-		else							v_init_addr0 = v_addr_out;
-		op2("v_mov_b32", v_init_addr_tmp, v_init_addr0);
-		op2("v_mov_b32", *v_init_addr_tmp + 1, *v_init_addr0 + 1);
+		if (c_in_l2_split_group > 1)
+		{
+			op2("v_mov_b32", v_init_addr_tmp, v_addr_l2);
+			op2("v_mov_b32", *v_init_addr_tmp + 1, *v_addr_l2 + 1);
+		}
+		else
+		{
+			op2("v_mov_b32", v_init_addr_tmp, v_addr_out);
+			op2("v_mov_b32", *v_init_addr_tmp + 1, *v_addr_out + 1);
+		}
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_store_dword(1, v_init_addr_tmp, v_init, "off");
@@ -769,92 +772,13 @@ void KernelWriterConv1x1::init_output()
 		s_store_dword(1, s_tmp, s_addr_sig, 0, true);
 		delVar(s_tmp);
 	}
+	s_wait_lgkmcnt(0);
 	wrLaber(l_end_signal_init);
 	
 	delVar(v_init);
 
-	lds_wave_sync();	// just for now
-/*
-	if (c_in_group == 1)
-	{
-		if (enBias == true)
-		{
-			//s_load_dword(k_out_maps, s_wei_buff_a, s_addr_bias, "off");
-			for (int i = 0; i < k_out_maps; i++)
-			{
-				flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off");
-				op4(v_addc_u32, v_addr_bias, "vcc", 4, v_addr_bias);
-				op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
-			}
-		}
-	}
-
-	if (c_in_group > 1)
-	{
-		Var * s_cInBlkId = newSgpr("s_cInBlkId");
-		Var * v_addr_save = newVgpr("v_addr_tmp", 4, 2);
-		//Var * l_end_init = newLaber("END_INIT");
-		Var * l_end_init = newLaber("SEG_2");
-		Var * v_init = newVgpr("v_init");
-
-		op2("v_readfirstlane_b32", s_cInBlkId, v_c_l2_blk_id);
-		//op1("s_nop", 5);
-		op2("s_cmpk_eq_i32", s_cInBlkId, 0);
-		op1("s_cbranch_scc0", l_end_init); 
-		{
-			if ((enRelu == true) && (en_slop_zero == true))
-			{
-				Var * s_tmp = newSgpr("s_tmp");
-				op2("s_mov_b32", s_tmp, 100);
-				s_store_dword(1, s_tmp, s_addr_sig, 0, true);
-				delVar(s_tmp);
-			}
-
-			op2("v_mov_b32", v_addr_save, v_addr_out);
-			op2("v_mov_b32", *v_addr_save + 1, *v_addr_out + 1);
-
-			op2("v_mov_b32", v_init, 0);
-			for (int i = 0; i < k_out_maps; i++)
-			{
-				if (enBias == true)
-				{
-					flat_store_dword(1, v_addr_out, v_init, "off");
-				}
-				else
-				{
-					flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
-				}
-
-				op4(v_addc_u32, v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
-				//op1("s_nop", 1);
-				op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
-			}
-
-			if (enBias == true)
-			{
-				for (int i = 0; i < k_out_maps; i++)
-				{
-					flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off");
-					op4(v_addc_u32, v_addr_bias, "vcc", 4, v_addr_bias);
-					op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
-				}
-			}
-			op2("v_mov_b32", v_addr_out, v_addr_save);
-			op2("v_mov_b32", *v_addr_out + 1, *v_addr_save + 1);
-
-
-			if ((enRelu == true) && (en_slop_zero == true))
-			{
-				s_wait_lgkmcnt(0);
-			}
-		}
-		wrLaber(l_end_init);
-				
-		delVar(s_cInBlkId);
-		delVar(v_addr_save);
-		delVar(v_init);			// you yinhuan
-	}
-	*/
+	lds_wave_sync();		// just for now
+	op1("s_sleep", 127);	// just for now
 }
 void KernelWriterConv1x1::load_input(Var * in_buff)
 {
@@ -952,6 +876,7 @@ void KernelWriterConv1x1::save_result()
 	if (c_in_l2_group > 1)
 	{
 		if (c_in_l2_atomic_group > 1)		save_to_l2_atomic();
+		if (c_in_l2_split_group > 1)		save_to_l2_split();
 	}
 
 	if (en_l2_sync == true)
@@ -1059,9 +984,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 	// -------------------------------------------------------------------------------
 	if (c_in_lds_atomic_group < 2)
 	{
-		// -------------------------------------------------------------------------------
 		// 将当前wave的结果存到lds
-		// -------------------------------------------------------------------------------
 		op2("v_mov_b32", v_lds_addr_tmp, v_addr_lds);
 		for (int i = 0; i < k_out_maps; i++)
 		{
@@ -1198,6 +1121,8 @@ void KernelWriterConv1x1::save_to_lds_split()
 	wrLaber(l_end_lds_split);
 
 	delVar(v_tmp1);
+	delVar(v_acc_buff1);
+	delVar(v_acc_buff2);
 	delVar(v_lds_addr_tmp);
 }
 void KernelWriterConv1x1::save_to_l2_atomic()
@@ -1300,6 +1225,8 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 		// -------------------------------------------------------------------------------
 		// 最后一个 tid_y 读取L2到 v_acc_buff
 		// -------------------------------------------------------------------------------
+		op2("s_cmpk_eq_i32", s_c_l2_blk_id, c_in_l2_group - 1);
+		op1("s_cbranch_scc0", l_end_prg);
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_load_dword(1, *v_acc_buff + i, v_addr_tmp, "off");
@@ -1317,6 +1244,104 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 }
 void KernelWriterConv1x1::save_to_l2_split()
 {
+	// -------------------------------------------------------------------------------
+	// 如果不进行atomic, 则需要进行存储 然后同步
+	// -------------------------------------------------------------------------------
+	if (c_in_l2_atomic_group < 2)
+	{
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			// debug
+			op2("v_mov_b32", v_debug, 1234);
+			op2("v_cvt_f32_u32", v_debug, v_debug);
+			op2("v_mov_b32", *v_acc_buff + i, v_debug);
+
+			flat_store_dword(1, v_addr_l2, *v_acc_buff + i, "off");
+			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
+			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+		}
+
+		// 同步
+		l2_wave_sync();
+	}
+
+	// -------------------------------------------------------------------------------
+	// 最后一个 tid_y 读取LDS并累加到 v_acc_buff
+	// -------------------------------------------------------------------------------
+	op2("s_cmpk_eq_i32", s_c_l2_blk_id, c_in_l2_group - 1);
+	op1("s_cbranch_scc0", l_end_prg);
+
+	Var * v_acc_buff1 = newVgpr("v_accum1", k_out_maps);
+	Var * v_acc_buff2 = newVgpr("v_accum2", k_out_maps);
+	Var * v_acc_buff0 = v_acc_buff1;
+
+	// 第一轮
+	{
+		// 地址调整: v_addr_l2 指向第一块L2
+		op2("v_mov_b32", v_addr_l2, s_ptr_l2);
+		op2("v_mov_b32", *v_addr_l2 + 1, *s_ptr_l2 + 1);
+
+		// 读取第一组			
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			flat_load_dword(1, *v_acc_buff + i, v_addr_l2, "off");
+			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
+			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+		}
+		// 交换buffer
+		v_acc_buff0 = v_acc_buff1;
+	}
+	// 循环
+	for (int blk = 0; blk < c_in_l2_split_group - 2; blk++)
+	{
+		// 读取下一组
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			flat_load_dword(1, *v_acc_buff0 + i, v_addr_l2, "off");
+			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
+			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+		}
+		// 交换buffer
+		if (v_acc_buff0 == v_acc_buff1)	v_acc_buff0 = v_acc_buff2;
+		else							v_acc_buff0 = v_acc_buff1;
+
+		// 累加上一组
+		if (blk > 0)
+		{
+			s_wait_vmcnt(k_out_maps);
+			for (int i = 0; i < k_out_maps; i++)
+			{
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff0 + i);
+			}
+		}
+	}
+	// 最后一轮
+	{
+		// 读取最后一组
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			flat_load_dword(1, *v_acc_buff0 + i, v_addr_l2, "off");
+			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
+			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+		}
+		// 累加
+		s_wait_vmcnt(0);
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			if (c_in_l2_split_group == 2)
+			{
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff1 + i);
+			}
+			else
+			{
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff1 + i);
+				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff2 + i);
+			}
+		}
+	}
+
+	delVar(v_acc_buff1);
+	delVar(v_acc_buff2);
 }
 
 /************************************************************************************/
@@ -1328,13 +1353,26 @@ void KernelWriterConv1x1::lds_wave_sync()
 }
 void KernelWriterConv1x1::l2_wave_sync()
 {
+	Var * s_sig = newSgpr("s_sig");
+	Var * v_sig = newVgpr("v_sig");
+
+	// -------------------------------------------------------------------------------
+	// 检查初始化是否完成
+	// -------------------------------------------------------------------------------
+	/*Var * l_sgn_init_chk = newLaber("SGN_INIT_CHK");
+	wrLaber(l_sgn_init_chk);
+	{
+		s_load_dword(1, s_sig, s_addr_sig, 0, true);
+		s_wait_lgkmcnt(0);
+		op2("s_cmpk_eq_i32", s_sig, 0);
+		op1("s_cbranch_scc0", l_sgn_init_chk);
+	}*/
+
 	// -------------------------------------------------------------------------------
 	// 写信号
 	// -------------------------------------------------------------------------------
 	Var * s_exec_bck = newSgpr("exec_bck", 2, 2);
 	Var * v_addr_sig = newVgpr("v_addr_sig", 2, 2);
-	Var * s_sig = newSgpr("s_sig");
-	Var * v_sig = newVgpr("v_sig");
 
 	op2("s_mov_b64", *s_exec_bck ^ 2, "exec");
 	op2("v_mov_b32", v_addr_sig, s_addr_sig);
@@ -1342,13 +1380,13 @@ void KernelWriterConv1x1::l2_wave_sync()
 	op2("s_mov_b64", "exec", 1);
 	op2("v_mov_b32", v_sig, 1);
 	op3("flat_atomic_add", v_sig, *v_addr_sig ^ 2, v_sig);
-	op2("s_mov_b64", "exec", *s_exec_bck ^ 2);
 	s_wait_vmcnt(0);
+	op2("s_mov_b64", "exec", *s_exec_bck ^ 2);
 
 	// -------------------------------------------------------------------------------
 	// 最后一个 c_in_block 的 wave 读取信号
 	// -------------------------------------------------------------------------------
-	Var * l_l2_sync = newLaber("BTWN_GP_SYNC");
+	Var * l_l2_sync = newLaber("L2_WAVE_SYNC");
 	op2("s_cmpk_eq_i32", s_c_l2_blk_id, c_in_l2_group - 1);
 	op1("s_cbranch_scc0", l_end_prg);
 	wrLaber(l_l2_sync);
@@ -1373,6 +1411,7 @@ void KernelWriterConv1x1::print_kernel_param()
 	OUTPUT("- 	k_out_maps = %d, \tk_out_group = %d", k_out_maps, k_out_group);
 	OUTPUT("- 	align = %d, \t\tpix_group = %d", align, pix_group);
 	OUTPUT("- 	group_size = %d, %d", group_sz.x, group_sz.y);
+	OUTPUT("- 	sigal_size = %d, l2_size = %d, debug_size = %d", size_sig, size_l2, size_dbg);
 	PRINT_SEPARATOR3();
 }
 E_ReturnState KernelWriterConv1x1::simulate_index()
@@ -1502,4 +1541,3 @@ void KernelWriterConv1x1::save_debug()
 	flat_store_dword(1, v_addr_dbg, v_debug, "off");
 	op1("s_branch", l_end_prg);
 }
-

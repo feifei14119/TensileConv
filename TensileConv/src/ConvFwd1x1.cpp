@@ -21,10 +21,10 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	kernelParam.PCK_order = 321;
 	kernelParam.c_in_lds_split_group = 1;
 	kernelParam.c_in_lds_atomic_group = 1;
-	kernelParam.c_in_l2_split_group = 1;
+	kernelParam.c_in_l2_split_group = 2;
 	kernelParam.c_in_l2_atomic_group = 2;
 	kernelParam.k_out_maps = 16;
-	kernelParam.group_size_x = 64;
+	kernelParam.group_size_x = 256;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -146,6 +146,7 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 
 	size_sig = kernelWriter->SlotSize();
 	if (size_sig > 0)		h_sig = (float*)malloc(size_sig * sizeof(float));
+	if (size_sig > 0)		memset(h_sig, 123, size_sig * sizeof(float));	// for debug
 
 	size_l2 = kernelWriter->L2Size();
 	if (size_l2 > 0)		h_l2 = (float*)malloc(size_l2 * sizeof(float));
@@ -166,17 +167,16 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	d_wei = rtOcl->DevMalloc(problem->size_wei * sizeof(float));
 	d_bias = rtOcl->DevMalloc(problem->size_bias * sizeof(float));
 	d_out = rtOcl->DevMalloc(problem->size_out * sizeof(float));
+
 	d_sig = d_l2 = d_dbg = NULL;
-	if (size_sig > 0)
-		d_sig = rtOcl->DevMalloc(size_sig * sizeof(float));
-	if (size_l2 > 0)
-		d_l2 = rtOcl->DevMalloc(size_l2 * sizeof(float));
-	if (size_dbg > 0)
-		d_dbg = rtOcl->DevMalloc(size_dbg * sizeof(float));
+	if (size_sig > 0)		d_sig = rtOcl->DevMalloc(size_sig * sizeof(float));
+	if (size_l2 > 0)		d_l2 = rtOcl->DevMalloc(size_l2 * sizeof(float));
+	if (size_dbg > 0)		d_dbg = rtOcl->DevMalloc(size_dbg * sizeof(float));
 
 	stream->MemCopyH2D(d_in, problem->h_in, problem->size_in * sizeof(float));
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
 	stream->MemCopyH2D(d_bias, problem->h_bias, problem->size_bias * sizeof(float));
+	stream->MemCopyH2D(d_sig, h_sig, size_sig * sizeof(float));	// for debug
 	stream->MemCopyH2D(d_out, problem->h_out, problem->size_out * sizeof(float)); // for debug
 
 	kernel->SetArgs(&d_in, &d_wei, &d_out, &d_bias, &d_sig, &d_l2, &negSlop, &d_dbg);
