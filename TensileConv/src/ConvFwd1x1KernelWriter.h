@@ -101,9 +101,11 @@ protected:
 	Var * v_wave_tid_x;
 	Var * v_pix_blk_id;
 	Var * v_c_blk_id;		// c_in 全部拆分的block id, 考虑LDS拆分
-	Var * s_c_blk_id;
 	Var * v_c_l2_blk_id;	// c_in 在L2拆分的block id, 不考虑LDS拆分
 	Var * v_k_blk_id;
+	Var * s_c_blk_id;
+	Var * s_c_l2_blk_id;
+	Var * s_c_lds_blk_id;
 
 	Var * v_pos_id;
 	Var * v_batch_id;
@@ -131,9 +133,7 @@ protected:
 	Var * s_wei_buff_b;
 	Var * v_acc_buff;
 	Var * s_prefetch;
-
-	Var * s_exec_save;
-	
+		
 #if KERNEL_DEBUG
 	Var * v_debug;
 	Var * v_debug2;
