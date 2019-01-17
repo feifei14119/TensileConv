@@ -871,17 +871,14 @@ void KernelWriterConv1x1::save_result()
 	{
 		if (c_in_lds_atomic_group > 1)		save_to_lds_atomic();
 		if (c_in_lds_split_group > 1)		save_to_lds_split();
+		if (c_in_l2_group < 2)				save_to_output();
 	}
 
 	if (c_in_l2_group > 1)
 	{
 		if (c_in_l2_atomic_group > 1)		save_to_l2_atomic();
 		if (c_in_l2_split_group > 1)		save_to_l2_split();
-	}
-
-	if (en_l2_sync == true)
-	{
-		save_to_output();
+		if (en_l2_sync == true)				save_to_output();
 	}
 }
 void KernelWriterConv1x1::save_to_output()
@@ -1153,9 +1150,9 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		op2("v_mov_b32", v_debug, 1234);
-		op2("v_cvt_f32_u32", v_debug, v_debug);
-		op2("v_mov_b32", *v_acc_buff + i, v_debug);
+		//op2("v_mov_b32", v_debug, 1234);
+		//op2("v_cvt_f32_u32", v_debug, v_debug);
+		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
 		flat_load_dword(1, *v_src_cmp + 1, v_addr_tmp, "off", 0, true);
 		s_wait_vmcnt(0);
@@ -1252,9 +1249,9 @@ void KernelWriterConv1x1::save_to_l2_split()
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			// debug
-			op2("v_mov_b32", v_debug, 1234);
-			op2("v_cvt_f32_u32", v_debug, v_debug);
-			op2("v_mov_b32", *v_acc_buff + i, v_debug);
+			//op2("v_mov_b32", v_debug, 1234);
+			//op2("v_cvt_f32_u32", v_debug, v_debug);
+			//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
 			flat_store_dword(1, v_addr_l2, *v_acc_buff + i, "off");
 			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);

@@ -19,7 +19,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	solutionName = "TensileConv";
 
 	kernelParam.PCK_order = 321;
-	kernelParam.c_in_lds_split_group = 1;
+	kernelParam.c_in_lds_split_group = 2;
 	kernelParam.c_in_lds_atomic_group = 1;
 	kernelParam.c_in_l2_split_group = 2;
 	kernelParam.c_in_l2_atomic_group = 2;
@@ -176,7 +176,7 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	stream->MemCopyH2D(d_in, problem->h_in, problem->size_in * sizeof(float));
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
 	stream->MemCopyH2D(d_bias, problem->h_bias, problem->size_bias * sizeof(float));
-	stream->MemCopyH2D(d_sig, h_sig, size_sig * sizeof(float));	// for debug
+	//stream->MemCopyH2D(d_sig, h_sig, size_sig * sizeof(float));	// for debug
 	stream->MemCopyH2D(d_out, problem->h_out, problem->size_out * sizeof(float)); // for debug
 
 	kernel->SetArgs(&d_in, &d_wei, &d_out, &d_bias, &d_sig, &d_l2, &negSlop, &d_dbg);
