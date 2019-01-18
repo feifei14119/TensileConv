@@ -109,38 +109,38 @@ void KernelWriterConv1x1::main_conv()
 	// 初始化:
 	init_output();
 
-//	// 循环填充
-//	wei_offset = 0;
-//	prefetch_weight();
-//	load_input(v_in_buff_a);
-//
-//	// 循环体
-//	if (conv_loop > 1)
-//	{
-//		Var * s_loop_cnt = newSgpr("s_loop_cnt");
-//		f_s_loop(s_loop_cnt, conv_loop - 1, "CONV_LOOP");
-//		{
-//			load_input(v_in_buff_b);
-//			conv_one_loop(v_in_buff_a, false);
-//			load_input(v_in_buff_a);
-//			conv_one_loop(v_in_buff_b, true);
-//		}
-//		f_e_loop(s_loop_cnt, "CONV_LOOP");
-//	}
-//
-//	// 循环排空
-//	if (conv_loop > 0)
-//	{
-//		load_input(v_in_buff_b);
-//		conv_one_loop(v_in_buff_a, false);
-//		conv_last_loop(v_in_buff_b);
-//	}
-//	else
-//	{
-//		wei_offset -= (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
-//		conv_last_loop(v_in_buff_a);
-//	}
-//
+	// 循环填充
+	wei_offset = 0;
+	prefetch_weight();
+	load_input(v_in_buff_a);
+
+	// 循环体
+	if (conv_loop > 1)
+	{
+		Var * s_loop_cnt = newSgpr("s_loop_cnt");
+		f_s_loop(s_loop_cnt, conv_loop - 1, "CONV_LOOP");
+		{
+			load_input(v_in_buff_b);
+			conv_one_loop(v_in_buff_a, false);
+			load_input(v_in_buff_a);
+			conv_one_loop(v_in_buff_b, true);
+		}
+		f_e_loop(s_loop_cnt, "CONV_LOOP");
+	}
+
+	// 循环排空
+	if (conv_loop > 0)
+	{
+		load_input(v_in_buff_b);
+		conv_one_loop(v_in_buff_a, false);
+		conv_last_loop(v_in_buff_b);
+	}
+	else
+	{
+		wei_offset -= (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
+		conv_last_loop(v_in_buff_a);
+	}
+
 	// -------------------------------------------------------------------------------
 	// 存储结果:
 	// -------------------------------------------------------------------------------
@@ -880,6 +880,11 @@ void KernelWriterConv1x1::save_result()
 		if (c_in_l2_split_group > 1)		save_to_l2_split();
 		if (en_l2_sync == true)				save_to_output();
 	}
+
+	if ((c_in_lds_group < 2) && (c_in_l2_group < 2))
+	{
+		save_to_output();
+	}
 }
 void KernelWriterConv1x1::save_to_output()
 {
@@ -936,11 +941,11 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 	}
 	s_wait_lgkmcnt(0);
 	delVar(v_lds_addr_tmp);
-
+	
 	// -------------------------------------------------------------------------------
 	// 如果不进行split, 则需要同步后将数据从 LDS 读出到VGPR
 	// -------------------------------------------------------------------------------
-	//if (c_in_lds_split_group < 2)
+	if (c_in_lds_split_group < 2)
 	{
 		// -------------------------------------------------------------------------------
 		// 同步
@@ -1001,7 +1006,6 @@ void KernelWriterConv1x1::save_to_lds_split()
 			}
 		}
 		s_wait_lgkmcnt(0);
-
 	}
 
 	// 同步
@@ -1034,6 +1038,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
 			}
 		}
+
 		// 交换buffer
 		v_acc_buff0 = v_acc_buff1;
 	}
@@ -1059,21 +1064,15 @@ void KernelWriterConv1x1::save_to_lds_split()
 			}
 		}
 		// 交换buffer
-		if (v_acc_buff0 == v_acc_buff1)
-		{
-			v_acc_buff0 = v_acc_buff2;
-		}
-		else
-		{
-			v_acc_buff0 = v_acc_buff1;
-		}
+		if (v_acc_buff0 == v_acc_buff1)		v_acc_buff0 = v_acc_buff2;
+		else								v_acc_buff0 = v_acc_buff1;
+
 		// 累加上一组
 		if (blk > 0)
 		{
-			if (k_out_maps > 15)
-				s_wait_lgkmcnt(15);
-			else
-				s_wait_lgkmcnt(k_out_maps);
+			if (k_out_maps > 15)	s_wait_lgkmcnt(15);
+			else					s_wait_lgkmcnt(k_out_maps);
+
 			for (int i = 0; i < k_out_maps; i++)
 			{
 				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff0 + i);
@@ -1258,10 +1257,10 @@ void KernelWriterConv1x1::save_to_l2_split()
 			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
 			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
 		}
-
-		// 同步
-		l2_wave_sync();
 	}
+
+	// 同步
+	l2_wave_sync();
 
 	// -------------------------------------------------------------------------------
 	// 最后一个 tid_y 读取LDS并累加到 v_acc_buff
