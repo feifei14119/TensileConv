@@ -920,7 +920,7 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		op2("v_mov_b32", v_debug, 1111);
+		op2("v_mov_b32", v_debug, 1);
 		op2("v_cvt_f32_u32", v_debug, v_debug);
 		op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
@@ -940,7 +940,7 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 	// -------------------------------------------------------------------------------
 	// 如果不进行split, 则需要同步后将数据从 LDS 读出到VGPR
 	// -------------------------------------------------------------------------------
-	if (c_in_lds_split_group < 2)
+	//if (c_in_lds_split_group < 2)
 	{
 		// -------------------------------------------------------------------------------
 		// 同步
@@ -986,9 +986,9 @@ void KernelWriterConv1x1::save_to_lds_split()
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			// debug
-			op2("v_mov_b32", v_debug, 1111);
-			op2("v_cvt_f32_u32", v_debug, v_debug);
-			op2("v_mov_b32", *v_acc_buff + i, v_debug);
+			//op2("v_mov_b32", v_debug, 1);
+			//op2("v_cvt_f32_u32", v_debug, v_debug);
+			//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
 			if (group_sz.x * k_out_maps * 4 <= MAX_16BIT_UINT) // 16-bit uint
 			{
@@ -1002,10 +1002,11 @@ void KernelWriterConv1x1::save_to_lds_split()
 		}
 		s_wait_lgkmcnt(0);
 
-		// 同步
-		lds_wave_sync();
 	}
-	
+
+	// 同步
+	lds_wave_sync();
+
 	// -------------------------------------------------------------------------------
 	// 最后一个 tid_y 读取LDS并累加到 v_acc_buff
 	// -------------------------------------------------------------------------------
@@ -1150,7 +1151,7 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		//op2("v_mov_b32", v_debug, 1234);
+		//op2("v_mov_b32", v_debug, 1);
 		//op2("v_cvt_f32_u32", v_debug, v_debug);
 		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
@@ -1208,11 +1209,11 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 	}
 
 	// -------------------------------------------------------------------------------
-	// 如果 Relu 或者需要进行 split, 则需要同步后将结果读出
+	// 只有当 Relu 且不进行 spilt 时才需要读出L2数据到寄存器, 因为l2_split()函数也会读出来
 	// -------------------------------------------------------------------------------
 	op2("v_mov_b32", v_addr_tmp, v_atomic_addr);
 	op2("v_mov_b32", *v_addr_tmp + 1, *v_atomic_addr + 1);
-	if (en_l2_sync == true)
+	if ((Relu == RELU) && (c_in_l2_split_group < 2))
 	{
 		// -------------------------------------------------------------------------------
 		// 同步
@@ -1220,7 +1221,7 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 		l2_wave_sync();
 
 		// -------------------------------------------------------------------------------
-		// 最后一个 tid_y 读取L2到 v_acc_buff
+		// 最后一个 c_blk_id 读取L2到 v_acc_buff
 		// -------------------------------------------------------------------------------
 		op2("s_cmpk_eq_i32", s_c_l2_blk_id, c_in_l2_group - 1);
 		op1("s_cbranch_scc0", l_end_prg);
