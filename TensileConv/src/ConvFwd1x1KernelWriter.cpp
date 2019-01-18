@@ -77,6 +77,7 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	en_l2_sync = ((Relu == RELU && c_in_l2_atomic_group > 1) || (c_in_l2_split_group > 1));
 	en_input_offset = ((IsaArch == E_IsaArch::Gfx900) && (W*H <= 4095));
 	en_wei_addr_offset = true;
+	en_input_offset = false;
 
 	// -------------------------------------------------------------------------------
 	// memory size
@@ -131,7 +132,7 @@ void KernelWriterConv1x1::main_conv()
 	// 循环填充
 	wei_offset = 0;
 	prefetch_weight();
-//	load_input(v_in_buff_a);
+	load_input(v_in_buff_a);
 
 	// 循环体
 	if (conv_loop > 1)
@@ -139,9 +140,9 @@ void KernelWriterConv1x1::main_conv()
 		Var * s_loop_cnt = newSgpr("s_loop_cnt");
 		f_s_loop(s_loop_cnt, conv_loop - 1, "CONV_LOOP");
 		{
-//			load_input(v_in_buff_b);
+			load_input(v_in_buff_b);
 			conv_one_loop(v_in_buff_a, false);
-//			load_input(v_in_buff_a);
+			load_input(v_in_buff_a);
 			conv_one_loop(v_in_buff_b, true);
 		}
 		f_e_loop(s_loop_cnt, "CONV_LOOP");
@@ -150,14 +151,14 @@ void KernelWriterConv1x1::main_conv()
 	// 循环排空
 	if (conv_loop > 0)
 	{
-//		load_input(v_in_buff_b);
+		load_input(v_in_buff_b);
 		conv_one_loop(v_in_buff_a, false);
-//		conv_last_loop(v_in_buff_b);
+		conv_last_loop(v_in_buff_b);
 	}
 	else
 	{
 		wei_offset -= (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
-//		conv_last_loop(v_in_buff_a);
+		conv_last_loop(v_in_buff_a);
 	}
 
 	// -------------------------------------------------------------------------------
@@ -783,13 +784,9 @@ void KernelWriterConv1x1::init_output()
 	wrLaber(l_end_signal_init);
 	
 	delVar(v_init);
-
-	lds_wave_sync();		// just for now
-	op1("s_sleep", 127);	// just for now
 }
 void KernelWriterConv1x1::load_input(Var * in_buff)
 {
-	return;
 	if (en_input_offset == true)
 	{
 		if (c_in_maps_once_real >= 2)
@@ -1388,15 +1385,26 @@ void KernelWriterConv1x1::l2_wave_sync()
 	// 最后一个 c_in_block 的 wave 读取信号
 	// -------------------------------------------------------------------------------
 	Var * l_l2_sync = newLaber("L2_WAVE_SYNC");
+	Var * l_l2_sync_end = newLaber("END_L2_WAVE_SYNC");
+	Var * s_timeout = newSgpr("s_timeout");
+	op2("s_mov_b32", s_timeout, 0);
 	op2("s_cmpk_eq_i32", s_c_l2_blk_id, c_in_l2_group - 1);
 	op1("s_cbranch_scc0", l_end_prg);
+#define TIMEOUT_LMT	10000
 	wrLaber(l_l2_sync);
 	{
 		s_load_dword(1, s_sig, s_addr_sig, 0, true);
+		// 超时检查
+		op3("s_add_u32", s_timeout, s_timeout, 1);
+		op2("s_cmp_eq_u32", s_timeout, TIMEOUT_LMT);
+		op1("s_cbranch_scc1", l_l2_sync_end);
 		s_wait_lgkmcnt(0);
 		op2("s_cmpk_eq_i32", s_sig, c_in_l2_group);
 		op1("s_cbranch_scc0", l_l2_sync);
 	}
+	wrLaber(l_l2_sync_end);
+#undef TIMEOUT_LMT
+	delVar(s_timeout);
 }
 
 /************************************************************************************/

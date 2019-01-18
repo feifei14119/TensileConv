@@ -21,10 +21,10 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	kernelParam.PCK_order = 321;
 	kernelParam.c_in_lds_atomic_group = 1;
 	kernelParam.c_in_lds_split_group = 1;
-	kernelParam.c_in_l2_atomic_group = 1;
-	kernelParam.c_in_l2_split_group = 1;
+	kernelParam.c_in_l2_atomic_group = 2;
+	kernelParam.c_in_l2_split_group = 4;
 	kernelParam.k_out_maps = 2;
-	kernelParam.group_size_x = 64;
+	kernelParam.group_size_x = 128;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -32,10 +32,12 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	T_SearchParam * searchParam;
 	
 	searchParam = new T_SearchParam("PCK_order");
-	searchParam->ValueArray.push_back(321);
-	searchParam->ValueArray.push_back(312);
-	searchParam->ValueArray.push_back(231);
+	searchParam->ValueArray.push_back(123);
 	searchParam->ValueArray.push_back(132);
+	searchParam->ValueArray.push_back(213);
+	searchParam->ValueArray.push_back(231);
+	searchParam->ValueArray.push_back(312);
+	searchParam->ValueArray.push_back(321);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("c_in_lds_atomic_group");
 	searchParam->ValueArray.push_back(1);
@@ -115,13 +117,13 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 		if (param == NULL)
 			break;
 
-		if (param->Name == "PCK_order")				kernelParam.PCK_order = param->CurrValue;
-		if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->CurrValue;
-		if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->CurrValue;
-		if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->CurrValue;
-		if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->CurrValue;
-		if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->CurrValue;
-		if (param->Name == "group_size_x")			kernelParam.group_size_x = param->CurrValue;
+		if (param->Name == "PCK_order")				kernelParam.PCK_order = param->BestValue;
+		if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->BestValue;
+		if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->BestValue;
+		if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->BestValue;
+		if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->BestValue;
+		if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->BestValue;
+		if (param->Name == "group_size_x")			kernelParam.group_size_x = param->BestValue;
 
 		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
 	}
