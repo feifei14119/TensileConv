@@ -50,42 +50,42 @@ protected:
 	bool EnBias;
 	E_Relu Relu;
 
-	int PCK_order;
-	int c_in_maps;
-	int c_in_group;				// c_in_l2_group * c_in_lds_group
-	int c_in_lds_group;			// c_lds_split_group * c_lds_atomic_group = group_sz.y
-	int c_in_lds_split_group;
-	int c_in_lds_atomic_group;
-	int c_in_l2_group;			// c_l2_split_group * c_l2_atomic_group
-	int c_in_l2_split_group;
-	int c_in_l2_atomic_group;
-	int	c_in_maps_once = 8;		// 对于一次循环的 input channel 的划分 [8,16]
-	int c_in_maps_once_real;
+	int PCK_order = 0;
+	int c_in_maps = 0;
+	int c_in_group = 0;				// c_in_l2_group * c_in_lds_group
+	int c_in_lds_group = 0;			// c_lds_split_group * c_lds_atomic_group = group_sz.y
+	int c_in_lds_split_group = 0;
+	int c_in_lds_atomic_group = 0;
+	int c_in_l2_group = 0;			// c_l2_split_group * c_l2_atomic_group
+	int c_in_l2_split_group = 0;
+	int c_in_l2_atomic_group = 0;
+	int	c_in_maps_once = 8;			// 对于一次循环的 input channel 的划分 [8,16]
+	int c_in_maps_once_real = 0;
 	int unroll_time = 2;
 
-	int k_out_maps;
-	int k_out_group;
+	int k_out_maps = 0;
+	int k_out_group = 0;
 
-	size_t align;
-	int pix_group;				// 所有像素被分到几个group
-	int pix_wave;				// 所有像素被分到几个wave
+	size_t align = 0;
+	int pix_group = 0;				// 所有像素被分到几个group
+	int pix_wave = 0;				// 所有像素被分到几个wave
 	int pix_per_group = 64;
 
-	size_t size_sig, size_dbg, size_l2;
+	size_t size_sig=0, size_dbg=0, size_l2=0;
 
 	// -------------------------------------------------------------------------------
-	int in_chan_stride;		// IN_CHANNEL_STRIDE
-	int in_batch_stride;	// IN_BATCH_STRIDE
-	int wei_chan_stride;	// WEI_CHANNEL_STRIDE
-	int out_chan_stride;	// OUT_CHANNEL_STRIDE
-	int out_batch_stride;	// OUT_BATCH_STRIDE
-	int out_size;			
-	int group_wave_num_x;	// PIX_BLK_PER_GROUP
-	int conv_loop;			// LOOP
+	int in_chan_stride = 0;		// IN_CHANNEL_STRIDE
+	int in_batch_stride = 0;	// IN_BATCH_STRIDE
+	int wei_chan_stride = 0;	// WEI_CHANNEL_STRIDE
+	int out_chan_stride = 0;	// OUT_CHANNEL_STRIDE
+	int out_batch_stride = 0;	// OUT_BATCH_STRIDE
+	int out_size = 0;
+	int group_wave_num_x = 0;	// PIX_BLK_PER_GROUP
+	int conv_loop = 0;			// LOOP
 	
-	bool en_l2_sync;
-	bool en_input_offset;
-	bool en_wei_addr_offset;
+	bool en_l2_sync = 0;
+	bool en_input_offset = 0;
+	bool en_wei_addr_offset = 0;
 
 	// -------------------------------------------------------------------------------
 	Var * s_ptr_in;
@@ -144,13 +144,15 @@ protected:
 	E_ReturnState checkKernelParam();
 	E_ReturnState writeProgram()
 	{
+#if KERNEL_DEBUG
 		v_debug = newVgpr("v_debug");
 		v_debug2 = newVgpr("v_debug2");
+#endif
 
-		CheckFunc(checkKernelParam());
-//		CheckFunc(simulate_index());
 		CheckFunc(calcuIndex());
 		main_conv();
+
+//		CheckFunc(simulate_index());
 //		save_debug();
 		
 		clrVar();

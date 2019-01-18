@@ -27,6 +27,8 @@ public:
 	// TODO: where to clear LDS used byte???
 	E_ReturnState GenKernelString()
 	{
+		CheckFunc(checkKernelParam());
+
 		clearString();
 		CheckFunc(writeContent());
 
@@ -192,9 +194,9 @@ protected:
 		wrLine(".end_amd_kernel_code_t");
 		wrLine("");
 
-		if (sgprCountMax > MAX_SGPR_COUNT)	return E_ReturnState::FAIL;
-		if (vgprCountMax > MAX_VGPR_COUNT)	return E_ReturnState::FAIL;
-		if (ldsByteCount > MAX_LDS_SIZE)	return E_ReturnState::FAIL;
+		if (sgprCountMax >= MAX_SGPR_COUNT)	return E_ReturnState::FAIL;
+		if (vgprCountMax >= MAX_VGPR_COUNT)	return E_ReturnState::FAIL;
+		if (ldsByteCount >= MAX_LDS_SIZE)	return E_ReturnState::FAIL;
 
 		return E_ReturnState::SUCCESS;
 	}

@@ -2541,7 +2541,7 @@ namespace AutoGen{
 			if (isPow2(v) == true)
 			{
 				op3("v_lshrrev_b32", c, log2(v), a);
-				op3("v_and_b32", d, a, modMask(v));
+				op3("v_and_b32", d, modMask(v), a);
 			}
 			else
 			{

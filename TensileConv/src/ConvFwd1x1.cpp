@@ -20,9 +20,9 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 
 	kernelParam.PCK_order = 321;
 	kernelParam.c_in_lds_atomic_group = 1;
-	kernelParam.c_in_lds_split_group = 4;
-	kernelParam.c_in_l2_atomic_group = 2;
-	kernelParam.c_in_l2_split_group = 8;
+	kernelParam.c_in_lds_split_group = 1;
+	kernelParam.c_in_l2_atomic_group = 1;
+	kernelParam.c_in_l2_split_group = 1;
 	kernelParam.k_out_maps = 16;
 	kernelParam.group_size_x = 64;
 }
@@ -31,22 +31,45 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
 	T_SearchParam * searchParam;
 	
-	searchParam = new T_SearchParam("c_in_group");
+	searchParam = new T_SearchParam("PCK_order");
+	searchParam->ValueArray.push_back(321);
+	searchParam->ValueArray.push_back(312);
+	searchParam->ValueArray.push_back(231);
+	searchParam->ValueArray.push_back(132);
+	solutionParamSpace->AddOneParam(searchParam);
+	searchParam = new T_SearchParam("c_in_lds_atomic_group");
 	searchParam->ValueArray.push_back(1);
-//	searchParam->ValueArray.push_back(2);
+	solutionParamSpace->AddOneParam(searchParam);
+	searchParam = new T_SearchParam("c_in_lds_split_group");
+	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
-//	searchParam->ValueArray.push_back(8);
-//	searchParam->ValueArray.push_back(16);
-//	searchParam->ValueArray.push_back(32);
+	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(16);
+	solutionParamSpace->AddOneParam(searchParam);
+	searchParam = new T_SearchParam("c_in_l2_atomic_group");
+	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(16);
+	solutionParamSpace->AddOneParam(searchParam);
+	searchParam = new T_SearchParam("c_in_l2_split_group");
+	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(16);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("k_out_maps");
+	searchParam->ValueArray.push_back(1);
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
 	solutionParamSpace->AddOneParam(searchParam);
-	searchParam = new T_SearchParam("group_size");
+	searchParam = new T_SearchParam("group_size_x");
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
 	searchParam->ValueArray.push_back(256);
@@ -62,23 +85,16 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 	{
 		T_SearchParam * param = solutionParamSpace->GetOneParam();
 
-		if (param == NULL)
-		{
+		if (param == NULL)			
 			break;
-		}
 
-		if (param->Name == "c_in_group")
-		{
-//			kernelParam.c_in_group = param->CurrValue;
-		}
-		if (param->Name == "k_out_maps")
-		{
-			kernelParam.k_out_maps = param->CurrValue;
-		}
-		if (param->Name == "group_size")
-		{
-			kernelParam.group_size_x = param->CurrValue;
-		}
+		if (param->Name == "PCK_order")				kernelParam.PCK_order = param->CurrValue;
+		if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->CurrValue;
+		if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->CurrValue;
+		if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->CurrValue;
+		if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->CurrValue;
+		if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->CurrValue;
+		if (param->Name == "group_size_x")			kernelParam.group_size_x = param->CurrValue;
 	}
 
 	kernelParam.N = problem->N();
@@ -97,22 +113,16 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 		T_SearchParam * param = solutionParamSpace->GetOneParam();
 
 		if (param == NULL)
-		{
 			break;
-		}
 
-		if (param->Name == "c_in_group")
-		{
-//			kernelParam.c_in_group = param->BestValue;
-		}
-		if (param->Name == "k_out_maps")
-		{
-			kernelParam.k_out_maps = param->BestValue;
-		}
-		if (param->Name == "group_size")
-		{
-			kernelParam.group_size_x = param->BestValue;
-		}
+		if (param->Name == "PCK_order")				kernelParam.PCK_order = param->CurrValue;
+		if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->CurrValue;
+		if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->CurrValue;
+		if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->CurrValue;
+		if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->CurrValue;
+		if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->CurrValue;
+		if (param->Name == "group_size_x")			kernelParam.group_size_x = param->CurrValue;
+
 		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
 	}
 
@@ -134,7 +144,6 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	{
 		kernelWriter = new KernelWriterConv1x1(kernelParam, E_IsaArch::Gfx800);
 	}
-
 	CheckFunc(kernelWriter->GenKernelString());
 	kernelWriter->SaveKernelString2File();
 
