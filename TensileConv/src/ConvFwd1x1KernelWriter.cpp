@@ -31,6 +31,11 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	print_kernel_param();
 
 	// -------------------------------------------------------------------------------
+	// 问题尺寸过滤
+	// -------------------------------------------------------------------------------
+	if (K < 2) return E_ReturnState::FAIL;
+
+	// -------------------------------------------------------------------------------
 	// 中间变量计算
 	// -------------------------------------------------------------------------------
 	in_chan_stride = W * H;
@@ -124,36 +129,36 @@ void KernelWriterConv1x1::main_conv()
 	init_output();
 
 	// 循环填充
-//	wei_offset = 0;
-//	prefetch_weight();
+	wei_offset = 0;
+	prefetch_weight();
 //	load_input(v_in_buff_a);
-//
-//	// 循环体
-//	if (conv_loop > 1)
-//	{
-//		Var * s_loop_cnt = newSgpr("s_loop_cnt");
-//		f_s_loop(s_loop_cnt, conv_loop - 1, "CONV_LOOP");
-//		{
+
+	// 循环体
+	if (conv_loop > 1)
+	{
+		Var * s_loop_cnt = newSgpr("s_loop_cnt");
+		f_s_loop(s_loop_cnt, conv_loop - 1, "CONV_LOOP");
+		{
 //			load_input(v_in_buff_b);
-//			conv_one_loop(v_in_buff_a, false);
+			conv_one_loop(v_in_buff_a, false);
 //			load_input(v_in_buff_a);
-//			conv_one_loop(v_in_buff_b, true);
-//		}
-//		f_e_loop(s_loop_cnt, "CONV_LOOP");
-//	}
-//
-//	// 循环排空
-//	if (conv_loop > 0)
-//	{
+			conv_one_loop(v_in_buff_b, true);
+		}
+		f_e_loop(s_loop_cnt, "CONV_LOOP");
+	}
+
+	// 循环排空
+	if (conv_loop > 0)
+	{
 //		load_input(v_in_buff_b);
-//		conv_one_loop(v_in_buff_a, false);
+		conv_one_loop(v_in_buff_a, false);
 //		conv_last_loop(v_in_buff_b);
-//	}
-//	else
-//	{
-//		wei_offset -= (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
+	}
+	else
+	{
+		wei_offset -= (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
 //		conv_last_loop(v_in_buff_a);
-//	}
+	}
 
 	// -------------------------------------------------------------------------------
 	// 存储结果:
@@ -784,6 +789,7 @@ void KernelWriterConv1x1::init_output()
 }
 void KernelWriterConv1x1::load_input(Var * in_buff)
 {
+	return;
 	if (en_input_offset == true)
 	{
 		if (c_in_maps_once_real >= 2)

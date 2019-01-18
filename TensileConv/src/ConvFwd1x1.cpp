@@ -23,7 +23,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	kernelParam.c_in_lds_split_group = 1;
 	kernelParam.c_in_l2_atomic_group = 1;
 	kernelParam.c_in_l2_split_group = 1;
-	kernelParam.k_out_maps = 16;
+	kernelParam.k_out_maps = 2;
 	kernelParam.group_size_x = 64;
 }
 
@@ -62,7 +62,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(16);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("k_out_maps");
-	searchParam->ValueArray.push_back(1);
+//	searchParam->ValueArray.push_back(1);
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
