@@ -762,25 +762,20 @@ void KernelWriterConv1x1::init_output()
 	wrLaber(l_end_lds_atomic_init);
 
 	// -------------------------------------------------------------------------------
-	// 第一个 c_in_blk 的第一个 tid_y 做L2 ATOMIC 初始化
+	// 每个L2块的前split_group个块儿, 做L2 ATOMIC 初始化
 	// -------------------------------------------------------------------------------
+	Var * v_atomic_addr;
+	if (c_in_l2_split_group > 1)	v_atomic_addr = v_addr_l2;
+	else							v_atomic_addr = v_addr_out;
 	Var * l_end_l2_atomic_init = newLaber("END_L2_ATOMIC_INIT");
 	if (c_in_l2_atomic_group > 1)
 	{
-		op2("s_cmpk_eq_i32", s_c_blk_id, 0);
+		op2("s_cmpk_lt_i32", s_c_l2_blk_id, c_in_l2_split_group);
 		op1("s_cbranch_scc0", l_end_l2_atomic_init);
 
 		Var * v_init_addr_tmp = newVgpr("v_l2_addr_tmp", 2, 2);
-		if (c_in_l2_split_group > 1)
-		{
-			op2("v_mov_b32", v_init_addr_tmp, v_addr_l2);
-			op2("v_mov_b32", *v_init_addr_tmp + 1, *v_addr_l2 + 1);
-		}
-		else
-		{
-			op2("v_mov_b32", v_init_addr_tmp, v_addr_out);
-			op2("v_mov_b32", *v_init_addr_tmp + 1, *v_addr_out + 1);
-		}
+		op2("v_mov_b32", v_init_addr_tmp, v_atomic_addr);
+		op2("v_mov_b32", *v_init_addr_tmp + 1, *v_atomic_addr + 1);
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_store_dword(1, v_init_addr_tmp, v_init, "off");
@@ -1177,7 +1172,7 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		//op2("v_mov_b32", v_debug, v_tid_x);
+		//op2("v_mov_b32", v_debug, 1);
 		//op2("v_cvt_f32_u32", v_debug, v_debug);
 		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
