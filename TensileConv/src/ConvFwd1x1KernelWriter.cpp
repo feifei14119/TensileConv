@@ -1177,7 +1177,7 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		//op2("v_mov_b32", v_debug, 1);
+		//op2("v_mov_b32", v_debug, v_tid_x);
 		//op2("v_cvt_f32_u32", v_debug, v_debug);
 		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
@@ -1265,6 +1265,7 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 	delVar(v_tmp);
 	delVar(s_exec2);
 	delVar(s_exec_bck);
+	delVar(v_addr_tmp);
 }
 void KernelWriterConv1x1::save_to_l2_split()
 {
@@ -1303,7 +1304,10 @@ void KernelWriterConv1x1::save_to_l2_split()
 	// 第一轮
 	{
 		// 地址调整: v_addr_l2 指向第一块L2
-		op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) + out_chan_stride * k_out_maps) * 4);
+		if(c_in_l2_atomic_group < 2)
+			op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) + out_chan_stride * k_out_maps) * 4);
+		else
+			op2("v_mov_b32", v_tmp1, out_size * (c_in_l2_split_group - 1) * 4);
 		op4("v_sub_co_u32", v_addr_l2, "vcc", v_addr_l2, v_tmp1);
 		op5("v_subb_co_u32", *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
 		// 读取第一组
@@ -1321,7 +1325,7 @@ void KernelWriterConv1x1::save_to_l2_split()
 	for (int blk = 0; blk < c_in_l2_split_group - 2; blk++)
 	{
 		// 地址调整
-		op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) - out_chan_stride * k_out_maps) * 4);
+		op2("v_mov_b32", v_tmp1, (out_size - out_chan_stride * k_out_maps) * 4);
 		op4(v_addc_u32, v_addr_l2, "vcc", v_addr_l2, v_tmp1);
 		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
 		// 读取下一组
@@ -1348,7 +1352,7 @@ void KernelWriterConv1x1::save_to_l2_split()
 	// 最后一轮
 	{
 		// 地址调整
-		op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) - out_chan_stride * k_out_maps) * 4);
+		op2("v_mov_b32", v_tmp1, (out_size - out_chan_stride * k_out_maps) * 4);
 		op4(v_addc_u32, v_addr_l2, "vcc", v_addr_l2, v_tmp1);
 		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
 		// 读取最后一组
