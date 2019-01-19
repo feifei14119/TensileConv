@@ -702,9 +702,32 @@ void KernelWriterConv1x1::init_output()
 {
 	Var * v_init = newVgpr("v_init");
 	op2("v_mov_b32", v_init, 0);
+	
+	// -------------------------------------------------------------------------------
+	// 第一个 c_in_blk 
+	// -------------------------------------------------------------------------------
+	Var * l_end_bias_init = newLaber("END_BIAS_INIT");
+	if (EnBias == true)
+	{
+		op2("s_cmpk_eq_i32", s_c_blk_id, 0);
+		op1("s_cbranch_scc0", l_end_bias_init);
 
-	for (int i = 0; i < k_out_maps; i++)
-		op2("v_mov_b32", *v_acc_buff + i, 0);
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off");
+			op4(v_addc_u32, v_addr_bias, "vcc", 4, v_addr_bias);
+			op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
+		}
+		s_wait_vmcnt(0);
+		wrLaber(l_end_bias_init);
+	}
+	else
+	{
+		for (int i = 0; i < k_out_maps; i++)
+		{
+			op2("v_mov_b32", *v_acc_buff + i, 0);
+		}
+	}
 
 	// -------------------------------------------------------------------------------
 	// 第一个 tid_y 做LDS ATOMIC 初始化
