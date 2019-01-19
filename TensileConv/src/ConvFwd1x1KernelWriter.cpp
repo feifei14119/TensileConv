@@ -28,7 +28,9 @@ KernelWriterConv1x1::KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_Isa
 }
 E_ReturnState KernelWriterConv1x1::checkKernelParam()
 {
-//	print_kernel_param();
+#if KERNEL_DEBUG
+	print_kernel_param();
+#endif
 
 	// -------------------------------------------------------------------------------
 	// 问题尺寸过滤
@@ -707,7 +709,7 @@ void KernelWriterConv1x1::init_output()
 	op2("v_mov_b32", v_init, 0);
 	
 	// -------------------------------------------------------------------------------
-	// 第一个 c_in_blk 
+	// 第一个 c_in_blk 做累加器初始化(含读取bias)
 	// -------------------------------------------------------------------------------
 	Var * l_end_bias_init = newLaber("END_BIAS_INIT");
 	if (EnBias == true)
@@ -738,7 +740,7 @@ void KernelWriterConv1x1::init_output()
 	Var * l_end_lds_atomic_init = newLaber("END_LDS_ATOMIC_INIT");
 	if (c_in_lds_atomic_group > 1)
 	{
-		op2("s_cmpk_eq_i32", s_c_blk_id, 0);
+		op2("s_cmpk_lt_i32", s_c_blk_id, c_in_lds_split_group);
 		op1("s_cbranch_scc0", l_end_lds_atomic_init);
 
 		Var * v_lds_addr_tmp = newVgpr("v_lds_addr_tmp");
@@ -947,7 +949,7 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		//op2("v_mov_b32", v_debug, 1);
+		//op2("v_mov_b32", v_debug, v_tid_x);
 		//op2("v_cvt_f32_u32", v_debug, v_debug);
 		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 

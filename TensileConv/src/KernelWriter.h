@@ -11,7 +11,7 @@
 
 namespace TensileConv {
 namespace AutoGen {
-#define		KERNEL_DEBUG	(1)
+#define		KERNEL_DEBUG	(0)
 
 class KernelWriter : public IsaGenerater
 {
