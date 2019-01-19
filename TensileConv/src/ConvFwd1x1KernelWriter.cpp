@@ -28,7 +28,7 @@ KernelWriterConv1x1::KernelWriterConv1x1(T_Conv1x1KernelParam kernelParam, E_Isa
 }
 E_ReturnState KernelWriterConv1x1::checkKernelParam()
 {
-	print_kernel_param();
+//	print_kernel_param();
 
 	// -------------------------------------------------------------------------------
 	// 问题尺寸过滤
@@ -64,7 +64,7 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	}
 	if(c_in_maps_once_real <= 0)
 		return E_ReturnState::FAIL;
-	conv_loop = c_in_maps / c_in_maps_once_real / 2;
+	conv_loop = c_in_maps / c_in_maps_once_real / unroll_time;
 
 	// -------------------------------------------------------------------------------
 	// others
@@ -104,6 +104,8 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 
 	if(group_sz.x * group_sz.y > 1024)
 		return E_ReturnState::FAIL;
+
+	print_kernel_param();
 
 	return E_ReturnState::SUCCESS;
 }
@@ -348,7 +350,7 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		delVar(s_ptr_out);
 		if (EnBias == true)				delVar(s_ptr_bias);
 		if (en_l2_sync)					delVar(s_ptr_sig);
-		// if (c_in_l2_split_group > 1)	delVar(s_ptr_l2);		will be used in split accum
+		if (c_in_l2_split_group > 1)	delVar(s_ptr_l2);
 #if KERNEL_DEBUG
 		delVar(s_ptr_dbg);
 #endif
@@ -544,7 +546,7 @@ E_ReturnState KernelWriterConv1x1::calcuPosIndex()
 	fv_div_u32(v_c_l2_blk_id, c_in_l2_split_group, v_tmp1, v_l2_pos_id);
 
 	delVar(v_tmp1);
-	
+
 	return E_ReturnState::SUCCESS;
 }
 E_ReturnState KernelWriterConv1x1::calcuOffset()
@@ -611,7 +613,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	// -------------------------------------------------------------------------------
 	{
 		op3("v_mul_u32_u24", v_tmp1, out_batch_stride, v_batch_id);		// v_tmp1 = batch_id * out_batch_stride
-		op3("v_mul_u32_u24", v_tmp2, out_chan_stride, v_out_id);			// v_tmp2 = out_id * out_chan_stride
+		op3("v_mul_u32_u24", v_tmp2, out_chan_stride, v_out_id);		// v_tmp2 = out_id * out_chan_stride
 
 		if (IsaArch == E_IsaArch::Gfx800)
 		{
@@ -649,6 +651,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 		op3("v_mul_u32_u24", v_tmp1, k_out_group, v_pix_blk_id);			// v_tmp1 = pixBlkId * k_out_group
 		op4(v_addc_u32, v_tmp1, "vcc", v_tmp1, v_k_blk_id);
 		op2("v_readfirstlane_b32", s_tmp1, v_tmp1);							// s_tmp1 = sig_off
+
 		op3("s_lshl_b32", s_tmp1, s_tmp1, 2);								// s_tmp1 = sig_off (BYTE)
 		s_wait_lgkmcnt(0);
 		op3("s_add_u32", s_addr_sig, s_ptr_sig, s_tmp1);
@@ -671,7 +674,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	if (c_in_l2_split_group > 1)
 	{
 		op3("v_mul_u32_u24", v_tmp1, out_size, v_l2_pos_id);		// v_tmp1 = out_size * l2_pos_id
-		op3(v_add_u32, v_tmp1, v_tmp1, v_out_off_tmp);			// v_tmp1 = l2_off
+		op3(v_add_u32, v_tmp1, v_tmp1, v_out_off_tmp);				// v_tmp1 = l2_off
 		op3("v_lshlrev_b32", v_tmp1, 2, v_tmp1);
 
 		op2("v_mov_b32", *v_addr_l2 + 1, *s_ptr_l2 + 1);
@@ -917,7 +920,7 @@ void KernelWriterConv1x1::save_to_output()
 	for (int i = 0; i < k_out_maps; i++)
 	{
 		// debug
-		//op2("v_mov_b32", v_debug, 12345);
+		//op2("v_mov_b32", v_debug, s_c_l2_blk_id);
 		//op2("v_cvt_f32_u32", v_debug, v_debug);
 		//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
@@ -1273,7 +1276,7 @@ void KernelWriterConv1x1::save_to_l2_split()
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			// debug
-			//op2("v_mov_b32", v_debug, 1234);
+			//op2("v_mov_b32", v_debug, v_tid_x);
 			//op2("v_cvt_f32_u32", v_debug, v_debug);
 			//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
@@ -1295,14 +1298,15 @@ void KernelWriterConv1x1::save_to_l2_split()
 	Var * v_acc_buff1 = newVgpr("v_accum1", k_out_maps);
 	Var * v_acc_buff2 = newVgpr("v_accum2", k_out_maps);
 	Var * v_acc_buff0 = v_acc_buff1;
+	Var * v_tmp1 = newVgpr("v_tmp1");
 
 	// 第一轮
 	{
 		// 地址调整: v_addr_l2 指向第一块L2
-		op2("v_mov_b32", v_addr_l2, s_ptr_l2);
-		op2("v_mov_b32", *v_addr_l2 + 1, *s_ptr_l2 + 1);
-
-		// 读取第一组			
+		op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) + out_chan_stride * k_out_maps) * 4);
+		op4("v_sub_co_u32", v_addr_l2, "vcc", v_addr_l2, v_tmp1);
+		op5("v_subb_co_u32", *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
+		// 读取第一组
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_load_dword(1, *v_acc_buff + i, v_addr_l2, "off");
@@ -1312,9 +1316,14 @@ void KernelWriterConv1x1::save_to_l2_split()
 		// 交换buffer
 		v_acc_buff0 = v_acc_buff1;
 	}
+
 	// 循环
 	for (int blk = 0; blk < c_in_l2_split_group - 2; blk++)
 	{
+		// 地址调整
+		op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) - out_chan_stride * k_out_maps) * 4);
+		op4(v_addc_u32, v_addr_l2, "vcc", v_addr_l2, v_tmp1);
+		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
 		// 读取下一组
 		for (int i = 0; i < k_out_maps; i++)
 		{
@@ -1325,7 +1334,6 @@ void KernelWriterConv1x1::save_to_l2_split()
 		// 交换buffer
 		if (v_acc_buff0 == v_acc_buff1)	v_acc_buff0 = v_acc_buff2;
 		else							v_acc_buff0 = v_acc_buff1;
-
 		// 累加上一组
 		if (blk > 0)
 		{
@@ -1336,8 +1344,13 @@ void KernelWriterConv1x1::save_to_l2_split()
 			}
 		}
 	}
+
 	// 最后一轮
 	{
+		// 地址调整
+		op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) - out_chan_stride * k_out_maps) * 4);
+		op4(v_addc_u32, v_addr_l2, "vcc", v_addr_l2, v_tmp1);
+		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
 		// 读取最后一组
 		for (int i = 0; i < k_out_maps; i++)
 		{
@@ -1361,6 +1374,7 @@ void KernelWriterConv1x1::save_to_l2_split()
 		}
 	}
 
+	delVar(v_tmp1);
 	delVar(v_acc_buff1);
 	delVar(v_acc_buff2);
 }
@@ -1570,8 +1584,7 @@ E_ReturnState KernelWriterConv1x1::simulate_index()
 void KernelWriterConv1x1::save_debug()
 {
 #if KERNEL_DEBUG
-	//op2("v_cvt_f32_u32", v_debug, v_debug);
-
+	op2("v_cvt_f32_u32", v_debug, v_debug);
 	flat_store_dword(1, v_addr_dbg, v_debug, "off");
 	op1("s_branch", l_end_prg);
 #endif

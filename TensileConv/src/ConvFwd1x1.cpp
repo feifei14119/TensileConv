@@ -21,9 +21,9 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	kernelParam.PCK_order = 321;
 	kernelParam.c_in_lds_atomic_group = 1;
 	kernelParam.c_in_lds_split_group = 1;
-	kernelParam.c_in_l2_atomic_group = 1;
-	kernelParam.c_in_l2_split_group = 1;
-	kernelParam.k_out_maps = 8;
+	kernelParam.c_in_l2_atomic_group = 2;
+	kernelParam.c_in_l2_split_group = 2;
+	kernelParam.k_out_maps = 16;
 	kernelParam.group_size_x = 64;
 }
 
