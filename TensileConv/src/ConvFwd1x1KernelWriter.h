@@ -164,10 +164,11 @@ protected:
 	/* 卷积主体																			*/
 	/************************************************************************************/
 	void main_conv();
-	void conv_one_loop(Var * in_buff, bool is_pang_buff);
-	void conv_last_loop(Var * in_buff);
+	void conv_one_loop_even(Var * in_buff, bool is_pang_buff);
+	void conv_one_loop_odd(Var * in_buff, bool is_pang_buff);
+	void conv_last_loop_even(Var * in_buff);
+	void conv_last_loop_odd(Var * in_buff);
 	void conv_one_accum(Var * in_buff, Var * wei_buff, Var * accum);
-
 	/************************************************************************************/
 	/* 计算下标																			*/
 	/************************************************************************************/

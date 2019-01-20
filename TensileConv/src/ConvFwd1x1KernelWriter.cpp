@@ -35,7 +35,7 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	// -------------------------------------------------------------------------------
 	// 问题尺寸过滤
 	// -------------------------------------------------------------------------------
-	if (K < 2) return E_ReturnState::FAIL;
+	if ((K % k_out_maps) != 0) return E_ReturnState::FAIL;
 
 	// -------------------------------------------------------------------------------
 	// 中间变量计算
@@ -145,9 +145,11 @@ void KernelWriterConv1x1::main_conv()
 		f_s_loop(s_loop_cnt, conv_loop - 1, "CONV_LOOP");
 		{
 			load_input(v_in_buff_b);
-			conv_one_loop(v_in_buff_a, false);
+			if((k_out_maps % 2) == 0)	conv_one_loop_even(v_in_buff_a, false);
+			else						conv_one_loop_odd(v_in_buff_a, false);
 			load_input(v_in_buff_a);
-			conv_one_loop(v_in_buff_b, true);
+			if ((k_out_maps % 2) == 0)	conv_one_loop_even(v_in_buff_b, true);
+			else						conv_one_loop_odd(v_in_buff_b, true);
 		}
 		f_e_loop(s_loop_cnt, "CONV_LOOP");
 	}
@@ -156,13 +158,16 @@ void KernelWriterConv1x1::main_conv()
 	if (conv_loop > 0)
 	{
 		load_input(v_in_buff_b);
-		conv_one_loop(v_in_buff_a, false);
-		conv_last_loop(v_in_buff_b);
+		if ((k_out_maps % 2) == 0)		conv_one_loop_even(v_in_buff_a, false);
+		else							conv_one_loop_odd(v_in_buff_a, false);
+		if ((k_out_maps % 2) == 0)		conv_last_loop_even(v_in_buff_b);
+		else							conv_last_loop_odd(v_in_buff_b);
 	}
 	else
 	{
 		wei_offset -= (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
-		conv_last_loop(v_in_buff_a);
+		if ((k_out_maps % 2) == 0)		conv_last_loop_even(v_in_buff_a);
+		else							conv_last_loop_odd(v_in_buff_a);
 	}
 
 	// -------------------------------------------------------------------------------
@@ -174,14 +179,8 @@ void KernelWriterConv1x1::main_conv()
 	// 销毁变量
 	// -------------------------------------------------------------------------------
 	// 销毁地址
-	if (en_input_offset == true)
-	{
-		delVar(v_global_offset);
-	}
-	else
-	{
-		delVar(v_addr_in);
-	}
+	if (en_input_offset == true)	delVar(v_global_offset);
+	else							delVar(v_addr_in);
 	delVar(s_addr_wei);
 	delVar(v_addr_out);
 	if (EnBias == true)				delVar(v_addr_bias);
@@ -193,7 +192,7 @@ void KernelWriterConv1x1::main_conv()
 	// 销毁结果buffer
 	delVar(v_acc_buff);
 }
-void KernelWriterConv1x1::conv_one_loop(Var * in_buff, bool is_pang_buff)
+void KernelWriterConv1x1::conv_one_loop_even(Var * in_buff, bool is_pang_buff)
 {
 	// 调整weight buff偏移量
 	if (is_pang_buff == true)
@@ -237,7 +236,52 @@ void KernelWriterConv1x1::conv_one_loop(Var * in_buff, bool is_pang_buff)
 	}
 	conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (k_out_maps - 1));
 }
-void KernelWriterConv1x1::conv_last_loop(Var * in_buff)
+void KernelWriterConv1x1::conv_one_loop_odd(Var * in_buff, bool is_pang_buff)
+{
+	// 调整weight buff偏移量
+	if (is_pang_buff == true)		wei_offset += (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
+	else							wei_offset = 0;
+
+	load_weight(s_wei_buff_a);
+	s_wait_lgkmcnt(0);					// wait s_wei_buff_a
+	if (k_out_maps > 1)
+	{
+		load_weight(s_wei_buff_b);
+	}
+	s_wait_vmcnt(c_in_maps_once_real);	// wait in_buff
+	conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + 0);
+
+	int loop = (k_out_maps - 1) / 2;
+	for (int i = 0; i < loop; i++)
+	{
+		s_wait_lgkmcnt(0);				// wait s_wei_buff_b
+		load_weight(s_wei_buff_a);
+		conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (i * 2 + 1));
+		if (i < loop - 1)
+		{
+			s_wait_lgkmcnt(0);			// wait s_wei_buff_a
+			load_weight(s_wei_buff_b);
+			conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + (i * 2 + 2));
+		}
+		else
+		{
+			// 调整weight地址
+			if (is_pang_buff == true)
+			{
+				op3("s_add_u32", s_addr_wei, s_addr_wei, c_in_maps_once_real * 2 * 4);
+				op3("s_addc_u32", *s_addr_wei + 1, *s_addr_wei + 1, 0);
+			}
+			s_wait_lgkmcnt(0);			// wait s_wei_buff_a
+			// 为下一轮循环预读取
+			if (is_pang_buff == true)
+			{
+				prefetch_weight();
+			}
+			conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + (i * 2 + 2));
+		}
+	}
+}
+void KernelWriterConv1x1::conv_last_loop_even(Var * in_buff)
 {
 	// 调整weight buff偏移量
 	wei_offset += (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
@@ -261,6 +305,31 @@ void KernelWriterConv1x1::conv_last_loop(Var * in_buff)
 
 	s_wait_lgkmcnt(0);				// wait s_wei_buff_b
 	conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (k_out_maps - 1));
+}
+void KernelWriterConv1x1::conv_last_loop_odd(Var * in_buff)
+{
+	// 调整weight buff偏移量
+	wei_offset += (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
+
+	load_weight(s_wei_buff_a);
+	s_wait_lgkmcnt(0);				// wait s_wei_buff_a
+	if (k_out_maps > 1)
+	{
+		load_weight(s_wei_buff_b);
+	}
+	s_wait_vmcnt(0);				// wait in_buff
+	conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + 0);
+
+	int loop = (k_out_maps - 1) / 2;
+	for (int i = 0; i < loop; i++)
+	{
+		s_wait_lgkmcnt(0);			// wait s_wei_buff_b
+		load_weight(s_wei_buff_a);
+		conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (i * 2 + 1));
+		s_wait_lgkmcnt(0);			// wait s_wei_buff_a
+		load_weight(s_wei_buff_b);
+		conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + (i * 2 + 2));
+	}
 }
 void KernelWriterConv1x1::conv_one_accum(Var * in_buff, Var * wei_buff, Var * accum)
 {
@@ -848,7 +917,8 @@ void KernelWriterConv1x1::load_input(Var * in_buff)
 void KernelWriterConv1x1::load_weight(Var * wei_buff)
 {
 	s_load_dword(c_in_maps_once_real, wei_buff, s_addr_wei, wei_offset);
-	wei_offset += wei_chan_stride * 4;
+	if(k_out_maps > 1)
+		wei_offset += wei_chan_stride * 4;
 }
 void KernelWriterConv1x1::prefetch_weight()
 {
@@ -925,6 +995,13 @@ void KernelWriterConv1x1::save_to_output()
 			op2("s_mov_b64", *s_exec_bck ^ 2, "exec");
 			op3("v_cmpx_lt_f32", "vcc", *v_acc_buff + i, 0);
 			op2("v_mov_b32", *v_acc_buff + i, 0);
+			op2("s_mov_b64", "exec", *s_exec_bck ^ 2);
+		}
+		else if (Relu == PRELU)
+		{
+			op2("s_mov_b64", *s_exec_bck ^ 2, "exec");
+			op3("v_cmpx_lt_f32", "vcc", *v_acc_buff + i, 0);
+			op3("v_mul_f32", *v_acc_buff + i, *v_acc_buff + i, s_slop);
 			op2("s_mov_b64", "exec", *s_exec_bck ^ 2);
 		}
 
