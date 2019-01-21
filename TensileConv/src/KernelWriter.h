@@ -251,27 +251,27 @@ protected:
 		// group_id = group_num.x * group_id_y + group_id_x
 		op2("v_mov_b32", v_tmp1, group_num.x);
 		op3("v_mul_u32_u24", v_gp_id, s_gid_y, v_tmp1);
-		op3(v_add_u32, v_gp_id, s_gid_x, v_gp_id);
+		v_add_u32(v_gp_id, s_gid_x, v_gp_id);
 
 		op2("v_mov_b32", v_gp_id, s_gid_x);
 
 		// global_id_y = group_sz.y * group_id + thread_id_y
 		op2("v_mov_b32", v_tmp1, group_sz.y);
 		op3("v_mul_u32_u24", v_gid_y, v_tmp1, v_gp_id);
-		op3(v_add_u32, v_gid_y, v_tid_y, v_gid_y);
+		v_add_u32(v_gid_y, v_tid_y, v_gid_y);
 		
 		// gid = group_sz.x * global_id_y + thread_id_x
 		op2("v_mov_b32", v_tmp1, group_sz.x);
 		op3("v_mul_u32_u24", v_gid, v_tmp1, v_gid_y);
-		op3(v_add_u32, v_gid, v_tid_x, v_gid);
+		v_add_u32(v_gid, v_tid_x, v_gid);
 		
 		// byte addressing
 		op3("v_lshlrev_b32", v_gid, 2, v_gid);
 
 		s_wait_lgkmcnt(0);
 		op2("v_mov_b32", v_tmp2, *s_base_addr + 1);
-		op4(v_addc_u32, v_addr, "vcc", s_base_addr, v_gid);
-		op5(v_addc_co_u32, *v_addr + 1, "vcc", 0, v_tmp2, "vcc");
+		v_addc_u32(v_addr, s_base_addr, v_gid);
+		v_addc_co_u32(*v_addr + 1, 0, v_tmp2);
 
 		delVar(v_tmp1);
 		delVar(v_tmp2);

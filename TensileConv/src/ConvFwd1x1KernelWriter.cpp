@@ -487,7 +487,7 @@ E_ReturnState KernelWriterConv1x1::calcuWaveIndex()
 	// -------------------------------------------------------------------------------
 	op3("s_lshl_b32", s_tmp1, s_gid_x, log2(group_wave_num_x));		// s_tmp1 = gid_x * block_per_group
 	op3("v_lshrrev_b32", v_tmp1, log2(WAVE_SIZE), v_tid_x);			// v_tmp1 = tid_x / WAVE_SIZE
-	op3(v_add_u32, v_wave_id_x, v_tmp1, s_tmp1);					// v_wave_id_x = s_tmp1 + v_tmp1
+	v_add_u32(v_wave_id_x, v_tmp1, s_tmp1);					// v_wave_id_x = s_tmp1 + v_tmp1
 	op3("v_and_b32", v_wave_tid_x, modMask(WAVE_SIZE), v_tid_x);	// v_wave_tid_x = tid_x % WAVE_SIZE
 
 	delVar(s_tmp1);
@@ -571,7 +571,7 @@ E_ReturnState KernelWriterConv1x1::calcuBlkIndex()
 	// c_blk_id = c_in_lds_group * c_l2_blk_id + tid_y;
 	// -------------------------------------------------------------------------------
 	op3("v_mul_u32_u24", v_tmp1, c_in_lds_group, v_c_l2_blk_id);
-	op3(v_add_u32, v_c_blk_id, v_tmp1, v_tid_y);
+	v_add_u32(v_c_blk_id, v_tmp1, v_tid_y);
 
 	op2("v_readfirstlane_b32", s_c_blk_id, v_c_blk_id);
 	op2("v_readfirstlane_b32", s_c_l2_blk_id, v_c_l2_blk_id);
@@ -592,7 +592,7 @@ E_ReturnState KernelWriterConv1x1::calcuPosIndex()
 	// out_id   = k_blk_id * k_out_maps;
 	// -------------------------------------------------------------------------------
 	op3("v_lshlrev_b32", v_tmp1, log2(WAVE_SIZE), v_pix_blk_id);
-	op3(v_add_u32, v_tmp1, v_wave_tid_x, v_tmp1);					// v_tmp1 = pix_blk_id * WAVE_SIZE + wave_tid_x
+	v_add_u32(v_tmp1, v_wave_tid_x, v_tmp1);					// v_tmp1 = pix_blk_id * WAVE_SIZE + wave_tid_x
 	fv_div_u32(v_tmp1, in_chan_stride, v_batch_id, v_pos_id);
 	op3("v_mul_u32_u24", v_out_id, k_out_maps, v_k_blk_id);
 
@@ -638,15 +638,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 		op3("v_mul_u32_u24", v_tmp2, c_in_maps, v_c_blk_id);
 		op3("v_mul_u32_u24", v_tmp2, in_chan_stride, v_tmp2);		// v_tmp2 = c_blk_id * c_in_maps * in_chan_stride
 
-		if (IsaArch == E_IsaArch::Gfx800)
-		{
-			op4(v_addc_u32, v_tmp3, "vcc", v_tmp1, v_tmp2);
-			op5(v_addc_co_u32, v_tmp3, "vcc", v_tmp3, v_pos_id, "vcc");
-		}
-		else if (IsaArch == E_IsaArch::Gfx900)
-		{
-			op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_pos_id);
-		}
+		v_add3_u32(v_tmp3, v_tmp1, v_tmp2, v_pos_id);
 		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);			// v_tmp3 = gbl_in_off (BYTE)
 
 		if (en_input_offset == true)
@@ -655,14 +647,14 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 			op2("v_mov_b32", v_tmp1, in_chan_stride * 2 * 4);
 			for (int i = 0; i < c_in_maps_once_real * 2 / 2; i++)
 			{
-				op4(v_addc_u32, *v_global_offset + 2 * (i + 1), "vcc", *v_global_offset + 2 * i, v_tmp1);
+				v_addc_u32(*v_global_offset + 2 * (i + 1), *v_global_offset + 2 * i, v_tmp1);
 			}
 		}
 		else
 		{
 			op2("v_mov_b32", *v_addr_in + 1, *s_ptr_in + 1);
-			op4(v_addc_u32, v_addr_in, "vcc", s_ptr_in, v_tmp3);
-			op5(v_addc_co_u32, *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+			v_addc_u32(v_addr_in, s_ptr_in, v_tmp3);
+			v_addc_co_u32(*v_addr_in + 1, 0, *v_addr_in + 1);
 		}
 	}
 
@@ -672,7 +664,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	{
 		op3("v_mul_u32_u24", v_tmp1, wei_chan_stride, v_out_id);		// v_tmp1 = out_id * wei_chan_stride
 		op3("v_mul_u32_u24", v_tmp2, c_in_maps, v_c_blk_id);	// v_tmp2 = c_blk_id * c_in_maps
-		op3(v_add_u32, v_tmp1, v_tmp1, v_tmp2);
+		v_add_u32(v_tmp1, v_tmp1, v_tmp2);
 		op2("v_readfirstlane_b32", s_tmp1, v_tmp1);			// s_tmp1 = wei_off
 		op3("s_lshl_b32", s_tmp1, s_tmp1, 2);				// s_tmp1 = wei_off (BYTE)
 		op3("s_add_u32", s_addr_wei, s_ptr_wei, s_tmp1);
@@ -686,21 +678,13 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 		op3("v_mul_u32_u24", v_tmp1, out_batch_stride, v_batch_id);		// v_tmp1 = batch_id * out_batch_stride
 		op3("v_mul_u32_u24", v_tmp2, out_chan_stride, v_out_id);		// v_tmp2 = out_id * out_chan_stride
 
-		if (IsaArch == E_IsaArch::Gfx800)
-		{
-			op4(v_addc_u32, v_tmp3, "vcc", v_tmp1, v_tmp2);
-			op5(v_addc_co_u32, v_tmp3, "vcc", v_tmp3, v_pos_id, "vcc");
-		}
-		else if (IsaArch == E_IsaArch::Gfx900)
-		{
-			op4("v_add3_u32", v_tmp3, v_tmp1, v_tmp2, v_pos_id);
-		}
+		v_add3_u32(v_tmp3, v_tmp1, v_tmp2, v_pos_id);
 		op2("v_mov_b32", v_out_off_tmp, v_tmp3);
 		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);				// v_tmp3 = gbl_out_off (BYTE)
 		
 		op2("v_mov_b32", *v_addr_out + 1, *s_ptr_out + 1);
-		op4(v_addc_u32, v_addr_out, "vcc", s_ptr_out, v_tmp3);
-		op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+		v_addc_u32(v_addr_out, s_ptr_out, v_tmp3);
+		v_addc_co_u32(*v_addr_out + 1, 0, *v_addr_out + 1);
 	}
 
 	// -------------------------------------------------------------------------------
@@ -710,8 +694,8 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	{
 		op3("v_lshlrev_b32", v_tmp1, 2, v_out_id);
 		op2("v_mov_b32", *v_addr_bias + 1, *s_ptr_bias + 1);
-		op4(v_addc_u32, v_addr_bias, "vcc", s_ptr_bias, v_tmp1);
-		op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
+		v_addc_u32(v_addr_bias, s_ptr_bias, v_tmp1);
+		v_addc_co_u32(*v_addr_bias + 1, 0, *v_addr_bias + 1);
 	}
 
 	// -------------------------------------------------------------------------------
@@ -720,7 +704,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	if (en_l2_sync)
 	{
 		op3("v_mul_u32_u24", v_tmp1, k_out_group, v_pix_blk_id);			// v_tmp1 = pixBlkId * k_out_group
-		op4(v_addc_u32, v_tmp1, "vcc", v_tmp1, v_k_blk_id);
+		v_addc_u32(v_tmp1, v_tmp1, v_k_blk_id);
 		op2("v_readfirstlane_b32", s_tmp1, v_tmp1);							// s_tmp1 = sig_off
 
 		op3("s_lshl_b32", s_tmp1, s_tmp1, 2);								// s_tmp1 = sig_off (BYTE)
@@ -735,7 +719,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	if (c_in_lds_group > 1)
 	{
 		op3("v_mul_u32_u24", v_tmp1, group_sz.x * k_out_maps, v_lds_pos_id);		// v_tmp1 = (group_sz.x * k_out_maps) * lds_pos_id
-		op3(v_add_u32, v_tmp1, v_tmp1, v_tid_x);				// v_tmp1 = lds_off
+		v_add_u32(v_tmp1, v_tmp1, v_tid_x);				// v_tmp1 = lds_off
 		op3("v_lshlrev_b32", v_addr_lds, 2, v_tmp1);
 	}
 	
@@ -745,12 +729,12 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	if (c_in_l2_split_group > 1)
 	{
 		op3("v_mul_u32_u24", v_tmp1, out_size, v_l2_pos_id);		// v_tmp1 = out_size * l2_pos_id
-		op3(v_add_u32, v_tmp1, v_tmp1, v_out_off_tmp);				// v_tmp1 = l2_off
+		v_add_u32(v_tmp1, v_tmp1, v_out_off_tmp);				// v_tmp1 = l2_off
 		op3("v_lshlrev_b32", v_tmp1, 2, v_tmp1);
 
 		op2("v_mov_b32", *v_addr_l2 + 1, *s_ptr_l2 + 1);
-		op4(v_addc_u32, v_addr_l2, "vcc", s_ptr_l2, v_tmp1);
-		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+		v_addc_u32(v_addr_l2, s_ptr_l2, v_tmp1);
+		v_addc_co_u32(*v_addr_l2 + 1, 0, *v_addr_l2 + 1);
 	}
 
 	// -------------------------------------------------------------------------------
@@ -795,8 +779,8 @@ void KernelWriterConv1x1::init_output()
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_load_dword(1, *v_acc_buff + i, v_addr_bias, "off");
-			op4(v_addc_u32, v_addr_bias, "vcc", 4, v_addr_bias);
-			op5(v_addc_co_u32, *v_addr_bias + 1, "vcc", 0, *v_addr_bias + 1, "vcc");
+			v_addc_u32(v_addr_bias, 4, v_addr_bias);
+			v_addc_co_u32(*v_addr_bias + 1, 0, *v_addr_bias + 1);
 		}
 		s_wait_vmcnt(0);
 		wrLaber(l_end_bias_init);
@@ -823,7 +807,7 @@ void KernelWriterConv1x1::init_output()
 			else
 			{
 				ds_write_dword(1, v_lds_addr_tmp, v_init, 0);
-				op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
+				v_add_u32(v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
 			}
 		}
 		delVar(v_lds_addr_tmp);
@@ -849,8 +833,8 @@ void KernelWriterConv1x1::init_output()
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_store_dword(1, v_init_addr_tmp, v_init, "off");
-			op4(v_addc_u32, v_init_addr_tmp, "vcc", out_chan_stride * 4, v_init_addr_tmp);
-			op5(v_addc_co_u32, *v_init_addr_tmp + 1, "vcc", 0, *v_init_addr_tmp + 1, "vcc");
+			v_addc_u32(v_init_addr_tmp, out_chan_stride * 4, v_init_addr_tmp);
+			v_addc_co_u32(*v_init_addr_tmp + 1, 0, *v_init_addr_tmp + 1);
 		}
 		delVar(v_init_addr_tmp);
 	}
@@ -902,15 +886,15 @@ void KernelWriterConv1x1::load_input(Var * in_buff)
 			for (int i = 0; i < c_in_maps_once_real; i++)
 			{
 				flat_load_dword(1, *in_buff + i, v_addr_in, "off");
-				op4(v_addc_u32, v_addr_in, "vcc", in_chan_stride * 4, v_addr_in);
-				op5(v_addc_co_u32, *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+				v_addc_u32(v_addr_in, in_chan_stride * 4, v_addr_in);
+				v_addc_co_u32(*v_addr_in + 1, 0, *v_addr_in + 1);
 			}
 		}
 		else
 		{
 			flat_load_dword(1, in_buff, v_addr_in, "off");
-			op4(v_addc_u32, v_addr_in, "vcc", in_chan_stride * 4, v_addr_in);
-			op5(v_addc_co_u32, *v_addr_in + 1, "vcc", 0, *v_addr_in + 1, "vcc");
+			v_addc_u32(v_addr_in, in_chan_stride * 4, v_addr_in);
+			v_addc_co_u32(*v_addr_in + 1, 0, *v_addr_in + 1);
 		}
 	}
 }
@@ -1006,8 +990,8 @@ void KernelWriterConv1x1::save_to_output()
 		}
 
 		flat_store_dword(1, v_addr_out, *v_acc_buff + i, "off");
-		op4(v_addc_u32, v_addr_out, "vcc", out_chan_stride * 4, v_addr_out);
-		op5(v_addc_co_u32, *v_addr_out + 1, "vcc", 0, *v_addr_out + 1, "vcc");
+		v_addc_u32(v_addr_out, out_chan_stride * 4, v_addr_out);
+		v_addc_co_u32(*v_addr_out + 1, 0, *v_addr_out + 1);
 	}
 
 	delVar(s_exec_bck);
@@ -1036,7 +1020,7 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 		else
 		{
 			op2("ds_add_f32", v_lds_addr_tmp, *v_acc_buff + i, 0);
-			op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
+			v_add_u32(v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
 		}
 	}
 	s_wait_lgkmcnt(0);
@@ -1067,7 +1051,7 @@ void KernelWriterConv1x1::save_to_lds_atomic()
 			else
 			{
 				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
-				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+				v_add_u32(v_addr_lds, group_sz.x * 4, v_addr_lds);
 			}
 		}
 		s_wait_lgkmcnt(0);
@@ -1102,7 +1086,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 			else
 			{
 				ds_write_dword(1, v_lds_addr_tmp, *v_acc_buff + i, 0);
-				op3(v_add_u32, v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
+				v_add_u32(v_lds_addr_tmp, group_sz.x * 4, v_lds_addr_tmp);
 			}
 		}
 		s_wait_lgkmcnt(0);
@@ -1135,7 +1119,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 			else
 			{
 				ds_read_dword(1, *v_acc_buff + i, v_addr_lds, 0);
-				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+				v_add_u32(v_addr_lds, group_sz.x * 4, v_addr_lds);
 			}
 		}
 
@@ -1148,7 +1132,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 		// 地址调整
 		if (group_sz.x * k_out_maps * (c_in_lds_split_group - 1) * 4 <= MAX_16BIT_UINT)
 		{
-			op3(v_add_u32, v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
+			v_add_u32(v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
 		}
 		// 读取下一组
 		for (int i = 0; i < k_out_maps; i++)
@@ -1160,7 +1144,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 			else
 			{
 				ds_read_dword(1, *v_acc_buff0 + i, v_addr_lds, 0);
-				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+				v_add_u32(v_addr_lds, group_sz.x * 4, v_addr_lds);
 			}
 		}
 		// 交换buffer
@@ -1184,7 +1168,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 		// 地址调整
 		if (group_sz.x * k_out_maps * (c_in_lds_split_group - 1) * 4 <= MAX_16BIT_UINT)
 		{
-			op3(v_add_u32, v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
+			v_add_u32(v_addr_lds, group_sz.x * k_out_maps * 4, v_addr_lds);
 		}
 		// 读取最后一组
 		for (int i = 0; i < k_out_maps; i++)
@@ -1196,7 +1180,7 @@ void KernelWriterConv1x1::save_to_lds_split()
 			else
 			{
 				ds_read_dword(1, *v_acc_buff0 + i, v_addr_lds, 0);
-				op3(v_add_u32, v_addr_lds, group_sz.x * 4, v_addr_lds);
+				v_add_u32(v_addr_lds, group_sz.x * 4, v_addr_lds);
 			}
 		}
 		// 累加
@@ -1303,8 +1287,8 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 
 		op0("s_barrier");
 		op2("s_mov_b64", "exec", *s_exec_bck ^ 2);
-		op4(v_addc_u32, v_addr_tmp, "vcc", out_chan_stride * 4, v_addr_tmp);
-		op5(v_addc_co_u32, *v_addr_tmp + 1, "vcc", 0, *v_addr_tmp + 1, "vcc");
+		v_addc_u32(v_addr_tmp, out_chan_stride * 4, v_addr_tmp);
+		v_addc_co_u32(*v_addr_tmp + 1, 0, *v_addr_tmp + 1);
 	}
 
 	// -------------------------------------------------------------------------------
@@ -1327,8 +1311,8 @@ void KernelWriterConv1x1::save_to_l2_atomic()
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_load_dword(1, *v_acc_buff + i, v_addr_tmp, "off");
-			op4(v_addc_u32, v_addr_tmp, "vcc", out_chan_stride * 4, v_addr_tmp);
-			op5(v_addc_co_u32, *v_addr_tmp + 1, "vcc", 0, *v_addr_tmp + 1, "vcc");
+			v_addc_u32(v_addr_tmp, out_chan_stride * 4, v_addr_tmp);
+			v_addc_co_u32(*v_addr_tmp + 1, 0, *v_addr_tmp + 1);
 		}
 		s_wait_vmcnt(0);
 	}
@@ -1355,8 +1339,8 @@ void KernelWriterConv1x1::save_to_l2_split()
 			//op2("v_mov_b32", *v_acc_buff + i, v_debug);
 
 			flat_store_dword(1, v_addr_l2, *v_acc_buff + i, "off");
-			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
-			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+			v_addc_u32(v_addr_l2, out_chan_stride * 4, v_addr_l2);
+			v_addc_co_u32(*v_addr_l2 + 1, 0, *v_addr_l2 + 1);
 		}
 	}
 
@@ -1381,14 +1365,14 @@ void KernelWriterConv1x1::save_to_l2_split()
 			op2("v_mov_b32", v_tmp1, (out_size * (c_in_l2_split_group - 1) + out_chan_stride * k_out_maps) * 4);
 		else
 			op2("v_mov_b32", v_tmp1, out_size * (c_in_l2_split_group - 1) * 4);
-		op4("v_sub_co_u32", v_addr_l2, "vcc", v_addr_l2, v_tmp1);
-		op5("v_subb_co_u32", *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
+		v_subb_u32(v_addr_l2, v_addr_l2, v_tmp1);
+		v_subb_co_u32(*v_addr_l2 + 1, *v_addr_l2 + 1, 0);
 		// 读取第一组
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_load_dword(1, *v_acc_buff + i, v_addr_l2, "off");
-			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
-			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+			v_addc_u32(v_addr_l2, out_chan_stride * 4, v_addr_l2);
+			v_addc_co_u32(*v_addr_l2 + 1, 0, *v_addr_l2 + 1);
 		}
 		// 交换buffer
 		v_acc_buff0 = v_acc_buff1;
@@ -1399,14 +1383,14 @@ void KernelWriterConv1x1::save_to_l2_split()
 	{
 		// 地址调整
 		op2("v_mov_b32", v_tmp1, (out_size - out_chan_stride * k_out_maps) * 4);
-		op4(v_addc_u32, v_addr_l2, "vcc", v_addr_l2, v_tmp1);
-		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
+		v_addc_u32(v_addr_l2, v_addr_l2, v_tmp1);
+		v_addc_co_u32(*v_addr_l2 + 1, *v_addr_l2 + 1, 0);
 		// 读取下一组
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_load_dword(1, *v_acc_buff0 + i, v_addr_l2, "off");
-			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
-			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+			v_addc_u32(v_addr_l2, out_chan_stride * 4, v_addr_l2);
+			v_addc_co_u32(*v_addr_l2 + 1, 0, *v_addr_l2 + 1);
 		}
 		// 交换buffer
 		if (v_acc_buff0 == v_acc_buff1)	v_acc_buff0 = v_acc_buff2;
@@ -1426,14 +1410,14 @@ void KernelWriterConv1x1::save_to_l2_split()
 	{
 		// 地址调整
 		op2("v_mov_b32", v_tmp1, (out_size - out_chan_stride * k_out_maps) * 4);
-		op4(v_addc_u32, v_addr_l2, "vcc", v_addr_l2, v_tmp1);
-		op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", *v_addr_l2 + 1, 0, "vcc");
+		v_addc_u32(v_addr_l2, v_addr_l2, v_tmp1);
+		v_addc_co_u32(*v_addr_l2 + 1, *v_addr_l2 + 1, 0);
 		// 读取最后一组
 		for (int i = 0; i < k_out_maps; i++)
 		{
 			flat_load_dword(1, *v_acc_buff0 + i, v_addr_l2, "off");
-			op4(v_addc_u32, v_addr_l2, "vcc", out_chan_stride * 4, v_addr_l2);
-			op5(v_addc_co_u32, *v_addr_l2 + 1, "vcc", 0, *v_addr_l2 + 1, "vcc");
+			v_addc_u32(v_addr_l2, out_chan_stride * 4, v_addr_l2);
+			v_addc_co_u32(*v_addr_l2 + 1, 0, *v_addr_l2 + 1);
 		}
 		// 累加
 		s_wait_vmcnt(0);

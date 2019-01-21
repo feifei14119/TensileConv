@@ -140,19 +140,6 @@ namespace AutoGen{
 
 			idleVar = new Var;
 			idleVar->type = E_VarType::VAR_IDLE;
-
-			if (IsaArch == E_IsaArch::Gfx800)
-			{
-				v_add_u32 = "v_add_u32";
-				v_addc_u32 = "v_add_u32";
-				v_addc_co_u32 = "v_addc_u32";
-			}
-			else if (IsaArch == E_IsaArch::Gfx900)
-			{
-				v_add_u32 = "v_add_u32";
-				v_addc_u32 = "v_add_co_u32";
-				v_addc_co_u32 = "v_addc_co_u32";
-			}
 		}
 		std::string * GetKernelString()
 		{
@@ -523,9 +510,6 @@ namespace AutoGen{
 
 #pragma region ISA_REGION
 		E_IsaArch IsaArch = E_IsaArch::Gfx900;
-		std::string	v_add_u32;
-		std::string v_addc_u32;
-		std::string v_addc_co_u32;
 
 		/************************************************************************************/
 		/* SMEM																				*/
@@ -1881,6 +1865,88 @@ namespace AutoGen{
 				return E_ReturnState::FAIL;
 			}
 
+			return E_ReturnState::SUCCESS;
+		}
+
+		/************************************************************************************/
+		/* VALU																				*/
+		/************************************************************************************/
+		template <typename T>
+		E_ReturnState v_add_u32(Var* c, T a, Var* b)
+		{
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				op4("v_add_u32", c, "vcc", a, b);
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op3("v_add_u32", c, a, b);
+			}
+			return E_ReturnState::SUCCESS;
+		}
+		template <typename T>
+		E_ReturnState v_addc_u32(Var* c, T a, Var* b)
+		{
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				op4("v_add_u32", c, "vcc", a, b);
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op4("v_add_co_u32", c, "vcc", a, b);
+			}
+			return E_ReturnState::SUCCESS;
+		}
+		template <typename T1, typename T2>
+		E_ReturnState v_addc_co_u32(Var* c, T1 a, T2 b)
+		{
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				op4("v_addc_u32", c, "vcc", a, b);
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op5("v_addc_co_u32", c, "vcc", a, b, "vcc");
+			}
+			return E_ReturnState::SUCCESS;
+		}
+		E_ReturnState v_add3_u32(Var* d, Var* a, Var* b, Var* c)
+		{
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				v_addc_u32(d, a, b);
+				v_addc_co_u32(d, d, c);
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op4("v_add3_u32", d, a, b, c);
+			}
+			return E_ReturnState::SUCCESS;
+		}
+		template <typename T>
+		E_ReturnState v_subb_u32(Var* c, T a, Var* b)
+		{
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				op4("v_sub_u32", c, "vcc", a, b);
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op4("v_sub_co_u32", c, "vcc", a, b);
+			}
+			return E_ReturnState::SUCCESS;
+		}
+		template <typename T1, typename T2>
+		E_ReturnState v_subb_co_u32(Var* c, T1 a, T2 b)
+		{
+			if (IsaArch == E_IsaArch::Gfx800)
+			{
+				op4("v_subb_u32", c, "vcc", a, b);
+			}
+			else if (IsaArch == E_IsaArch::Gfx900)
+			{
+				op5("v_subb_co_u32", c, "vcc", a, b, "vcc");
+			}
 			return E_ReturnState::SUCCESS;
 		}
 
