@@ -84,7 +84,7 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	en_l2_sync = ((Relu == RELU && c_in_l2_atomic_group > 1) || (c_in_l2_split_group > 1));
 	en_input_offset = ((IsaArch == E_IsaArch::Gfx900) && (W*H <= 4095));
 	en_wei_addr_offset = true;
-	en_input_offset = false;
+//	en_input_offset = false;
 
 	// -------------------------------------------------------------------------------
 	// memory size
