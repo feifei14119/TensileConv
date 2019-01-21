@@ -47,7 +47,7 @@ void SolutionCtrlBase::RunSolution()
 			break;
 		}
 
-		sleep(0.1);
+		sleep(0.5);
 	}
 #undef TempDo(x)
 }
@@ -68,6 +68,7 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 		for (int i = 0; i < repeatTime; i++)
 		{
 			stream->Launch(kernel, global_sz, group_sz, &profEvt);
+			stream->Flush();
 			stream->Finish();
 			elapsedTimes.push_back(rtOcl->GetProfilingTime(&profEvt));
 			usleep(0.01);

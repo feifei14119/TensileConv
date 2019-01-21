@@ -67,6 +67,11 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	if(c_in_maps_once_real <= 0)
 		return E_ReturnState::FAIL;
 	conv_loop = c_in_maps / c_in_maps_once_real / unroll_time;
+	if (c_in_maps != conv_loop * c_in_maps_once_real * unroll_time)
+		return E_ReturnState::FAIL;
+	if (c_in_maps_once_real != 1 && c_in_maps_once_real != 2 &&
+		c_in_maps_once_real != 4 && c_in_maps_once_real != 8 && c_in_maps_once_real != 16)
+		return E_ReturnState::FAIL;
 
 	// -------------------------------------------------------------------------------
 	// others
@@ -86,7 +91,7 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	// -------------------------------------------------------------------------------
 	size_sig = size_l2 = size_dbg = 0;
 	if (en_l2_sync)
-		size_sig = pix_group * k_out_group;
+		size_sig = pix_wave * k_out_group;
 	if (c_in_l2_split_group > 1)
 		size_l2 = out_size * c_in_l2_split_group;
 #if KERNEL_DEBUG
@@ -634,12 +639,13 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	// gbl_in_off = (batch_id * in_batch_stride) + (c_blk_id * c_in_maps * in_chan_stride) + pos_id;
 	// -------------------------------------------------------------------------------
 	{
-		op3("v_mul_u32_u24", v_tmp1, in_batch_stride, v_batch_id);	// v_tmp1 = batch_id * in_batch_stride
+		op2("v_mov_b32", v_tmp1, in_batch_stride);
+		op3("v_mul_lo_u32", v_tmp1, v_tmp1, v_batch_id);		// v_tmp1 = batch_id * in_batch_stride
 		op3("v_mul_u32_u24", v_tmp2, c_in_maps, v_c_blk_id);
-		op3("v_mul_u32_u24", v_tmp2, in_chan_stride, v_tmp2);		// v_tmp2 = c_blk_id * c_in_maps * in_chan_stride
+		op3("v_mul_u32_u24", v_tmp2, in_chan_stride, v_tmp2);	// v_tmp2 = c_blk_id * c_in_maps * in_chan_stride
 
 		v_add3_u32(v_tmp3, v_tmp1, v_tmp2, v_pos_id);
-		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);			// v_tmp3 = gbl_in_off (BYTE)
+		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);				// v_tmp3 = gbl_in_off (BYTE)
 
 		if (en_input_offset == true)
 		{
@@ -662,11 +668,11 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	// wei_off = (out_id * wei_chan_stride) + (c_blk_id * c_in_maps);
 	// -------------------------------------------------------------------------------
 	{
-		op3("v_mul_u32_u24", v_tmp1, wei_chan_stride, v_out_id);		// v_tmp1 = out_id * wei_chan_stride
-		op3("v_mul_u32_u24", v_tmp2, c_in_maps, v_c_blk_id);	// v_tmp2 = c_blk_id * c_in_maps
+		op3("v_mul_u32_u24", v_tmp1, wei_chan_stride, v_out_id);	// v_tmp1 = out_id * wei_chan_stride
+		op3("v_mul_u32_u24", v_tmp2, c_in_maps, v_c_blk_id);		// v_tmp2 = c_blk_id * c_in_maps
 		v_add_u32(v_tmp1, v_tmp1, v_tmp2);
-		op2("v_readfirstlane_b32", s_tmp1, v_tmp1);			// s_tmp1 = wei_off
-		op3("s_lshl_b32", s_tmp1, s_tmp1, 2);				// s_tmp1 = wei_off (BYTE)
+		op2("v_readfirstlane_b32", s_tmp1, v_tmp1);					// s_tmp1 = wei_off
+		op3("s_lshl_b32", s_tmp1, s_tmp1, 2);						// s_tmp1 = wei_off (BYTE)
 		op3("s_add_u32", s_addr_wei, s_ptr_wei, s_tmp1);
 		op3("s_addc_u32", *s_addr_wei + 1, 0, *s_ptr_wei + 1);
 	}
@@ -675,12 +681,13 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	// gbl_out_off = (batch_id * out_batch_stride) + (out_id * out_chan_stride) + pos_id;
 	// -------------------------------------------------------------------------------
 	{
-		op3("v_mul_u32_u24", v_tmp1, out_batch_stride, v_batch_id);		// v_tmp1 = batch_id * out_batch_stride
-		op3("v_mul_u32_u24", v_tmp2, out_chan_stride, v_out_id);		// v_tmp2 = out_id * out_chan_stride
+		op2("v_mov_b32", v_tmp1, out_batch_stride);
+		op3("v_mul_lo_u32", v_tmp1, v_tmp1, v_batch_id);			// v_tmp1 = batch_id * out_batch_stride
+		op3("v_mul_u32_u24", v_tmp2, out_chan_stride, v_out_id);	// v_tmp2 = out_id * out_chan_stride
 
 		v_add3_u32(v_tmp3, v_tmp1, v_tmp2, v_pos_id);
 		op2("v_mov_b32", v_out_off_tmp, v_tmp3);
-		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);				// v_tmp3 = gbl_out_off (BYTE)
+		op3("v_lshlrev_b32", v_tmp3, 2, v_tmp3);					// v_tmp3 = gbl_out_off (BYTE)
 		
 		op2("v_mov_b32", *v_addr_out + 1, *s_ptr_out + 1);
 		v_addc_u32(v_addr_out, s_ptr_out, v_tmp3);
@@ -728,7 +735,8 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	// -------------------------------------------------------------------------------
 	if (c_in_l2_split_group > 1)
 	{
-		op3("v_mul_u32_u24", v_tmp1, out_size, v_l2_pos_id);		// v_tmp1 = out_size * l2_pos_id
+		op2("v_mov_b32", v_tmp1, out_size);
+		op3("v_mul_lo_u32", v_tmp1, v_tmp1, v_l2_pos_id);		// v_tmp1 = out_size * l2_pos_id
 		v_add_u32(v_tmp1, v_tmp1, v_out_off_tmp);				// v_tmp1 = l2_off
 		op3("v_lshlrev_b32", v_tmp1, 2, v_tmp1);
 
@@ -1488,7 +1496,7 @@ void KernelWriterConv1x1::l2_wave_sync()
 	op2("s_mov_b32", s_timeout, 0);
 	op2("s_cmpk_eq_i32", s_c_l2_blk_id, c_in_l2_group - 1);
 	op1("s_cbranch_scc0", l_end_prg);
-#define TIMEOUT_LMT	10000
+#define TIMEOUT_LMT	1000
 	wrLaber(l_l2_sync);
 	{
 		s_load_dword(1, s_sig, s_addr_sig, 0, true);
@@ -1515,7 +1523,10 @@ void KernelWriterConv1x1::print_kernel_param()
 	OUTPUT("- 	PCK_order = %d", PCK_order);
 	OUTPUT("- 	c_lds_atomic = %d, \tc_lds_split = %d", c_in_lds_atomic_group, c_in_lds_split_group);
 	OUTPUT("- 	c_l2_atomic = %d, \tc_l2_split = %d", c_in_l2_atomic_group, c_in_l2_split_group);
-	OUTPUT("- 	c_in_maps = %d, \t\tc_in_group = %d", c_in_maps, c_in_group);
+	if(c_in_maps < 10)
+		OUTPUT("- 	c_in_maps = %d, \t\tc_in_group = %d", c_in_maps, c_in_group);
+	else
+		OUTPUT("- 	c_in_maps = %d, \tc_in_group = %d", c_in_maps, c_in_group);
 	OUTPUT("- 	k_out_maps = %d, \tk_out_group = %d", k_out_maps, k_out_group);
 	OUTPUT("- 	align = %d, \t\tpix_group = %d", align, pix_group);
 	OUTPUT("- 	group_size = %d, %d", group_sz.x, group_sz.y);

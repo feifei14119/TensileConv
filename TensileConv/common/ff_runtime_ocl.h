@@ -139,6 +139,7 @@ namespace feifei
 		E_ReturnState MemCopyD2H(void * h_mem, cl_mem d_mem, size_t byteNum);
 		E_ReturnState Launch(KernelOCL *k, dim3 global_sz, dim3 group_sz, cl_event * evt_creat = NULL);
 		void Finish() { clFinish(cmdQueue); }
+		void Flush() { clFlush(cmdQueue); }
 
 	private:
 		cl_command_queue_properties prop = 0;

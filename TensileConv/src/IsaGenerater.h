@@ -1902,7 +1902,7 @@ namespace AutoGen{
 		{
 			if (IsaArch == E_IsaArch::Gfx800)
 			{
-				op4("v_addc_u32", c, "vcc", a, b);
+				op5("v_addc_u32", c, "vcc", a, b, "vcc");
 			}
 			else if (IsaArch == E_IsaArch::Gfx900)
 			{
@@ -1923,8 +1923,8 @@ namespace AutoGen{
 			}
 			return E_ReturnState::SUCCESS;
 		}
-		template <typename T>
-		E_ReturnState v_subb_u32(Var* c, T a, Var* b)
+		template <typename T1, typename T2>
+		E_ReturnState v_subb_u32(Var* c, T1 a, T2 b)
 		{
 			if (IsaArch == E_IsaArch::Gfx800)
 			{
@@ -1941,7 +1941,7 @@ namespace AutoGen{
 		{
 			if (IsaArch == E_IsaArch::Gfx800)
 			{
-				op4("v_subb_u32", c, "vcc", a, b);
+				op5("v_subb_u32", c, "vcc", a, b, "vcc");
 			}
 			else if (IsaArch == E_IsaArch::Gfx900)
 			{

@@ -13,8 +13,8 @@
 namespace TensileConv {
 
 #define		MULT_SOLUTION	(1)
-#define		CPU_VERIFY		(1)
-#define		REPEAT_COUNT	(100)
+#define		CPU_VERIFY		(0)
+#define		REPEAT_COUNT	(1)
 
 /************************************************************************/
 /* solutionµÃ·Ö                                                         */

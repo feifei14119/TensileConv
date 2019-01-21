@@ -24,7 +24,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 	kernelParam.c_in_l2_atomic_group = 1;
 	kernelParam.c_in_l2_split_group = 2;
 	kernelParam.k_out_maps = 2;
-	kernelParam.group_size_x = 64;
+	kernelParam.group_size_x = 128;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -41,10 +41,10 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("c_in_lds_atomic_group");
 	searchParam->ValueArray.push_back(1);
-	//searchParam->ValueArray.push_back(2);
-	//searchParam->ValueArray.push_back(4);
-	//searchParam->ValueArray.push_back(8);
-	//searchParam->ValueArray.push_back(16);
+	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(16);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("c_in_lds_split_group");
 	searchParam->ValueArray.push_back(1);
@@ -73,11 +73,11 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
-	// for SB Baidu
+	/*// for Baidu
 	//searchParam->ValueArray.push_back(1);
 	//searchParam->ValueArray.push_back(3);
 	//searchParam->ValueArray.push_back(5);
-	//searchParam->ValueArray.push_back(7);
+	//searchParam->ValueArray.push_back(7);*/
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("group_size_x");
 	searchParam->ValueArray.push_back(64);
@@ -166,7 +166,7 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	size_sig = kernelWriter->SlotSize();
 	if (size_sig > 0)		h_sig = (float*)malloc(size_sig * sizeof(float));
 	if (size_sig > 0)		memset(h_sig, 123, size_sig * sizeof(float));	// for debug
-
+	
 	size_l2 = kernelWriter->L2Size();
 	if (size_l2 > 0)		h_l2 = (float*)malloc(size_l2 * sizeof(float));
 
@@ -398,9 +398,9 @@ E_ReturnState ConvFwd1x1Problem::initHostParam()
 	INFO("input  WHCN = [%d, %d, %d, %d]", in_width, in_height, in_chan, batch);
 	INFO("weight WHCK = [%d, %d, %d, %d]", wei_width, wei_height, in_chan, out_chan);
 	INFO("output WHKN = [%d, %d, %d, %d]", out_width, out_height, out_chan, batch);
-	INFO("init tensor input  = %d = %.3f MByte.", size_in / sizeof(float), size_in / 1024 / 1024.0);
-	INFO("init tensor weight = %d = %.3f KByte.", size_wei / sizeof(float), size_wei / 1024.0);
-	INFO("init tensor output = %d = %.3f MByte.", size_out / sizeof(float), size_out / 1024 / 1024.0);
+	INFO("init tensor input  = %d = %.3f MByte.", size_in, size_in / 1024 / 1024.0);
+	INFO("init tensor weight = %d = %.3f KByte.", size_wei, size_wei / 1024.0);
+	INFO("init tensor output = %d = %.3f MByte.", size_out, size_out / 1024 / 1024.0);
 
 	negSlop = -1.23;
 	for (int i = 0; i < size_in; i++)
