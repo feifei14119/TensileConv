@@ -7,6 +7,22 @@
         mc:Ignorable="d"
         Title="TensileConvGUI" Height="450" Width="800">
     <Grid>
-        
+        <GroupBox Header="ssh" HorizontalAlignment="Left" Height="169" Margin="10,10,0,0" VerticalAlignment="Top" Width="276" Padding="3">
+            <Grid Margin="0,0,0,0" ShowGridLines="False">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="61*"/>
+                    <ColumnDefinition Width="71*"/>
+                </Grid.ColumnDefinitions>
+                <Label Content="IP Adress:" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Height="25" Width="103"/>
+                <Label Content="SSH Username:" HorizontalAlignment="Left" Margin="10,40,0,0" VerticalAlignment="Top" Height="25" Width="103"/>
+                <Label Content="SSH Password:" HorizontalAlignment="Left" Margin="10,70,0,0" VerticalAlignment="Top" Height="25" Width="103"/>
+                <TextBox x:Name="TbxIpAddr" HorizontalAlignment="Left" Height="23" Margin="11.785,10,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="120" Grid.Column="1"/>
+                <TextBox x:Name="TbxUsername" HorizontalAlignment="Left" Height="23" Margin="11.785,40,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="120" Grid.Column="1"/>
+                <TextBox x:Name="TbxPassword" HorizontalAlignment="Left" Height="23" Margin="11.785,74,0,0" TextWrapping="Wrap" Text="TextBox" VerticalAlignment="Top" Width="120" Grid.Column="1"/>
+                <Button x:Name="BtnConnect" Content="Connect" HorizontalAlignment="Right" Margin="0,116,10,5" VerticalAlignment="Top" Width="75" Click="BtnConnect_Click" Grid.Column="1"/>
+            </Grid>
+        </GroupBox>
+        <TextBox x:Name="TbxTest" Margin="300,10,71.333,11" TextWrapping="Wrap" Text="TextBox"/>
+
     </Grid>
 </Window>
