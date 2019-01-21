@@ -41,6 +41,7 @@
     <ClCompile Include="..\src\TensileConvLib.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Include\TensileConv.h" />
     <ClInclude Include="..\common\ff_basic.h" />
     <ClInclude Include="..\common\ff_cmd_args.h" />
     <ClInclude Include="..\common\ff_file_opt.h" />
@@ -50,19 +51,12 @@
     <ClInclude Include="..\common\ff_runtime_ocl.h" />
     <ClInclude Include="..\common\ff_timer.h" />
     <ClInclude Include="..\common\ff_utils.h" />
-    <ClInclude Include="..\include\TensileConv.h" />
     <ClInclude Include="..\src\AutoTuning.h" />
     <ClInclude Include="..\src\ConvFwd1x1.h" />
     <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h" />
     <ClInclude Include="..\src\KernelWriter.h" />
     <ClInclude Include="..\src\IsaGenerater.h" />
     <ClInclude Include="..\src\TensileConvBase.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\kernel\VectorAdd.cl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <RemoteCopyFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</RemoteCopyFile>
-    </None>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{5271357c-cc08-4eee-b29b-da33abfcaeff}</ProjectGuid>
@@ -106,7 +100,7 @@
     <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
     <RemoteLdToolExe>g++</RemoteLdToolExe>
     <RemoteProjectDir>$(RemoteRootDir)/$(ProjectName)/</RemoteProjectDir>
-    <OutDir>$(ProjectDir)..\out\</OutDir>
+    <OutDir>$(ProjectDir)..\..\out\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

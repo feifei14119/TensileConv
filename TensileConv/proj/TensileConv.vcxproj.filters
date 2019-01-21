@@ -7,8 +7,8 @@
     <Filter Include="src">
       <UniqueIdentifier>{8818525d-f61a-4e5b-868e-b051ff8ea8a4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="kernel">
-      <UniqueIdentifier>{adb6a3f9-87b0-4651-83f6-a2998f8e9f76}</UniqueIdentifier>
+    <Filter Include="lib">
+      <UniqueIdentifier>{6b554378-8b9f-49f5-84fc-c3aa1ac2cddb}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -33,12 +33,14 @@
     <ClCompile Include="..\src\ConvFwd1x1.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\TensileConvLib.cpp" />
     <ClCompile Include="..\src\ConvFwd1x1KernelWriter.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\TensileConvBase.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\TensileConvLib.cpp">
+      <Filter>lib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -78,7 +80,6 @@
     <ClInclude Include="..\src\ConvFwd1x1KernelWriter.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\TensileConv.h" />
     <ClInclude Include="..\src\TensileConvBase.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -88,10 +89,8 @@
     <ClInclude Include="..\src\IsaGenerater.h">
       <Filter>src</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="..\kernel\VectorAdd.cl">
-      <Filter>kernel</Filter>
-    </None>
+    <ClInclude Include="..\..\Include\TensileConv.h">
+      <Filter>lib</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

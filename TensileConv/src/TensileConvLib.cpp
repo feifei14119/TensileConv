@@ -5,7 +5,7 @@
 #include <CL/opencl.h>
 
 #include "ConvFwd1x1.h"
-#include "../include/TensileConv.h"
+#include "../../Include/TensileConv.h"
 
 using namespace TensileConv;
 
