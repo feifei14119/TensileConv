@@ -1923,6 +1923,7 @@ namespace AutoGen{
 			}
 			return E_ReturnState::SUCCESS;
 		}
+		
 		template <typename T1, typename T2>
 		E_ReturnState v_subb_u32(Var* c, T1 a, T2 b)
 		{

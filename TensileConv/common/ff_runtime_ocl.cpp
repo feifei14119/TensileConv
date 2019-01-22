@@ -349,7 +349,7 @@ E_ReturnState KernelOCL::creatKernelFromGasFile(cl_context *ctx)
 
 	std::string cmd = compiler + " " + BuildOption + "-o " + kernelFile + " " + programFile;
 	exec_cmd(cmd);
-	INFO(cmd);
+	//INFO(cmd);
 
 	// creatKernelFromBinString()
 	FILE * fp = fopen(kernelFile.c_str(), "rb");
@@ -404,7 +404,7 @@ E_ReturnState KernelOCL::buildKernel()
 	clGetProgramBuildInfo(program, device->DeviceId(), CL_PROGRAM_BUILD_LOG, 0, NULL, &size);
 	tmpLog = (char*)alloca(size);
 	clGetProgramBuildInfo(program, device->DeviceId(), CL_PROGRAM_BUILD_LOG, size, tmpLog, NULL);
-	INFO("building log: " + std::string(tmpLog));
+	//INFO("building log: " + std::string(tmpLog));
 
 	kernel = clCreateKernel(program, kernelName.c_str(), &errNum);
 	if ((errNum != CL_SUCCESS)||(kernel == NULL))

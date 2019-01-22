@@ -67,6 +67,7 @@ protected:
 	ProblemCtrlBase * problem;
 	std::string solutionName;						// 配置名称
 	AutoTune::SearchSpace *solutionParamSpace;		// 解决方案参数搜索空间
+	int SearchedKernelCnt, SearchKernelNum;
 
 	std::string kernelName;
 	std::string kernelFile;
@@ -76,13 +77,13 @@ protected:
 	int repeatTime;
 	T_Score solutionScore;				// 全部配置的平均性能
 
-	virtual E_ReturnState generateSolutionParamSpace() = 0;
-	virtual E_ReturnState getKernelParam() {}
-	virtual E_ReturnState generateKernel() = 0;
-	virtual E_ReturnState prepareKernelArgs() = 0;
+	virtual E_ReturnState generateSolutionParamSpace() { INFO("Generate solution parameters space."); }
+	virtual E_ReturnState getKernelParam() { INFO("Searching %.1f%%: %d / %d kernels.", 100.0*SearchedKernelCnt / SearchKernelNum, SearchedKernelCnt++, SearchKernelNum); }
+	virtual E_ReturnState generateKernel() { INFO("Generate program and build kernel."); }
+	virtual E_ReturnState prepareKernelArgs() { INFO("Prepare kernel args."); };
 	virtual E_ReturnState launchKernel();
-	virtual void getBackResult() = 0;
-	virtual void releaseDevMem() = 0;
+	virtual void getBackResult() { INFO("Copy result back to cpu."); };
+	virtual void releaseDevMem() { INFO("Release resource."); };
 };
 
 /************************************************************************/

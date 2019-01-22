@@ -15,7 +15,6 @@ void SolutionCtrlBase::RunSolution()
 
 	// 生成解决方案空间
 #if MULT_SOLUTION
-	INFO("generate solution parameters space.");
 	generateSolutionParamSpace();
 #endif
 
@@ -24,14 +23,13 @@ void SolutionCtrlBase::RunSolution()
 	while (true)
 	{
 		getKernelParam();
-		INFO("generate program and build kernel.");	TempDo(generateKernel());
-		INFO("initialize device.");					TempDo(prepareKernelArgs());
-		INFO("launch kernel.");						TempDo(launchKernel());
+		TempDo(generateKernel());
+		TempDo(prepareKernelArgs());
+		TempDo(launchKernel());
 #if !MULT_SOLUTION
-		INFO("copy result back to cpu.");			getBackResult();
+		getBackResult();
 #endif
-		INFO("release resource.");					releaseDevMem();
-		INFO("search kernel parameters.");
+		releaseDevMem();
 
 	CONTINUE_SEARCH:
 		if (solutionParamSpace->ParamNum > 0)
@@ -75,7 +73,7 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 		}
 	}
 
-	INFO("collect performence.");
+	// collect performence
 	{
 		// for this solution config
 		T_Score score;
@@ -97,6 +95,8 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 			solutionScore.Performence = score.Performence;
 			solutionParamSpace->RecordBestComb();
 		}
+		INFO("Best for now: elapsed = %.1f(us), performence = %.1f%%.",
+			solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
 	}
 
 	return E_ReturnState::SUCCESS;
@@ -168,6 +168,8 @@ void ProblemCtrlBase::RunProblem()
 		{
 			break;
 		}
+
+		sleep(5);
 	}
 }
 

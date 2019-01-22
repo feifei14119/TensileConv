@@ -1406,7 +1406,8 @@ void KernelWriterConv1x1::save_to_l2_split()
 		// 累加上一组
 		if (blk > 0)
 		{
-			s_wait_vmcnt(k_out_maps);
+			if(k_out_maps > 15)	s_wait_vmcnt(15);
+			else				s_wait_vmcnt(k_out_maps);
 			for (int i = 0; i < k_out_maps; i++)
 			{
 				op3("v_add_f32", *v_acc_buff + i, *v_acc_buff + i, *v_acc_buff0 + i);

@@ -18,13 +18,13 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 
 	solutionName = "TensileConv";
 
-	kernelParam.PCK_order = 132;
+	kernelParam.PCK_order = 213;
 	kernelParam.c_in_lds_atomic_group = 1;
 	kernelParam.c_in_lds_split_group = 1;
 	kernelParam.c_in_l2_atomic_group = 1;
-	kernelParam.c_in_l2_split_group = 1;
-	kernelParam.k_out_maps = 32;
-	kernelParam.group_size_x = 256;
+	kernelParam.c_in_l2_split_group = 4;
+	kernelParam.k_out_maps = 2;
+	kernelParam.group_size_x = 64;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -58,7 +58,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
-	searchParam->ValueArray.push_back(16);
+	//searchParam->ValueArray.push_back(16);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("c_in_l2_split_group");
 	searchParam->ValueArray.push_back(1);
@@ -86,11 +86,16 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(512);
 	solutionParamSpace->AddOneParam(searchParam);
 
+	SearchedKernelCnt = 1;
+	SearchKernelNum = 6 * 1 * 5 * 4 * 5 * 5 * 4;
+
 	return E_ReturnState::SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::getKernelParam()
 {
+	SolutionCtrlBase::getKernelParam();
+
 	while (true)
 	{
 		T_SearchParam * param = solutionParamSpace->GetOneParam();
