@@ -5,10 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TensileConvGui"
         mc:Ignorable="d"
-        Title="TensileConvGUI" Height="450" Width="800">
+        Title="TensileConvGUI" Height="612" Width="800">
     <Grid>
-        <GroupBox Header="ssh" HorizontalAlignment="Left" Height="169" Margin="10,10,0,0" VerticalAlignment="Top" Width="276" Padding="3">
-            <Grid Margin="0,0,0,0" ShowGridLines="False">
+        <GroupBox Header="SSH" HorizontalAlignment="Left" Height="169" Margin="10,10,0,0" VerticalAlignment="Top" Width="276" Padding="3">
+            <Grid Margin="0,0,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="61*"/>
                     <ColumnDefinition Width="71*"/>
@@ -22,7 +22,35 @@
                 <Button x:Name="BtnConnect" Content="Connect" HorizontalAlignment="Right" Margin="0,116,10,5" VerticalAlignment="Top" Width="75" Click="BtnConnect_Click" Grid.Column="1"/>
             </Grid>
         </GroupBox>
-        <TextBox x:Name="TbxTest" Margin="300,10,71.333,11" TextWrapping="Wrap" Text="TextBox"/>
+        <TextBox x:Name="TbxTest" Margin="593,10,9.333,10.667" TextWrapping="Wrap" Text="TextBox"/>
 
+        <GroupBox Header="Platform Info" HorizontalAlignment="Left" Height="130" Margin="10,193,0,0" VerticalAlignment="Top" Width="383">
+            <Grid Margin="0,0,0,0">
+                <Label Content="Platform Name:" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Height="25" Width="103"/>
+                <Label Content="Vendor Name:" HorizontalAlignment="Left" Margin="10,40,0,0" VerticalAlignment="Top" Height="25" Width="103"/>
+                <Label Content="Runtime Version:" HorizontalAlignment="Left" Margin="10,70,0,0" VerticalAlignment="Top" Height="25" Width="103"/>
+                <TextBox x:Name="tbxPlatName" HorizontalAlignment="Left" Height="23" Margin="118,10,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="248" IsReadOnly="True"/>
+                <TextBox x:Name="tbxPlatVen" HorizontalAlignment="Left" Height="23" Margin="118,42,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="248" IsReadOnly="True"/>
+                <TextBox x:Name="tbxPlatVer" HorizontalAlignment="Left" Height="23" Margin="118,74,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="248" IsReadOnly="True"/>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Header="Device Info" HorizontalAlignment="Left" Height="226" Margin="10,328,0,0" VerticalAlignment="Top" Width="523">
+            <Grid Margin="0,0,0,0">
+                <Label Content="Device Name:" HorizontalAlignment="Left" Margin="201,10,0,0" VerticalAlignment="Top" Height="25" Width="113"/>
+                <Label Content="Vendor Name:" HorizontalAlignment="Left" Margin="201,40,0,0" VerticalAlignment="Top" Height="25" Width="113"/>
+                <Label Content="Runtime Version:" HorizontalAlignment="Left" Margin="201,70,0,0" VerticalAlignment="Top" Height="25" Width="113"/>
+                <Label Content="CU Number:" HorizontalAlignment="Left" Margin="201,100,0,0" VerticalAlignment="Top" Height="25" Width="113"/>
+                <Label Content="Max Frequency:" HorizontalAlignment="Left" Margin="201,130,0,0" VerticalAlignment="Top" Height="25" Width="113"/>
+                <Label Content="Performance(fp32):" HorizontalAlignment="Left" Margin="201,160,0,0" VerticalAlignment="Top" Height="25" Width="113"/>
+                <TextBox x:Name="tbxDevName" HorizontalAlignment="Left" Height="23" Margin="319,12,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="184" IsReadOnly="True"/>
+                <TextBox x:Name="tbxDevVen" HorizontalAlignment="Left" Height="23" Margin="319,42,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="184" IsReadOnly="True"/>
+                <TextBox x:Name="tbxDevVer" HorizontalAlignment="Left" Height="23" Margin="319,72,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="184" IsReadOnly="True"/>
+                <TextBox x:Name="tbxDevCU" HorizontalAlignment="Left" Height="23" Margin="319,102,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="184" IsReadOnly="True"/>
+                <TextBox x:Name="tbxDevFreq" HorizontalAlignment="Left" Height="23" Margin="319,132,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="184" IsReadOnly="True"/>
+                <TextBox x:Name="tbxDevPerf" HorizontalAlignment="Left" Height="23" Margin="319,160,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="184" IsReadOnly="True"/>
+                <ListBox x:Name="lbxDevList" HorizontalAlignment="Left" Height="173" Margin="10,10,0,0" VerticalAlignment="Top" Width="186"/>
+            </Grid>
+        </GroupBox>
     </Grid>
 </Window>

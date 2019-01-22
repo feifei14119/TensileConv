@@ -137,18 +137,22 @@ void RuntimeOCL::getPlatformInfo()
 {
 	cl_int errNum;
 	size_t size;
+	char * tmpChar;
 
 	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_VERSION, 0, NULL, &size);
-	platformInfo.version = (char*)alloca(size);
-	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_VERSION, size, platformInfo.version, NULL);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_VERSION, size, tmpChar, NULL);
+	platformInfo.version = std::string(tmpChar);
 
 	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_NAME, 0, NULL, &size);
-	platformInfo.name = (char*)alloca(size);
-	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_NAME, size, platformInfo.name, NULL);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_NAME, size, tmpChar, NULL);
+	platformInfo.name = std::string(tmpChar);
 
 	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_VENDOR, 0, NULL, &size);
-	platformInfo.vendor = (char*)alloca(size);
-	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_VENDOR, size, platformInfo.vendor, NULL);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetPlatformInfo(platformId, CL_PLATFORM_VENDOR, size, tmpChar, NULL);
+	platformInfo.vendor = std::string(tmpChar);
 }
 void DeviceOCL::getDeviceInfo()
 {

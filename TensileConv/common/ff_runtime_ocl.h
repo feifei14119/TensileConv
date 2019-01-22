@@ -188,6 +188,7 @@ namespace feifei
 				pInstance = nullptr;
 		}
 
+		T_PlatformInfo *PlatformInfo() { return &platformInfo; }
 		cl_platform_id PlatformId() { return platformId; }
 		cl_context Context() { return context; }
 

@@ -44,6 +44,7 @@ namespace feifei
 	{
 		addOneArg(CMD_ARG_HELP, E_DataType::String, "help", 'h', "help", "help infomation");
 		addOneArg(CMD_ARG_DEVICE, E_DataType::Int, "0", 'd', "device", "specify a device");
+		addOneArg(CMD_ARG_EVINFO, E_DataType::Int, "0", '\0',"evinfo", "get environment info");
 		addOneArg(CMD_ARG_WH, E_DataType::Int, "14", 's', "size", "specify input tensor width and height");
 		addOneArg(CMD_ARG_C, E_DataType::Int, "1024", 'c', "chanin", "specify input channel");
 		addOneArg(CMD_ARG_K, E_DataType::Int, "64", 'k', "chanout", "specify output channel");
@@ -113,6 +114,8 @@ namespace feifei
 		{
 			if (it->second->shortName != '\0')
 				printf("-%c", it->second->shortName);
+			else
+				printf("  ");
 
 			if (it->second->longName != "")
 				printf(", --%s", it->second->longName.c_str());

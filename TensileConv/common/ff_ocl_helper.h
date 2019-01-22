@@ -15,9 +15,9 @@ namespace feifei
 
 	typedef struct PlatformInfoType
 	{
-		char * version;
-		char * name;
-		char * vendor;
+		std::string version;
+		std::string name;
+		std::string vendor;
 	}T_PlatformInfo;
 
 	typedef struct DeviceInfoType

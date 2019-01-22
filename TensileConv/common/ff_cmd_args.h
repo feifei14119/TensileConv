@@ -12,6 +12,7 @@ namespace feifei
 	{
 		CMD_ARG_HELP,
 		CMD_ARG_DEVICE,
+		CMD_ARG_EVINFO,
 		CMD_ARG_WH,
 		CMD_ARG_C,
 		CMD_ARG_K,
