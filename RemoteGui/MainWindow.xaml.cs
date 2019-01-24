@@ -29,11 +29,15 @@ namespace TensileConvGui
         {
             InitializeComponent();
             myInitialize();
+            initControls();
         }
 
         // 初始化
         private void myInitialize()
         {
+            ssh = null;
+            shell = null;
+            isConnected = false;
             IpAddr = "10.237.94.34";
             Username = "feifei";
             Password = "123";
@@ -42,16 +46,23 @@ namespace TensileConvGui
             remoteFolder = "_TensileConvTemp";
             tcExeFileName = "TensileConv.out";
 
-            TbxIpAddr.Text = IpAddr;
-            TbxUsername.Text = Username;
-            TbxPassword.Text = Password;
-            isConnected = false;
+            devCnt = -1;
+            platInfo = new PlatInfo();
+            allDevInfo = new List<DevInfo>();
+            allDevInfo.Clear();
 
-            initControls();
+            N = 1;
+            W = H = 14;
+            C = 1024;
+            K = 256;
+
         }
 
         private void initControls()
         {
+            TbxIpAddr.Text = IpAddr;
+            TbxUsername.Text = Username;
+            TbxPassword.Text = Password;
             BtnConnect.Content = "连接";
 
             TbxTest.Text = "";
@@ -67,13 +78,40 @@ namespace TensileConvGui
             tbxDevFreq.Text = "";
             tbxDevPerf.Text = "";
             lbxDevList.Items.Clear();
+
+            tbxN.Text = N.ToString();
+            tbxC.Text = C.ToString();
+            tbxH.Text = H.ToString();
+            tbxW.Text = W.ToString();
+            tbxK.Text = K.ToString();
+            btnTensile.IsEnabled = false;
+        }
+
+        int N, C, H, W, K;
+        private void BtnTensile_Click(object sender, RoutedEventArgs e)
+        {
+            N = int.Parse(tbxN.Text);
+            C = int.Parse(tbxC.Text);
+            H = int.Parse(tbxH.Text);
+            W = int.Parse(tbxW.Text);
+            K = int.Parse(tbxK.Text);
+
+            if (isConnected == false)
+                return;
+
+            String cmd = "./TensileConv.out ";
+            cmd += String.Format("-n {0:D} ", N);
+            cmd += String.Format("-c {0:D} ", C);
+            cmd += String.Format("-s {0:D} ", W);
+            cmd += String.Format("-k {0:D} ", K);
+            doWaitCmd(cmd);
         }
 
 
-        private bool isConnected = false;
-        private SshClient ssh = null;
-        private ScpClient scp = null;
-        private ShellStream shell = null;
+        private bool isConnected;
+        private SshClient ssh;
+        private ScpClient scp;
+        private ShellStream shell;
         private String IpAddr;
         private String Username;
         private String Password;
@@ -89,12 +127,9 @@ namespace TensileConvGui
             Username = TbxUsername.Text;
             Password = TbxPassword.Text;
 
-            if (ssh == null)
-            {
-                ssh = new SshClient(IpAddr, Username, Password);
-            }
+            ssh = new SshClient(IpAddr, Username, Password);
 
-            if (!ssh.IsConnected)
+            if (isConnected == false)
             {
                 // 连接
                 try
@@ -102,6 +137,7 @@ namespace TensileConvGui
                     ssh.Connect();
                     shell = ssh.CreateShellStream("xtem", 180, 24, 800, 600, 1024);
                     BtnConnect.Content = "断开";
+                    btnTensile.IsEnabled = true;
                     isConnected = true;
                 }
                 catch (Exception ex)
@@ -109,53 +145,39 @@ namespace TensileConvGui
                     isConnected = false;
                     BtnConnect.Content = "连接";
                     TbxTest.Text = "连接SSH失败，原因：{0}" + ex.Message;
-                    throw new Exception(string.Format("连接SSH失败，原因：{0}", ex.Message));
                 }
-
-                //SshCommand terminal;
-                //ssh.RunCommand("mkdir _temp_remote_rocm");
-                //ssh.RunCommand("cd ./_temp_remote_rocm");
-                //terminal = ssh.RunCommand("pwd");
-                //remoteWorkPath = terminal.Result.Replace('\n', '/');
 
                 if (isConnected == false)
-                    return; 
+                    return;
 
-                doCommand("mkdir " + remoteFolder);             // 建立临时目录
-                doCommand("cd " + remoteFolder);                // 进入临时目录
-                remoteWorkPath = doCommand("pwd");              // 获得临时目录全路径
+                doImdtCmd("mkdir " + remoteFolder);        // 建立临时目录
+                doImdtCmd("cd " + remoteFolder);           // 进入临时目录
+                remoteWorkPath = doImdtCmd("pwd", 2000000);              // 获得临时目录全路径
                 uploadFile("./" + tcExeFileName);               // 上传TensileConv.out文件
-                sudoCommand("chmod +x ./" + tcExeFileName);     // 变为可执行文件
-                doCommand("./TensileConv.out --evinfo 1");      // 获得硬件及运行时信息
+                sudoImdtCmd("chmod +x ./" + tcExeFileName);     // 变为可执行文件
+
+                doImdtCmd("./TensileConv.out --evinfo 1", 5000000, procEnvironmentInfo);      // 获得硬件及运行时信息
+              //  doWaitCmd("./TensileConv.out --evinfo 1", procEnvironmentInfo);      // 获得硬件及运行时信息
             }
-            else
-            {
-                // 断开连接
-                try
-                {
-                    ssh.RunCommand("cd ..");
-                    ssh.RunCommand("rm -rf " + remoteFolder);
+            else // 断开连接
+            {               
+                doImdtCmd("cd ..");
+                doImdtCmd("rm -rf " + remoteFolder);
 
-                    shell.Close();
-                    ssh.Disconnect();
+                shell.Close();
+                ssh.Disconnect();
+                Thread.Sleep(100);
 
-                    Thread.Sleep(100);
-                    ssh = null;
-                    shell = null;
-
-                    BtnConnect.Content = "连接";
-                    initControls();
-                }
-                catch (Exception ex)
-                {
-                    BtnConnect.Content = "断开";
-                    throw new Exception(string.Format("断开SSH失败，原因：{0}", ex.Message));
-                }
+                myInitialize();
+                initControls();
             }
         }
 
         // 直接执行命令
-        private string doCommand(string cmd)
+        MatchCollection mcl;
+        Regex newLineRegex = new Regex(@"(\w\W)*@(\w*\W)*|:(\w\W)*\$ ");    // [USER]@[HOST]:[PATH]$
+        private delegate void procCmdRsltDlg(string s);
+        private string doImdtCmd(string cmd, long timeOut = 1000000, procCmdRsltDlg procCmdRslt = null) // 100ms
         {
             if (isConnected != true)
                 return null;
@@ -169,11 +191,13 @@ namespace TensileConvGui
 
             while (true)
             {
-                tmpRead = shell.ReadLine(new TimeSpan(0, 0, 1));
+                tmpRead = shell.ReadLine(new TimeSpan(timeOut));    
+
                 if (tmpRead == null)
                     break;
-                procEnvironmentInfo(tmpRead);
 
+                if(procCmdRslt != null)
+                    procCmdRslt(tmpRead);
                 result.Append(tmpRead);
 
                 act = new Action(() =>
@@ -187,29 +211,107 @@ namespace TensileConvGui
 
             if (result.Length > 0)
                 result.Remove(0, cmd.Length);
+            return result.ToString();
+        }
+        private string doWaitCmd(string cmd, procCmdRsltDlg procCmdRslt = null)
+        {
+            if (isConnected != true)
+                return null;
+
+            Action act;
+            String tmpRead;
+            String newLineTmp = "";
+            String[] tmpStr;
+            StringBuilder result = new StringBuilder();
+
+            tmpRead = shell.Read();
+            shell.WriteLine(cmd);
+            Thread.Sleep(10);
+
+            while (true)
+            {
+                tmpRead = shell.Read();
+                result.Append(tmpRead);
+                tmpStr = tmpRead.Split('\n');
+                if (tmpStr.Length > 1)
+                {
+                    if (procCmdRslt != null)
+                        procCmdRslt(newLineTmp + tmpStr[0]);
+                    for (int i = 0; i < tmpStr.Length - 1; i++)
+                    {
+                        if (procCmdRslt != null)
+                            procCmdRslt(tmpStr[i]);
+                    }
+                    newLineTmp = tmpStr[tmpStr.Length - 1];
+                }
+                else
+                {
+                    newLineTmp += tmpStr[0];
+                }
+
+                act = new Action(() =>
+                {
+                    TbxTest.AppendText(tmpRead);
+                    TbxTest.ScrollToEnd();
+                });
+                this.Dispatcher.Invoke(act);
+
+                mcl = newLineRegex.Matches(result.ToString());
+                if (mcl.Count > 0)
+                    break;
+
+                Thread.Sleep(100);
+            }
 
             return result.ToString();
         }
-
-        // sudo 执行命令
-        private string sudoCommand(string cmd)
+        private string sudoImdtCmd(string cmd, long timeOut = 1000000, procCmdRsltDlg procCmdRslt = null)
         {
-            Regex newLineRegex = new Regex(@"(\w\W)*@(\w*\W)*|:(\w\W)*\$ "); // [USER]@[HOST]:[PATH]$
+            if (isConnected != true)
+                return null;
 
-            if (ssh == null)
+            Action act;
+            String tmpRead;
+            StringBuilder result = new StringBuilder();
+
+            shell.Read();
+            shell.WriteLine("sudo " + cmd);
+            Thread.Sleep(200);
+            shell.WriteLine(Password);
+
+            while (true)
             {
-                throw new Exception(string.Format("未连接"));
+                tmpRead = shell.ReadLine(new TimeSpan(timeOut));
+
+                if (tmpRead == null)
+                    break;
+
+                if (procCmdRslt != null)
+                    procCmdRslt(tmpRead);
+                result.Append(tmpRead);
+
+                act = new Action(() =>
+                {
+                    TbxTest.AppendText(tmpRead);
+                    TbxTest.AppendText("\n");
+                    TbxTest.ScrollToEnd();
+                });
+                this.Dispatcher.Invoke(act);
             }
-            if (!ssh.IsConnected)
-            {
-                throw new Exception(string.Format("未连接"));
-            }
+
+            if (result.Length > 0)
+                result.Remove(0, cmd.Length);
+            return result.ToString();
+        }
+        private string sudoWaitCmd(string cmd, procCmdRsltDlg procCmdRslt = null)
+        {
+            if (isConnected != true)
+                return null;
 
             try
             {
                 Action act;
                 String tmpRead;
-                MatchCollection mcl;
                 StringBuilder result = new StringBuilder();
 
                 shell.Read();
@@ -229,6 +331,7 @@ namespace TensileConvGui
                     act = new Action(() =>
                     {
                         TbxTest.AppendText(tmpRead);
+                        TbxTest.AppendText("\n");
                         TbxTest.ScrollToEnd();
                     });
                     this.Dispatcher.Invoke(act);
@@ -289,9 +392,11 @@ namespace TensileConvGui
         struct PlatInfo { public string platName, platVer, platVen; }
         struct DevInfo { public string devVen, devName, rtVer, cuNum, freq, perf; }
         private PlatInfo platInfo;
+
+
         private DevInfo devInfoTmp;
-        private int devCnt = -1;
-        private List<DevInfo> devInfo = new List<DevInfo>();
+        private int devCnt;
+        private List<DevInfo> allDevInfo;
         private void procEnvironmentInfo(string str)
         {
             string[] tmpStrArr;
@@ -302,7 +407,10 @@ namespace TensileConvGui
                 if (platInfoStart == false)
                 {
                     platInfoStart = true;
-                    devInfo.Clear();
+                    platInfo = new PlatInfo();
+
+                    allDevInfo = new List<DevInfo>();
+                    allDevInfo.Clear();
                 }
                 else
                 {
@@ -348,18 +456,18 @@ namespace TensileConvGui
                 else
                 {
                     devInfoStart = false;
-                    devInfo.Add(devInfoTmp);
+                    allDevInfo.Add(devInfoTmp);
                     act = new Action(() =>
                     {
                         lbxDevList.Items.Add("device: " + devCnt.ToString());
                         lbxDevList.SelectedIndex = 0;
 
-                        tbxDevName.Text = devInfo[0].devName;
-                        tbxDevVen.Text = devInfo[0].devVen;
-                        tbxDevVer.Text = devInfo[0].rtVer;
-                        tbxDevCU.Text = devInfo[0].cuNum;
-                        tbxDevFreq.Text = devInfo[0].freq;
-                        tbxDevPerf.Text = devInfo[0].perf;
+                        tbxDevName.Text = allDevInfo[0].devName;
+                        tbxDevVen.Text = allDevInfo[0].devVen;
+                        tbxDevVer.Text = allDevInfo[0].rtVer;
+                        tbxDevCU.Text = allDevInfo[0].cuNum;
+                        tbxDevFreq.Text = allDevInfo[0].freq;
+                        tbxDevPerf.Text = allDevInfo[0].perf;
                     });
                     this.Dispatcher.Invoke(act);
                 }

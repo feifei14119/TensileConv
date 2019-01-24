@@ -50,7 +50,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>rocm_black.ico</ApplicationIcon>
+    <ApplicationIcon>rocm_white.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Renci.SshNet, Version=2016.1.0.0, Culture=neutral, PublicKeyToken=1cee9f8bde3db106, processorArchitecture=MSIL">
@@ -130,6 +130,9 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="rocm_black.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="rocm_white.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
