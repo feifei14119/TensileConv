@@ -240,11 +240,12 @@ void ConvFwd1x1Solution::GetBestKernel()
 	PRINT_SEPARATOR('+');
 	OUTPUT("+ Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	OUTPUT("+ Best solution: " + solutionName);
-	OUTPUT("+ Best score: %.3f (us) = %.1f%%.", solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
+	OUTPUT("+ Best score: %.3f(us), %.1f(GFlops), %.1f%%", 
+		solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
 	OUTPUT("+ Kernel name: " + kernelName);
 	OUTPUT("+ Kernel file: " + kernelFile);
-	OUTPUT("+ group_size = [%d, %d, %d].", group_sz.x, group_sz.y, group_sz.z);
-	OUTPUT("+ global_size = [%d, %d, %d].", global_sz.x, global_sz.y, global_sz.z);
+	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
+	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
 	getBestKernelParam();
 	PRINT_SEPARATOR('+');
 
@@ -400,12 +401,12 @@ E_ReturnState ConvFwd1x1Problem::initHostParam()
 	h_out = (float*)malloc(size_out * sizeof(float));
 	out_ref = (float*)malloc(size_out * sizeof(float));
 
-	INFO("input  WHCN = [%d, %d, %d, %d]", in_width, in_height, in_chan, batch);
-	INFO("weight WHCK = [%d, %d, %d, %d]", wei_width, wei_height, in_chan, out_chan);
-	INFO("output WHKN = [%d, %d, %d, %d]", out_width, out_height, out_chan, batch);
-	INFO("init tensor input  = %d = %.3f MByte.", size_in * sizeof(float), size_in * sizeof(float) / 1024 / 1024.0);
-	INFO("init tensor weight = %d = %.3f KByte.", size_wei * sizeof(float), size_wei * sizeof(float) / 1024.0);
-	INFO("init tensor output = %d = %.3f MByte.", size_out * sizeof(float), size_out * sizeof(float) / 1024 / 1024.0);
+	INFO("input  WHCN = %d, %d, %d, %d", in_width, in_height, in_chan, batch);
+	INFO("weight WHCK = %d, %d, %d, %d", wei_width, wei_height, in_chan, out_chan);
+	INFO("output WHKN = %d, %d, %d, %d", out_width, out_height, out_chan, batch);
+	INFO("init tensor input  = %d = %.2f MB", size_in * sizeof(float), size_in * sizeof(float) / 1024 / 1024.0);
+	INFO("init tensor weight = %d = %.2f KB", size_wei * sizeof(float), size_wei * sizeof(float) / 1024.0);
+	INFO("init tensor output = %d = %.2f MB", size_out * sizeof(float), size_out * sizeof(float) / 1024 / 1024.0);
 
 	negSlop = -1.23;
 	for (int i = 0; i < size_in; i++)
@@ -539,10 +540,10 @@ E_ReturnState ConvFwd1x1Problem::verifyDevCompute()
 
 	if (!(diff >= 0 && diff < MIN_FP32_ERR))
 	{
-		ERR("verify failed! mean err = %.2f.", diff);
+		ERR("verify failed! mean err = %.2f", diff);
 	}
 
-	INFO("verify success. mean err = %.1f.", diff);
+	INFO("verify success. mean err = %.1f", diff);
 	return E_ReturnState::SUCCESS;
 }
 

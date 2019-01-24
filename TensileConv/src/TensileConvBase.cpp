@@ -85,7 +85,7 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 		score.ElapsedTime /= elapsedTimes.size();
 		score.Flops = problem->Calculation() / score.ElapsedTime;
 		score.Performence = problem->TheoryElapsedTime() / score.ElapsedTime;
-		INFO("elapsed = %.1f(us), performence = %.1f(Gflops) = %.1f%%.", 
+		INFO("elapsed = %.1f(us), performence = %.1f(Gflops) = %.1f%%", 
 			score.ElapsedTime * 1e6, score.Flops * 1e-9, score.Performence * 100);
 
 		// for this problem(all solution config)
@@ -95,7 +95,7 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 			solutionScore.Performence = score.Performence;
 			solutionParamSpace->RecordBestComb();
 		}
-		INFO("Best for now: elapsed = %.1f(us), performence = %.1f%%.",
+		INFO("Best for now: elapsed = %.1f(us), performence = %.1f%%",
 			solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
 	}
 

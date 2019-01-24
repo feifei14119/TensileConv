@@ -71,10 +71,10 @@ int main(int argc, char *argv[])
 
 	ConvFwd1x1Problem *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");
 	//conv1x1->TuneProblem();
-	//conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
-
-	WH = 7; N = 8; C = 2048; K = 512; UV = 1; Bias = false; Relu = NORELU;
 	conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
+
+	//WH = 7; N = 8; C = 2048; K = 512; UV = 1; Bias = false; Relu = NORELU;
+	//conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 	
 	delete conv1x1;
 	delete pOcl;

@@ -1531,7 +1531,7 @@ void KernelWriterConv1x1::print_kernel_param()
 	OUTPUT("- 	k_out_maps = %d, \tk_out_group = %d", k_out_maps, k_out_group);
 	OUTPUT("- 	align = %d, \t\tpix_group = %d", align, pix_group);
 	OUTPUT("- 	group_size = %d, %d", group_sz.x, group_sz.y);
-	OUTPUT("- 	sigal_size = %d, l2_size = %d, debug_size = %d", size_sig, size_l2, size_dbg);
+	OUTPUT("- 	sigal_size = %d B, l2_size = %.2f MB, debug_size = %d", size_sig, size_l2/1024.0/1024.0, size_dbg);
 	PRINT_SEPARATOR3();
 }
 E_ReturnState KernelWriterConv1x1::simulate_index()
