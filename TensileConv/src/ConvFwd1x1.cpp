@@ -20,7 +20,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 
 	kernelParam.PCK_order = 213;
 	kernelParam.c_in_lds_atomic_group = 1;
-	kernelParam.c_in_lds_split_group = 1;
+	kernelParam.c_in_lds_split_group = 16;
 	kernelParam.c_in_l2_atomic_group = 1;
 	kernelParam.c_in_l2_split_group = 4;
 	kernelParam.k_out_maps = 2;
@@ -55,9 +55,9 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("c_in_l2_atomic_group");
 	searchParam->ValueArray.push_back(1);
-	searchParam->ValueArray.push_back(2);
-	searchParam->ValueArray.push_back(4);
-	searchParam->ValueArray.push_back(8);
+	//searchParam->ValueArray.push_back(2);
+	//searchParam->ValueArray.push_back(4);
+	//searchParam->ValueArray.push_back(8);
 	//searchParam->ValueArray.push_back(16);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("c_in_l2_split_group");
@@ -68,6 +68,8 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(16);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("k_out_maps");
+	//searchParam->ValueArray.push_back(3);
+	//searchParam->ValueArray.push_back(7);
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
@@ -75,19 +77,20 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(32);
 	/*// for Baidu
 	//searchParam->ValueArray.push_back(1);
-	//searchParam->ValueArray.push_back(3);
-	//searchParam->ValueArray.push_back(5);
-	//searchParam->ValueArray.push_back(7);*/
+	searchParam->ValueArray.push_back(3);
+	searchParam->ValueArray.push_back(5);
+	searchParam->ValueArray.push_back(7);*/
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("group_size_x");
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
 	searchParam->ValueArray.push_back(256);
 	searchParam->ValueArray.push_back(512);
+	//searchParam->ValueArray.push_back(1024);
 	solutionParamSpace->AddOneParam(searchParam);
 
 	SearchedKernelCnt = 1;
-	SearchKernelNum = 6 * 1 * 5 * 4 * 5 * 5 * 4;
+	SearchKernelNum = 6 * 1 * 5 * 1 * 5 * 5 * 5;
 
 	return E_ReturnState::SUCCESS;
 }
@@ -244,12 +247,12 @@ void ConvFwd1x1Solution::GetBestKernel()
 		solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
 	OUTPUT("+ Kernel name: " + kernelName);
 	OUTPUT("+ Kernel file: " + kernelFile);
-	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
-	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
 	getBestKernelParam();
-	PRINT_SEPARATOR('+');
 
 	generateKernel();
+	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
+	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
+	PRINT_SEPARATOR('+');
 	prepareKernelArgs();
 	launchKernel();
 	getBackResult();

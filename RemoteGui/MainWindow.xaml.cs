@@ -38,9 +38,6 @@ namespace TensileConvGui
             ssh = null;
             shell = null;
             isConnected = false;
-            IpAddr = "10.237.94.34";
-            Username = "feifei";
-            Password = "123";
 
             remoteWorkPath = "";
             remoteFolder = "_TensileConvTemp";
@@ -159,9 +156,12 @@ namespace TensileConvGui
         private SshClient ssh;
         private ScpClient scp;
         private ShellStream shell;
-        private String IpAddr;
-        private String Username;
-        private String Password;
+        //private String IpAddr = "10.237.94.34";
+        //private String Username = "feifei";
+        //private String Password = "123";
+        private String IpAddr = "10.67.10.126";
+        private String Username = "dladmin";
+        private String Password = "123456";
 
         private String remoteWorkPath;  // 远程路径
         private String remoteFolder;    // 创建的远程目录
@@ -197,14 +197,18 @@ namespace TensileConvGui
                 if (isConnected == false)
                     return;
 
+                if (Username == "root")
+                {
+                    doImdtCmd("cd /home");
+                }
                 doImdtCmd("mkdir " + remoteFolder);        // 建立临时目录
                 doImdtCmd("cd " + remoteFolder);           // 进入临时目录
                 remoteWorkPath = doImdtCmd("pwd");              // 获得临时目录全路径
                 uploadFile("./" + tcExeFileName);               // 上传TensileConv.out文件
                 sudoImdtCmd("chmod +x ./" + tcExeFileName);     // 变为可执行文件
-
+                Thread.Sleep(200);
                 doImdtCmd("./TensileConv.out --evinfo 1", 5000000, procEnvironmentInfo);      // 获得硬件及运行时信息
-              //  doWaitCmd("./TensileConv.out --evinfo 1", procEnvironmentInfo);      // 获得硬件及运行时信息
+                                                                                              //  doWaitCmd("./TensileConv.out --evinfo 1", procEnvironmentInfo);      // 获得硬件及运行时信息
             }
             else // 断开连接
             {
@@ -731,7 +735,7 @@ namespace TensileConvGui
                     BestPerformence = tmpLog.Split(':')[1].Split(',')[1].Trim();
                     BestEfficiency = tmpLog.Split(':')[1].Split(',')[2].Trim();
                 }
-                if (tmpLog.Contains("group_size"))
+                if (tmpLog.Contains("+ group_size ="))
                 {
                     group_size_x = int.Parse(tmpLog.Split('=')[1].Split(',')[0].Trim());
                     group_size_y = int.Parse(tmpLog.Split('=')[1].Split(',')[1].Trim());
@@ -761,13 +765,20 @@ namespace TensileConvGui
                 {
                     c_l2_split = int.Parse(tmpLog.Split('=')[1].Trim());
                 }
-                if (tmpLog.Contains("k_out_maps"))
+                if (tmpLog.Contains("k_out_maps")&&(!tmpLog.Contains("k_out_group")))
                 {
                     k_out_maps = int.Parse(tmpLog.Split('=')[1].Trim());
                 }
                 if (tmpLog.Contains("mean err"))
                 {
-                    mean_err = double.Parse(tmpLog.Split('=')[1].Trim());
+                    if (tmpLog.Contains('@'))
+                    {
+                        mean_err = double.Parse(getNumStr(tmpLog.Split('=')[1].Split('@')[1]));
+                    }
+                    else
+                    {
+                        mean_err = double.Parse(tmpLog.Split('=')[1].Trim());
+                    }
                 }
                 if(tmpLog.Contains("release host"))
                 {

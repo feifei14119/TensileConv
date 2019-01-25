@@ -56,6 +56,8 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	c_in_maps = C / c_in_group;
 	if(c_in_maps < unroll_time)
 		return E_ReturnState::FAIL;
+	if ((C % c_in_group) != 0)
+		return E_ReturnState::FAIL;
 	if (c_in_maps_once <= c_in_maps / unroll_time)
 	{
 		c_in_maps_once_real = c_in_maps_once;
@@ -82,9 +84,8 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	align = pix_group * group_sz.x;
 
 	en_l2_sync = ((Relu == RELU && c_in_l2_atomic_group > 1) || (c_in_l2_split_group > 1));
-	en_input_offset = ((IsaArch == E_IsaArch::Gfx900) && (W*H <= 4095));
+	en_input_offset = ((IsaArch == E_IsaArch::Gfx900) && (W*H*4 <= 4095));
 	en_wei_addr_offset = true;
-//	en_input_offset = false;
 
 	// -------------------------------------------------------------------------------
 	// memory size
