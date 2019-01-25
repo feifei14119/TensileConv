@@ -765,6 +765,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 /************************************************************************************/
 /* 数据读取与存储																		*/
 /************************************************************************************/
+#define SIG_INIT_VAL		11
 void KernelWriterConv1x1::init_output()
 {
 	Var * v_init = newVgpr("v_init");
@@ -860,7 +861,7 @@ void KernelWriterConv1x1::init_output()
 		op1("s_cbranch_scc0", l_end_signal_init);
 		
 		Var * s_tmp = newSgpr("s_tmp");
-		op2("s_mov_b32", s_tmp, 0);
+		op2("s_mov_b32", s_tmp, SIG_INIT_VAL);
 		s_store_dword(1, s_tmp, s_addr_sig, 0, true);
 		delVar(s_tmp);
 	}
@@ -1465,14 +1466,16 @@ void KernelWriterConv1x1::l2_wave_sync()
 	// -------------------------------------------------------------------------------
 	// 检查初始化是否完成
 	// -------------------------------------------------------------------------------
-	/*Var * l_sgn_init_chk = newLaber("SGN_INIT_CHK");
+	Var * l_sgn_init_chk = newLaber("SGN_INIT_CHK");
 	wrLaber(l_sgn_init_chk);
 	{
 		s_load_dword(1, s_sig, s_addr_sig, 0, true);
 		s_wait_lgkmcnt(0);
-		op2("s_cmpk_eq_i32", s_sig, 0);
+		op2("s_cmpk_ge_i32", s_sig, SIG_INIT_VAL);
 		op1("s_cbranch_scc0", l_sgn_init_chk);
-	}*/
+		op2("s_cmpk_le_i32", s_sig, SIG_INIT_VAL + c_in_l2_group);
+		op1("s_cbranch_scc0", l_sgn_init_chk);
+	}
 
 	// -------------------------------------------------------------------------------
 	// 写信号
@@ -1507,13 +1510,14 @@ void KernelWriterConv1x1::l2_wave_sync()
 		op2("s_cmp_eq_u32", s_timeout, TIMEOUT_LMT);
 		op1("s_cbranch_scc1", l_l2_sync_end);
 		s_wait_lgkmcnt(0);
-		op2("s_cmpk_eq_i32", s_sig, c_in_l2_group);
+		op2("s_cmpk_eq_i32", s_sig, SIG_INIT_VAL + c_in_l2_group);
 		op1("s_cbranch_scc0", l_l2_sync);
 	}
 	wrLaber(l_l2_sync_end);
 #undef TIMEOUT_LMT
 	delVar(s_timeout);
 }
+#undef SIG_INIT_VAL
 
 /************************************************************************************/
 /* 测试																				*/

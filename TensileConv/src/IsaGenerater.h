@@ -1159,18 +1159,18 @@ namespace AutoGen{
 		}
 
 		template <typename T>
-		E_ReturnState flat_store_dword(int num, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0)
+		E_ReturnState flat_store_dword(int num, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0, bool glc = false)
 		{
 			if (IsaArch >= E_IsaArch::Gfx900)
 			{
-				return flat_store_dword_gfx900(num, v_offset_addr, v_dat, s_addr, i_offset);
+				return flat_store_dword_gfx900(num, v_offset_addr, v_dat, s_addr, i_offset, glc);
 			}
 			else
 			{
-				return flat_store_dword_gfx800(num, v_offset_addr, v_dat, i_offset);
+				return flat_store_dword_gfx800(num, v_offset_addr, v_dat, i_offset, glc);
 			}
 		}
-		E_ReturnState flat_store_dword_gfx800(int num, Var* v_offset_addr, Var* v_dat, int i_offset = 0)
+		E_ReturnState flat_store_dword_gfx800(int num, Var* v_offset_addr, Var* v_dat, int i_offset = 0, bool glc = false)
 		{
 			int tmpIdx;
 			std::string str = "";
@@ -1202,6 +1202,12 @@ namespace AutoGen{
 					str.append(" ");
 				str.append("offset:");
 				str.append(getVar(i_offset));
+			}
+
+			str.append(" ");
+			if (glc == true)
+			{
+				str.append("glc");
 			}
 
 			wrLine(str);
@@ -1240,7 +1246,7 @@ namespace AutoGen{
 			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
-		E_ReturnState flat_store_dword_gfx900(int num, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0)
+		E_ReturnState flat_store_dword_gfx900(int num, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0, bool glc = false)
 		{
 			int tmpIdx;
 			std::string str = "";
@@ -1294,6 +1300,12 @@ namespace AutoGen{
 					str.append(" ");
 				str.append("offset:");
 				str.append(getVar(i_offset));
+			}
+
+			str.append(" ");
+			if (glc == true)
+			{
+				str.append("glc");
 			}
 
 			wrLine(str);

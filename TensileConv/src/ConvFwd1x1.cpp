@@ -18,12 +18,12 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
 
 	solutionName = "TensileConv";
 
-	kernelParam.PCK_order = 213;
+	kernelParam.PCK_order = 123;
 	kernelParam.c_in_lds_atomic_group = 1;
-	kernelParam.c_in_lds_split_group = 16;
+	kernelParam.c_in_lds_split_group = 1;
 	kernelParam.c_in_l2_atomic_group = 1;
-	kernelParam.c_in_l2_split_group = 4;
-	kernelParam.k_out_maps = 2;
+	kernelParam.c_in_l2_split_group = 16;
+	kernelParam.k_out_maps = 3;
 	kernelParam.group_size_x = 64;
 }
 
@@ -68,15 +68,12 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(16);
 	solutionParamSpace->AddOneParam(searchParam);
 	searchParam = new T_SearchParam("k_out_maps");
-	//searchParam->ValueArray.push_back(3);
-	//searchParam->ValueArray.push_back(7);
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
 	/*// for Baidu
-	//searchParam->ValueArray.push_back(1);
 	searchParam->ValueArray.push_back(3);
 	searchParam->ValueArray.push_back(5);
 	searchParam->ValueArray.push_back(7);*/
