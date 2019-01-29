@@ -159,8 +159,11 @@ namespace TensileConvGui
         //private String IpAddr = "10.237.94.34";
         //private String Username = "feifei";
         //private String Password = "123";
-        private String IpAddr = "10.67.10.126";
-        private String Username = "dladmin";
+        //private String IpAddr = "10.67.10.126";
+        //private String Username = "dladmin";
+        //private String Password = "123456";
+        private String IpAddr = "10.237.94.93";
+        private String Username = "root";
         private String Password = "123456";
 
         private String remoteWorkPath;  // 远程路径

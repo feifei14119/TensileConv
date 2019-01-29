@@ -30,7 +30,7 @@
     <ClInclude Include="..\include\TensileConv.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\test_tool\TensileConvTest.cpp" />
+    <ClCompile Include="TensileConvTest.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}</ProjectGuid>
@@ -94,7 +94,7 @@
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <LibraryDependencies>TensileConv;OpenCL;%(LibraryDependencies)</LibraryDependencies>
-      <AdditionalLibraryDirectories>/opt/rocm/opencl/lib/x86_64/;/home/feifei/projects/TensileConv/out;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>/opt/rocm/opencl/lib/x86_64/;/home/feifei/projects/out;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

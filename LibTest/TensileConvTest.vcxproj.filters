@@ -4,6 +4,6 @@
     <ClInclude Include="..\include\TensileConv.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\test_tool\TensileConvTest.cpp" />
+    <ClCompile Include="TensileConvTest.cpp" />
   </ItemGroup>
 </Project>

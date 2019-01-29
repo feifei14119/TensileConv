@@ -70,10 +70,9 @@ int main(int argc, char *argv[])
 	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU) == 1;
 
 	ConvFwd1x1Problem *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");
-	//conv1x1->TuneProblem();
 	conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 
-	//WH = 10; N = 1; C = 288; K = 48; UV = 1; Bias = false; Relu = NORELU;
+	//WH = 14; N = 1; C = 1024; K = 2048; UV = 1; Bias = false; Relu = NORELU;
 	//conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 	
 	delete conv1x1;

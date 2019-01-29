@@ -12,6 +12,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "doc", "doc", "{C0909AF5-C80
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TensileConvGui", "RemoteGui\TensileConvGui.csproj", "{ABF7F0B2-85E8-4D44-9136-F8150CC47931}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TensileConvTest", "LibTest\TensileConvTest.vcxproj", "{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -54,6 +56,20 @@ Global
 		{ABF7F0B2-85E8-4D44-9136-F8150CC47931}.Release|x64.Build.0 = Release|Any CPU
 		{ABF7F0B2-85E8-4D44-9136-F8150CC47931}.Release|x86.ActiveCfg = Release|Any CPU
 		{ABF7F0B2-85E8-4D44-9136-F8150CC47931}.Release|x86.Build.0 = Release|Any CPU
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Debug|ARM.ActiveCfg = Debug|ARM
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Debug|ARM.Build.0 = Debug|ARM
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Debug|x64.ActiveCfg = Debug|x64
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Debug|x64.Build.0 = Debug|x64
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Debug|x86.ActiveCfg = Debug|x86
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Debug|x86.Build.0 = Debug|x86
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Release|Any CPU.ActiveCfg = Release|x86
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Release|ARM.ActiveCfg = Release|ARM
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Release|ARM.Build.0 = Release|ARM
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Release|x64.ActiveCfg = Release|x64
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Release|x64.Build.0 = Release|x64
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Release|x86.ActiveCfg = Release|x86
+		{DA6DFA10-F0B8-49E5-992D-405C20BEB9AF}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
