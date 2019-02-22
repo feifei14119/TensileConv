@@ -14,7 +14,6 @@ namespace TensileConv {
 
 #define		MULT_SOLUTION	(1)
 #define		CPU_VERIFY		(1)
-#define		REPEAT_COUNT	(10)
 
 /************************************************************************/
 /* solutionµÃ·Ö                                                         */
@@ -35,7 +34,6 @@ class SolutionCtrlBase
 public:
 	SolutionCtrlBase(ProblemCtrlBase * problem)
 	{
-		repeatTime = REPEAT_COUNT;
 		solutionScore.ElapsedTime = (std::numeric_limits<double>::max)();
 		solutionScore.Performence = 0;
 
@@ -45,6 +43,7 @@ public:
 
 		this->problem = problem;
 		solutionParamSpace = new AutoTune::SearchSpace();
+		repeatTime = *(int*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_LOOP);
 	}
 	virtual ~SolutionCtrlBase() { delete stream; delete solutionParamSpace; }
 
