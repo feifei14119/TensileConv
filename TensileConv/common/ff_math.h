@@ -25,4 +25,8 @@ namespace feifei
 
 #define _divCeil(a,b)	((a + b - 1) / b)
 
+#define randInt10(a,b) ((rand() % (b-a)) + a)   		// [a,b)
+#define randInt11(a,b) ((rand() % (b-a+1)) + a) 		// [a,b]
+#define randInt01(a,b) ((rand() % (b-a)) + a + 1)	// (a,b]
+
 }

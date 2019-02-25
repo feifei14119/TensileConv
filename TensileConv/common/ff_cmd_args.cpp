@@ -53,6 +53,7 @@ namespace feifei
 		addOneArg(CMD_ARG_BIAS, E_DataType::Int, "0", 'b', "bias", "specify if use fusion bias opt");
 		addOneArg(CMD_ARG_RELU, E_DataType::Int, "0", 'r', "relu", "specify if use fusion relu opt");
 		addOneArg(CMD_ARG_LOOP, E_DataType::Int, "100", 'i', "loop", "specify loop times");
+		addOneArg(CMD_ARG_SEARCH, E_DataType::Int, "0", '\0', "search", "specify search methord");
 	}
 	void CmdArgs::addOneArg(E_ArgId id, E_DataType dType, std::string defaultVal, char sName, std::string lName, std::string tHelp)
 	{

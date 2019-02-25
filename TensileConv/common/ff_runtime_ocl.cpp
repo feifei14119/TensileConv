@@ -160,36 +160,238 @@ void DeviceOCL::getDeviceInfo()
 	size_t size;
 	char * tmpChar;
 
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_TYPE, sizeof(cl_uint), &deviceInfo.type, NULL);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR_ID, sizeof(cl_uint), &deviceInfo.vendorId, NULL);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceInfo.cuNum, NULL);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceInfo.freqMHz, NULL);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceInfo.cacheLineB, NULL);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cl_ulong), &deviceInfo.cacheSizeB, NULL);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.glbMemSizeB, NULL);
-	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.ldsMemSizeB, NULL);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platformId, NULL);
 
-
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_TYPE, sizeof(cl_uint), &deviceInfo.type, NULL);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NAME, 0, NULL, &size);
 	tmpChar = (char*)alloca(size);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NAME, size, tmpChar, NULL);
 	deviceInfo.name = std::string(tmpChar);
-
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR_ID, sizeof(cl_uint), &deviceInfo.vendorId, NULL);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR, 0, NULL, &size);
 	tmpChar = (char*)alloca(size);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VENDOR, size, tmpChar, NULL);
 	deviceInfo.vendor = std::string(tmpChar);
-
 	errNum = clGetDeviceInfo(deviceId, CL_DRIVER_VERSION, 0, NULL, &size);
 	tmpChar = (char*)alloca(size);
 	errNum = clGetDeviceInfo(deviceId, CL_DRIVER_VERSION, size, tmpChar, NULL);
 	deviceInfo.drvVersion = std::string(tmpChar);
-
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VERSION, 0, NULL, &size);
 	tmpChar = (char*)alloca(size);
 	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_VERSION, size, tmpChar, NULL);
 	deviceInfo.clVersion = std::string(tmpChar);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PROFILE, 0, NULL, &size);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PROFILE, size, tmpChar, NULL);
+	deviceInfo.profiler = std::string(tmpChar);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_EXTENSIONS, 0, NULL, &size);
+	tmpChar = (char*)alloca(size);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_EXTENSIONS, size, tmpChar, NULL);
+	deviceInfo.extensions = std::string(tmpChar);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PROFILING_TIMER_RESOLUTION, sizeof(size_t), &deviceInfo.profTimerResolution, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_ERROR_CORRECTION_SUPPORT, sizeof(cl_bool), &deviceInfo.errCorrectSupport, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_ENDIAN_LITTLE, sizeof(cl_bool), &deviceInfo.endianLittle, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_AVAILABLE, sizeof(cl_bool), &deviceInfo.devAvailable, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_COMPILER_AVAILABLE, sizeof(cl_bool), &deviceInfo.complierAvailable, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_EXECUTION_CAPABILITIES, sizeof(cl_device_exec_capabilities), &deviceInfo.execCapabilities, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_QUEUE_PROPERTIES, sizeof(cl_command_queue_properties), &deviceInfo.queueProper, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_CLOCK_FREQUENCY, sizeof(cl_uint), &deviceInfo.freqMHz, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_COMPUTE_UNITS, sizeof(cl_uint), &deviceInfo.cuNum, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &deviceInfo.maxWorkItemDim, NULL);
+	//errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(size_t), &deviceInfo.maxWorkItemSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &deviceInfo.maxWorkGroupSize, NULL);
+
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_ADDRESS_BITS, sizeof(cl_uint), &deviceInfo.addrBit, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &deviceInfo.maxMemAllocSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MEM_BASE_ADDR_ALIGN, sizeof(cl_uint), &deviceInfo.memBaseAddrAlign, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE, sizeof(cl_uint), &deviceInfo.minDataAlignSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.glbMemSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_CACHE_SIZE, sizeof(cl_ulong), &deviceInfo.glbCacheSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE, sizeof(cl_uint), &deviceInfo.glbCacheLineSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_GLOBAL_MEM_CACHE_TYPE, sizeof(cl_device_mem_cache_type), &deviceInfo.glbMemCacheType, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, sizeof(cl_ulong), &deviceInfo.constBuffSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_CONSTANT_ARGS, sizeof(cl_uint), &deviceInfo.maxConstArgs, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &deviceInfo.ldsMemSize, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_LOCAL_MEM_TYPE, sizeof(cl_device_local_mem_type), &deviceInfo.ldsMemType, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_HOST_UNIFIED_MEMORY, sizeof(cl_bool), &deviceInfo.hostUnifiedMem, NULL);
+
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, sizeof(cl_uint), &deviceInfo.prefVctWidthChar, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.prefVctWidthShort, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.prefVctWidthInt, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.prefVctWidthLong, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.prefVctWidthFloat, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE, sizeof(cl_uint), &deviceInfo.prefVctWidthDouble, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.prefVctWidthHalf, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR, sizeof(cl_uint), &deviceInfo.natvVctWidthChar, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT, sizeof(cl_uint), &deviceInfo.natvVctWidthShort, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_INT, sizeof(cl_uint), &deviceInfo.natvVctWidthInt, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG, sizeof(cl_uint), &deviceInfo.natvVctWidthLong, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT, sizeof(cl_uint), &deviceInfo.natvVctWidthFloat, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE, sizeof(cl_uint), &deviceInfo.natvVctWidthDouble, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF, sizeof(cl_uint), &deviceInfo.natvVctWidthHalf, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_SINGLE_FP_CONFIG, sizeof(cl_device_fp_config), &deviceInfo.singleFpCfg, NULL);
+
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_IMAGE_SUPPORT, sizeof(cl_bool), &deviceInfo.supportImage, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_READ_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.maxReadImageArgs, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_WRITE_IMAGE_ARGS, sizeof(cl_uint), &deviceInfo.maxWriteImageArgs, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_IMAGE2D_MAX_WIDTH, sizeof(size_t), &deviceInfo.maxImage2DWidth, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_IMAGE2D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.maxImage2DHeight, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_IMAGE3D_MAX_WIDTH, sizeof(size_t), &deviceInfo.maxImage3DWidth, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_IMAGE3D_MAX_HEIGHT, sizeof(size_t), &deviceInfo.maxImage3DHeight, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_IMAGE3D_MAX_DEPTH, sizeof(size_t), &deviceInfo.maxImage3DDepth, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_SAMPLERS, sizeof(cl_uint), &deviceInfo.maxSamples, NULL);
+	errNum = clGetDeviceInfo(deviceId, CL_DEVICE_MAX_PARAMETER_SIZE, sizeof(size_t), &deviceInfo.maxParamSize, NULL);
+}
+void RuntimeOCL::PrintRuntimeInfo(bool isFullInfo)
+{
+	PRINT_SEPARATOR('*');
+	OUTPUT("* OpenCL Runtime Info:");
+	PrintPlatformInfo();
+	PRINT_SEPARATOR('*');
+
+	for (int i = 0; i < DevicesCnt(); i++)
+	{
+		if (isFullInfo)
+		{
+			devices[i]->PrintDeviceInfoFull();
+		}
+		else
+		{
+			devices[i]->PrintDeviceInfoShort();
+		}
+	}
+}
+void RuntimeOCL::PrintPlatformInfo()
+{
+	OUTPUT("* Platform Name: " + platformInfo.name);
+	OUTPUT("* Version: " + platformInfo.version);
+	OUTPUT("* Vendor Name: " + platformInfo.vendor);
+}
+void DeviceOCL::PrintDeviceInfoShort()
+{
+	PRINT_SEPARATOR('+');
+
+	int cuNum = deviceInfo.cuNum;
+	double freq = deviceInfo.freqMHz * 1e6;
+	double perf = SIMD_PER_CU * cuNum * freq * 2;	// 2 opts(mult & add) in one cycle
+	PRINT_SEPARATOR('+');
+	OUTPUT("+ Device Name: " + deviceInfo.name);
+	OUTPUT("+ Vendor Name: " + deviceInfo.vendor);
+	OUTPUT("+ Runtime Version: " + deviceInfo.clVersion);
+	OUTPUT("+ CU Number = %d", cuNum);
+	OUTPUT("+ Core Frequency = %.3f(GHz)", freq * 1e-9);
+	OUTPUT("+ Performance(fp32) = %.3f(TFlops)", perf * 1e-12);
+
+	PRINT_SEPARATOR('+');
+}
+void DeviceOCL::PrintDeviceInfoFull()
+{
+	PRINT_SEPARATOR('+');
+
+	switch (deviceInfo.type)
+	{
+	case CL_DEVICE_TYPE_CPU: OUTPUT("CL_DEVICE_TYPE: CL_DEVICE_TYPE_CPU"); break;
+	case CL_DEVICE_TYPE_GPU: OUTPUT("CL_DEVICE_TYPE: CL_DEVICE_TYPE_GPU"); break;
+	case CL_DEVICE_TYPE_ACCELERATOR: OUTPUT("CL_DEVICE_TYPE: CL_DEVICE_TYPE_ACCELERATOR"); break;
+	case CL_DEVICE_TYPE_CUSTOM: OUTPUT("CL_DEVICE_TYPE: CL_DEVICE_TYPE_CUSTOM"); break;
+	default: OUTPUT("CL_DEVICE_TYPE: UNKNOW"); break;
+	}
+	OUTPUT("CL_DEVICE_NAME: " + deviceInfo.name);
+	OUTPUT("CL_DEVICE_VENDOR_ID: %d", deviceInfo.vendorId);
+	OUTPUT("CL_DEVICE_VENDOR: " + deviceInfo.vendor);
+	OUTPUT("CL_DRIVER_VERSION: " + deviceInfo.drvVersion);
+	OUTPUT("CL_DEVICE_OPENCL_C_VERSION: " + deviceInfo.clVersion);
+	OUTPUT("CL_DEVICE_PROFILE: " + deviceInfo.profiler);
+	OUTPUT("CL_DEVICE_EXTENSIONS: " + deviceInfo.extensions);
+	OUTPUT("CL_DEVICE_PROFILING_TIMER_RESOLUTION: %d", deviceInfo.profTimerResolution);
+	OUTPUT("CL_DEVICE_ERROR_CORRECTION_SUPPORT: %s", deviceInfo.errCorrectSupport ? "TRUE" : "FALSE");
+	OUTPUT("CL_DEVICE_ENDIAN_LITTLE: %s", deviceInfo.endianLittle ? "TRUE" : "FALSE");
+	OUTPUT("CL_DEVICE_AVAILABLE: %s", deviceInfo.devAvailable ? "TRUE" : "FALSE");
+	OUTPUT("CL_DEVICE_COMPILER_AVAILABLE: %s", deviceInfo.complierAvailable ? "TRUE" : "FALSE");
+	switch (deviceInfo.execCapabilities)
+	{
+	case CL_EXEC_KERNEL: OUTPUT("CL_DEVICE_EXECUTION_CAPABILITIES: CL_EXEC_KERNEL"); break;
+	case CL_EXEC_NATIVE_KERNEL: OUTPUT("CL_DEVICE_EXECUTION_CAPABILITIES: CL_EXEC_NATIVE_KERNEL"); break;
+	default: OUTPUT("CL_DEVICE_EXECUTION_CAPABILITIES: UNKNOW"); break;
+	}
+	switch (deviceInfo.queueProper)
+	{
+	case CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE: OUTPUT("CL_DEVICE_QUEUE_PROPERTIES: CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE"); break;
+	case CL_QUEUE_PROFILING_ENABLE: OUTPUT("CL_DEVICE_QUEUE_PROPERTIES: CL_QUEUE_PROFILING_ENABLE"); break;
+	case CL_QUEUE_ON_DEVICE: OUTPUT("CL_DEVICE_QUEUE_PROPERTIES: CL_QUEUE_ON_DEVICE"); break;
+	case CL_QUEUE_ON_DEVICE_DEFAULT: OUTPUT("CL_DEVICE_QUEUE_PROPERTIES: CL_QUEUE_ON_DEVICE_DEFAULT"); break;
+	default: OUTPUT("CL_DEVICE_QUEUE_PROPERTIES: UNKNOW"); break;
+	}
+	OUTPUT("CL_DEVICE_MAX_CLOCK_FREQUENCY: %d (MHz)", deviceInfo.freqMHz);
+	OUTPUT("CL_DEVICE_MAX_COMPUTE_UNITS: %d", deviceInfo.cuNum);
+	OUTPUT("CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS: %d", deviceInfo.maxWorkItemDim);
+	//OUTPUT("CL_DEVICE_MAX_WORK_ITEM_SIZES: %d", deviceInfo.maxWorkItemSize);
+	OUTPUT("CL_DEVICE_MAX_WORK_GROUP_SIZE: %ld", deviceInfo.maxWorkGroupSize);
+
+	OUTPUT("CL_DEVICE_ADDRESS_BITS: %d", deviceInfo.addrBit);
+	OUTPUT("CL_DEVICE_MAX_MEM_ALLOC_SIZE: %ld", deviceInfo.maxMemAllocSize);
+	OUTPUT("CL_DEVICE_MEM_BASE_ADDR_ALIGN: %d", deviceInfo.memBaseAddrAlign);
+	OUTPUT("CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE: %d", deviceInfo.minDataAlignSize);
+	OUTPUT("CL_DEVICE_GLOBAL_MEM_SIZE: %ld", deviceInfo.glbMemSize);
+	OUTPUT("CL_DEVICE_GLOBAL_MEM_CACHE_SIZE: %ld", deviceInfo.glbCacheSize);
+	OUTPUT("CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE: %d", deviceInfo.glbCacheLineSize);
+	switch (deviceInfo.glbMemCacheType)
+	{
+	case CL_NONE: OUTPUT("CL_DEVICE_GLOBAL_MEM_CACHE_TYPE: CL_NONE"); break;
+	case CL_READ_ONLY_CACHE: OUTPUT("CL_DEVICE_GLOBAL_MEM_CACHE_TYPE: CL_READ_ONLY_CACHE"); break;
+	case CL_READ_WRITE_CACHE: OUTPUT("CL_DEVICE_GLOBAL_MEM_CACHE_TYPE: CL_READ_WRITE_CACHE"); break;
+	default: OUTPUT("CL_DEVICE_GLOBAL_MEM_CACHE_TYPE: UNKNOW"); break;
+	}
+	OUTPUT("CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE: %ld", deviceInfo.constBuffSize);
+	OUTPUT("CL_DEVICE_MAX_CONSTANT_ARGS: %d", deviceInfo.maxConstArgs);
+	OUTPUT("CL_DEVICE_LOCAL_MEM_SIZE: %ld", deviceInfo.ldsMemSize);
+	switch (deviceInfo.ldsMemType)
+	{
+	case CL_LOCAL: OUTPUT("CL_DEVICE_LOCAL_MEM_TYPE: CL_LOCAL"); break;
+	case CL_GLOBAL: OUTPUT("CL_DEVICE_LOCAL_MEM_TYPE: CL_GLOBAL"); break;
+	default: OUTPUT("CL_DEVICE_LOCAL_MEM_TYPE: UNKNOW"); break;
+	}
+	OUTPUT("CL_DEVICE_HOST_UNIFIED_MEMORY: %s", deviceInfo.hostUnifiedMem ? "TRUE" : "FALSE");
+
+	OUTPUT("CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR: %d", deviceInfo.prefVctWidthChar);
+	OUTPUT("CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT: %d", deviceInfo.prefVctWidthShort);
+	OUTPUT("CL_DEVICE_PREFERRED_VECTOR_WIDTH_INT: %d", deviceInfo.prefVctWidthInt);
+	OUTPUT("CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG: %d", deviceInfo.prefVctWidthLong);
+	OUTPUT("CL_DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT: %d", deviceInfo.prefVctWidthFloat);
+	OUTPUT("CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE: %d", deviceInfo.prefVctWidthDouble);
+	OUTPUT("CL_DEVICE_PREFERRED_VECTOR_WIDTH_HALF: %d", deviceInfo.prefVctWidthHalf);
+	OUTPUT("CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR: %d", deviceInfo.natvVctWidthChar);
+	OUTPUT("CL_DEVICE_NATIVE_VECTOR_WIDTH_SHORT: %d", deviceInfo.natvVctWidthShort);
+	OUTPUT("CL_DEVICE_NATIVE_VECTOR_WIDTH_INT: %d", deviceInfo.natvVctWidthInt);
+	OUTPUT("CL_DEVICE_NATIVE_VECTOR_WIDTH_LONG: %d", deviceInfo.natvVctWidthLong);
+	OUTPUT("CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT: %d", deviceInfo.natvVctWidthFloat);
+	OUTPUT("CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE: %d", deviceInfo.natvVctWidthDouble);
+	OUTPUT("CL_DEVICE_NATIVE_VECTOR_WIDTH_HALF: %d", deviceInfo.natvVctWidthHalf);
+	switch (deviceInfo.singleFpCfg)
+	{
+	case CL_FP_DENORM: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_DENORM"); break;
+	case CL_FP_INF_NAN: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_INF_NAN"); break;
+	case CL_FP_ROUND_TO_NEAREST: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_ROUND_TO_NEAREST"); break;
+	case CL_FP_ROUND_TO_ZERO: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_ROUND_TO_ZERO"); break;
+	case CL_FP_ROUND_TO_INF: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_ROUND_TO_INF"); break;
+	case CL_FP_FMA: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_FMA"); break;
+	case CL_FP_SOFT_FLOAT: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_SOFT_FLOAT"); break;
+	case CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT"); break;
+	default: OUTPUT("CL_DEVICE_SINGLE_FP_CONFIG: UNKNOW"); break;
+	}
+
+	OUTPUT("CL_DEVICE_IMAGE_SUPPORT: %s", deviceInfo.supportImage ? "TRUE" : "FALSE");
+	OUTPUT("CL_DEVICE_MAX_READ_IMAGE_ARGS: %d", deviceInfo.maxReadImageArgs);;
+	OUTPUT("CL_DEVICE_MAX_WRITE_IMAGE_ARGS: %d", deviceInfo.maxWriteImageArgs);;
+	OUTPUT("CL_DEVICE_IMAGE2D_MAX_WIDTH: %ld", deviceInfo.maxImage2DWidth);;
+	OUTPUT("CL_DEVICE_IMAGE2D_MAX_HEIGHT: %ld", deviceInfo.maxImage2DHeight);;
+	OUTPUT("CL_DEVICE_IMAGE3D_MAX_WIDTH: %ld", deviceInfo.maxImage3DWidth);;
+	OUTPUT("CL_DEVICE_IMAGE3D_MAX_HEIGHT: %ld", deviceInfo.maxImage3DHeight);;
+	OUTPUT("CL_DEVICE_IMAGE3D_MAX_DEPTH: %ld", deviceInfo.maxImage3DDepth);;
+	OUTPUT("CL_DEVICE_MAX_SAMPLERS: %d", deviceInfo.maxSamples);;
+	OUTPUT("CL_DEVICE_MAX_PARAMETER_SIZE: %ld", deviceInfo.maxParamSize);
+
+	PRINT_SEPARATOR('+');
 }
 
 CmdQueueOCL * RuntimeOCL::CreatCmdQueue(bool enProf, int devNum)

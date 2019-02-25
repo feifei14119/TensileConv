@@ -43,9 +43,11 @@ public:
 
 		this->problem = problem;
 		solutionParamSpace = new AutoTune::SearchSpace();
+		geneticSearch = new AutoTune::GeneticSearch();
 		repeatTime = *(int*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_LOOP);
+		searchMethord = *(AutoTune::E_SearchMethord*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
 	}
-	virtual ~SolutionCtrlBase() { delete stream; delete solutionParamSpace; }
+	virtual ~SolutionCtrlBase() { delete stream; delete solutionParamSpace; delete geneticSearch; }
 
 	void RunSolution();
 	virtual void GetBestKernel() { INFO("Best solution: " + solutionName); }
@@ -65,7 +67,9 @@ protected:
 
 	ProblemCtrlBase * problem;
 	std::string solutionName;						// 配置名称
+	AutoTune::E_SearchMethord searchMethord;
 	AutoTune::SearchSpace *solutionParamSpace;		// 解决方案参数搜索空间
+	AutoTune::GeneticSearch * geneticSearch;
 	int SearchedKernelCnt, SearchKernelNum;
 
 	std::string kernelName;
@@ -77,7 +81,20 @@ protected:
 	T_Score solutionScore;				// 全部配置的平均性能
 
 	virtual E_ReturnState generateSolutionParamSpace() { INFO("Generate solution parameters space."); }
-	virtual E_ReturnState getKernelParam() { INFO("Searching %.1f%%: %d / %d kernels.", 100.0*SearchedKernelCnt / SearchKernelNum, SearchedKernelCnt++, SearchKernelNum); }
+	virtual E_ReturnState getKernelParam() 
+	{ 
+		switch (searchMethord)
+		{
+		case AutoTune::E_SearchMethord::SEARCH_BRUTE:
+			INFO("Searching %.1f%%: %d / %d kernels.",
+				100.0 * SearchedKernelCnt / SearchKernelNum, SearchedKernelCnt++, SearchKernelNum);
+			break;
+		case AutoTune::E_SearchMethord::SEARCH_GENETIC:
+			INFO("Searching %.1f%%: %d / %d kernels.",
+				100.0 * SearchedKernelCnt / SearchKernelNum, SearchedKernelCnt, SearchKernelNum);
+			break;
+		}
+	}
 	virtual E_ReturnState generateKernel() { INFO("Generate program and build kernel."); }
 	virtual E_ReturnState prepareKernelArgs() { INFO("Prepare kernel args."); };
 	virtual E_ReturnState launchKernel();

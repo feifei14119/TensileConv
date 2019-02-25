@@ -22,19 +22,67 @@ namespace feifei
 
 	typedef struct DeviceInfoType
 	{
+		cl_device_type type;
+		std::string name;			// ISA
 		cl_uint vendorId;
-		cl_uint cuNum;
-		cl_uint freqMHz;
-		cl_ulong glbMemSizeB;
-		cl_ulong ldsMemSizeB;
+		std::string vendor;
 		std::string drvVersion;
 		std::string clVersion;
-		std::string name;			// ISA
-		std::string vendor;
+		cl_bool errCorrectSupport;
+		cl_bool endianLittle;
+		cl_bool devAvailable;
+		cl_bool complierAvailable;
+		std::string profiler;
+		std::string extensions;
+		size_t profTimerResolution;
+		cl_device_exec_capabilities execCapabilities;
+		cl_command_queue_properties queueProper;
+		cl_uint freqMHz;
+		cl_uint cuNum;
+		cl_uint maxWorkItemDim;
+		std::vector<size_t> maxWorkItemSize;
+		size_t maxWorkGroupSize;
 
-		cl_device_type type;
-		cl_uint cacheLineB;
-		cl_ulong cacheSizeB;
+		cl_uint addrBit;
+		cl_ulong maxMemAllocSize;
+		cl_uint memBaseAddrAlign;
+		cl_uint minDataAlignSize;
+		cl_ulong glbMemSize;
+		cl_ulong glbCacheSize;
+		cl_uint glbCacheLineSize;
+		cl_device_mem_cache_type glbMemCacheType;
+		cl_ulong constBuffSize;
+		cl_uint maxConstArgs;
+		cl_ulong ldsMemSize;
+		cl_device_local_mem_type ldsMemType;
+		cl_bool hostUnifiedMem;
+
+		cl_uint prefVctWidthChar;
+		cl_uint prefVctWidthShort;
+		cl_uint prefVctWidthInt;
+		cl_uint prefVctWidthLong;
+		cl_uint prefVctWidthFloat;
+		cl_uint prefVctWidthDouble;
+		cl_uint prefVctWidthHalf;
+		cl_uint natvVctWidthChar;
+		cl_uint natvVctWidthShort;
+		cl_uint natvVctWidthInt;
+		cl_uint natvVctWidthLong;
+		cl_uint natvVctWidthFloat;
+		cl_uint natvVctWidthDouble;
+		cl_uint natvVctWidthHalf;
+		cl_device_fp_config singleFpCfg;
+
+		cl_bool supportImage;
+		cl_uint maxReadImageArgs;
+		cl_uint maxWriteImageArgs;
+		size_t maxImage2DWidth;
+		size_t maxImage2DHeight;
+		size_t maxImage3DWidth;
+		size_t maxImage3DHeight;
+		size_t maxImage3DDepth;
+		cl_uint maxSamples;
+		size_t maxParamSize;
 	}T_DeviceInfo;
 
 	typedef enum ProgramTypeEnum

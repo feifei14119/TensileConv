@@ -16,6 +16,10 @@ void SolutionCtrlBase::RunSolution()
 	// 生成解决方案空间
 #if MULT_SOLUTION
 	generateSolutionParamSpace();
+	if (searchMethord == SEARCH_GENETIC)
+	{
+		geneticSearch->InitGeneticSearch();
+	}
 #endif
 
 	// 遍历每个problem的solution参数空间
@@ -32,13 +36,18 @@ void SolutionCtrlBase::RunSolution()
 		releaseDevMem();
 
 	CONTINUE_SEARCH:
-		if (solutionParamSpace->ParamNum > 0)
+		if ((searchMethord == SEARCH_BRUTE)&&(solutionParamSpace->ParamNum > 0))
 		{
 			if (solutionParamSpace->GetNexComb() == E_ReturnState::FAIL)
 			{
 				INFO("search kernel parameters finished.");
 				break;
 			}
+		}
+		else if (searchMethord == SEARCH_GENETIC)
+		{
+			if (SearchedKernelCnt >= POP_SIZE * MAX_GENERATION)
+				break;
 		}
 		else
 		{
@@ -88,12 +97,19 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 		INFO("elapsed = %.1f(us), performence = %.1f(Gflops) = %.1f%%", 
 			score.ElapsedTime * 1e6, score.Flops * 1e-9, score.Performence * 100);
 
+		if (searchMethord == SEARCH_GENETIC)
+		{
+			geneticSearch->SetOneChromValue(score.ElapsedTime);
+			SearchedKernelCnt++;
+		}
+
 		// for this problem(all solution config)
 		if (solutionScore.ElapsedTime > score.ElapsedTime)
 		{
 			solutionScore.ElapsedTime = score.ElapsedTime;
 			solutionScore.Performence = score.Performence;
 			solutionParamSpace->RecordBestComb();
+			geneticSearch->RecordCurrChrom();
 		}
 		INFO("Best for now: elapsed = %.1f(us), performence = %.1f%%",
 			solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);

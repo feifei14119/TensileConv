@@ -20,7 +20,8 @@ namespace feifei
 		CMD_ARG_UV,
 		CMD_ARG_BIAS,
 		CMD_ARG_RELU,
-		CMD_ARG_LOOP
+		CMD_ARG_LOOP,
+		CMD_ARG_SEARCH
 	} E_ArgId;
 
 	typedef struct CmdArgType

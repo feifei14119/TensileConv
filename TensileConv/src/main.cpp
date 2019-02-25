@@ -48,16 +48,18 @@ void EnvironmentInfo()
 
 int main(int argc, char *argv[])
 {
-	CmdArgs * ca = new CmdArgs(argc, argv);	
+	CmdArgs * ca = new CmdArgs(argc, argv);
+	RuntimeOCL * pOcl = RuntimeOCL::GetInstance();
 
 	bool evinfo = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_EVINFO) == 1;
 	if (evinfo == true)
 	{
-		EnvironmentInfo();
+		pOcl->PrintRuntimeInfo(true);
+		delete pOcl;
 		return 0;
 	}
 
-	RuntimeOCL * pOcl = RuntimeOCL::GetInstance();
+	pOcl->PrintRuntimeInfo();
 	pOcl->SellectDevice(0);
 	DeviceInfo();
 	
@@ -68,15 +70,11 @@ int main(int argc, char *argv[])
 	int UV = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_UV);
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU) == 1;
+	//(new ConvFwd1x1Problem("DirConv1x1Fwd"))->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 
-	ConvFwd1x1Problem *conv1x1 = new ConvFwd1x1Problem("DirConv1x1Fwd");
-	conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
-
-	//WH = 14; N = 1; C = 1024; K = 2048; UV = 1; Bias = false; Relu = NORELU;
-	//conv1x1->TuneProblem(WH, C, K, N, UV, Bias, Relu);
+	WH = 14; N = 1; C = 1024; K = 2048; UV = 1; Bias = false; Relu = NORELU;
+	(new ConvFwd1x1Problem("DirConv1x1Fwd"))->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 	
-	delete conv1x1;
 	delete pOcl;
-
 	return 0;
 }

@@ -43,6 +43,8 @@ namespace feifei
 		void AddCmdQueue(CmdQueueOCL * q) { queues.push_back(q); }
 		void AddKernel(KernelOCL * k) { kernels.push_back(k); }
 		T_DeviceInfo * DeviceInfo() { return &deviceInfo; }
+		void PrintDeviceInfoShort();
+		void PrintDeviceInfoFull();
 
 	protected:
 		cl_platform_id platformId;
@@ -188,6 +190,8 @@ namespace feifei
 				pInstance = nullptr;
 		}
 
+		void PrintRuntimeInfo(bool isFullInfo = false);
+		void PrintPlatformInfo();
 		T_PlatformInfo *PlatformInfo() { return &platformInfo; }
 		cl_platform_id PlatformId() { return platformId; }
 		cl_context Context() { return context; }
