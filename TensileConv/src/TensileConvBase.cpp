@@ -46,7 +46,7 @@ void SolutionCtrlBase::RunSolution()
 		}
 		else if (searchMethord == SEARCH_GENETIC)
 		{
-			if (SearchedKernelCnt >= POP_SIZE * MAX_GENERATION)
+			if (SearchedKernelCnt > POP_SIZE * MAX_GENERATION)
 				break;
 		}
 		else
