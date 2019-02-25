@@ -23,7 +23,6 @@ int main(int argc, char *argv[])
 
 	pOcl->PrintRuntimeInfo();
 	pOcl->SellectDevice(0);
-	DeviceInfo();
 	
 	int WH = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_WH);
 	int C = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_C);
