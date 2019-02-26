@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
 {
 	CmdArgs * ca = new CmdArgs(argc, argv);
 	RuntimeOCL * pOcl = RuntimeOCL::GetInstance();
+	LogFile * logFile = new LogFile("TensileConv", false);
 
 	bool evinfo = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_EVINFO) == 1;
 	if (evinfo == true)
@@ -31,7 +32,7 @@ int main(int argc, char *argv[])
 	int UV = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_UV);
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU) == 1;
-	(new ConvFwd1x1Problem("DirConv1x1Fwd"))->TuneProblem(WH, C, K, N, UV, Bias, Relu);
+	(new ConvFwd1x1Problem("DirConv1x1Fwd", logFile))->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 
 	//WH = 14; N = 1; C = 1024; K = 2048; UV = 1; Bias = false; Relu = NORELU;
 	//(new ConvFwd1x1Problem("DirConv1x1Fwd"))->TuneProblem(WH, C, K, N, UV, Bias, Relu);

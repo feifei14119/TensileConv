@@ -22,6 +22,7 @@ void SolutionCtrlBase::RunSolution()
 	}
 #endif
 
+	time_t t1 = time(0);
 	// 遍历每个problem的solution参数空间
 #define TempDo(x)	do{if(x != E_ReturnState::SUCCESS) goto CONTINUE_SEARCH;}while(0)
 	while (true)
@@ -36,7 +37,7 @@ void SolutionCtrlBase::RunSolution()
 		releaseDevMem();
 
 	CONTINUE_SEARCH:
-		if ((searchMethord == SEARCH_BRUTE)&&(solutionParamSpace->ParamNum > 0))
+		if ((searchMethord == SEARCH_BRUTE) && (solutionParamSpace->ParamNum > 0))
 		{
 			if (solutionParamSpace->GetNexComb() == E_ReturnState::FAIL)
 			{
@@ -47,7 +48,10 @@ void SolutionCtrlBase::RunSolution()
 		else if (searchMethord == SEARCH_GENETIC)
 		{
 			if (SearchedKernelCnt > POP_SIZE * MAX_GENERATION)
+			{
+				INFO("search kernel parameters finished.");
 				break;
+			}
 		}
 		else
 		{
@@ -57,6 +61,9 @@ void SolutionCtrlBase::RunSolution()
 		sleep(0.5);
 	}
 #undef TempDo(x)
+	time_t t2 = time(0);
+
+	searchElapsedSec = difftime(t2,t1);
 }
 
 E_ReturnState SolutionCtrlBase::launchKernel()
@@ -68,19 +75,27 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 		usleep(0.1);
 	}
 
+	double elpTime = 0;
+	int loopCnt = 0;
 	std::vector<double> elapsedTimes;
-	elapsedTimes.clear();
-	INFO("launch kernel %d times.", repeatTime);
 	{
 		for (int i = 0; i < repeatTime; i++)
 		{
 			stream->Launch(kernel, global_sz, group_sz, &profEvt);
 			stream->Flush();
 			stream->Finish();
-			elapsedTimes.push_back(rtOcl->GetProfilingTime(&profEvt));
+			elpTime = rtOcl->GetProfilingTime(&profEvt);
+			elapsedTimes.push_back(elpTime);
 			usleep(0.01);
+
+			loopCnt++;
+			if (elpTime > 5e-3)
+			{
+				break;
+			}
 		}
 	}
+	INFO("launch kernel %d times.", loopCnt);
 
 	// collect performence
 	{
@@ -108,6 +123,7 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 		{
 			solutionScore.ElapsedTime = score.ElapsedTime;
 			solutionScore.Performence = score.Performence;
+			solutionScore.Flops = problem->Calculation() / solutionScore.ElapsedTime;
 			solutionParamSpace->RecordBestComb();
 			geneticSearch->RecordCurrChrom();
 		}
@@ -127,10 +143,8 @@ void SolverCtrlBase::RunSolver()
 	generateSolver();
 
 	// 遍历solver的各个solution
-	std::list<SolutionCtrlBase*>::iterator solutionIt;
-	for (solutionIt = solutionList->begin(); solutionIt != solutionList->end(); solutionIt++)
+	for(SolutionCtrlBase * solution : *solutionList)
 	{
-		SolutionCtrlBase * solution = *solutionIt;
 		solution->RunSolution();
 		
 		T_Score score = solution->SolutionScore();
@@ -143,8 +157,8 @@ void SolverCtrlBase::RunSolver()
 		}
 	}
 
-#if MULT_SOLUTION
 	// best solution
+#if MULT_SOLUTION
 	bestSolution->GetBestKernel();
 #endif
 }

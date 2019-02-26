@@ -32,8 +32,10 @@ class ProblemCtrlBase;
 class SolutionCtrlBase
 {
 public:
-	SolutionCtrlBase(ProblemCtrlBase * problem)
+	SolutionCtrlBase(ProblemCtrlBase * problem, std::string name = "", LogFile * file = nullptr)
 	{
+		solutionName = name;
+		logFile = file;
 		solutionScore.ElapsedTime = (std::numeric_limits<double>::max)();
 		solutionScore.Performence = 0;
 
@@ -51,16 +53,19 @@ public:
 
 	void RunSolution();
 	virtual void GetBestKernel() { INFO("Best solution: " + solutionName); }
+	void SetSearchMethord(AutoTune::E_SearchMethord methord) { searchMethord = methord; }
 
 	std::string KernelName() { return kernelName; }
 	std::string KernelFile() { return kernelFile; }
 	dim3 GroupSize() { return group_sz; }
 	dim3 GlobalSize() { return global_sz; }
 	T_Score SolutionScore() { return solutionScore; }
+	double SearchElapsedSec() { return searchElapsedSec; }
 
 protected:
-	CmdArgs * cmdArgs;
+	CmdArgs * cmdArgs; 
 	RuntimeOCL * rtOcl;
+	LogFile * logFile;
 	CmdQueueOCL* stream;	// one command queue for all solution configs
 	KernelOCL * kernel;
 	cl_event profEvt;
@@ -71,6 +76,7 @@ protected:
 	AutoTune::SearchSpace *solutionParamSpace;		// 解决方案参数搜索空间
 	AutoTune::GeneticSearch * geneticSearch;
 	int SearchedKernelCnt, SearchKernelNum;
+	double searchElapsedSec;
 
 	std::string kernelName;
 	std::string kernelFile;
@@ -108,11 +114,12 @@ protected:
 class SolverCtrlBase
 {
 public:
-	SolverCtrlBase(ProblemCtrlBase * problem)
+	SolverCtrlBase(ProblemCtrlBase * problem, LogFile * file = nullptr)
 	{
+		logFile = file;
 		this->problem = problem;
 		scoreList = new std::list<T_Score>();
-		solutionList = new std::list<SolutionCtrlBase*>();
+		solutionList = new std::vector<SolutionCtrlBase*>();
 		bestScore.ElapsedTime = (std::numeric_limits<double>::max)();
 	}
 	virtual ~SolverCtrlBase()
@@ -126,9 +133,10 @@ public:
 	SolutionCtrlBase * BestSolution() { return bestSolution; }
 
 protected:
+	LogFile * logFile;
 	ProblemCtrlBase * problem;
 	std::list<T_Score> * scoreList;
-	std::list<SolutionCtrlBase*> * solutionList;
+	std::vector<SolutionCtrlBase*> * solutionList;
 	T_Score bestScore;
 	SolutionCtrlBase * bestSolution;
 
@@ -141,16 +149,10 @@ protected:
 class ProblemCtrlBase
 {
 public:
-	ProblemCtrlBase()
-	{
-		cmdArgs = CmdArgs::GetCmdArgs();
-		rtOcl = RuntimeOCL::GetInstance();
-
-		problemParamSpace = new AutoTune::SearchSpace();
-	}
-	ProblemCtrlBase(std::string name)
+	ProblemCtrlBase(std::string name = "", LogFile * file = nullptr)
 	{
 		problemName = name;
+		logFile = file;
 
 		cmdArgs = CmdArgs::GetCmdArgs();
 		rtOcl = RuntimeOCL::GetInstance();
@@ -169,6 +171,7 @@ public:
 protected:
 	CmdArgs * cmdArgs;
 	RuntimeOCL * rtOcl;
+	LogFile * logFile;
 	SolverCtrlBase * solver;
 
 	std::string problemName;

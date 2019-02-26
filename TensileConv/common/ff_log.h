@@ -35,7 +35,7 @@ namespace feifei
 	class LogFile
 	{
 	public:
-		LogFile(std::string file_name);
+		LogFile(std::string file_name,bool isNewFile = true);
 		~LogFile();
 		void Log(const char * format, ...);
 		void Log(std::string msg, ...);

@@ -1,4 +1,3 @@
-# nohup ./tensileTest.sh > myout.file 2>&1
 ./bin/MIOpenDriver conv -i 1 -V 0 -F 0 -s 0 -n 16 -H 28 -W 28 -c 192 -k 64 -x 1 -y 1 -t 1
 ./bin/MIOpenDriver conv -i 1 -V 0 -F 0 -s 0 -n 16 -H 14 -W 14 -c 512 -k 192 -x 1 -y 1 -t 1
 ./bin/MIOpenDriver conv -i 1 -V 0 -F 0 -s 0 -n 16 -H 7 -W 7 -c 832 -k 256 -x 1 -y 1 -t 1

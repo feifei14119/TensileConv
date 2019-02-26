@@ -12,7 +12,7 @@ class ConvFwd1x1Problem;
 class ConvFwd1x1Solution : public SolutionCtrlBase
 {
 public:
-	ConvFwd1x1Solution(ConvFwd1x1Problem * problem);
+	ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string name = "", LogFile * file = nullptr);
 	AutoGen::T_Conv1x1KernelParam KernelParam() { return kernelParam; }
 	void GetBestKernel();
 
@@ -42,13 +42,13 @@ protected:
 class ConvFwd1x1Solver : public SolverCtrlBase
 {
 public:
-	ConvFwd1x1Solver(ConvFwd1x1Problem * problem);
+	ConvFwd1x1Solver(ConvFwd1x1Problem * problem, LogFile * file = nullptr);
 	~ConvFwd1x1Solver()	{}
 	
 protected:
+	ConvFwd1x1Problem * problem;
 	void generateSolver();
 };
-
 
 /************************************************************************/
 /* problem ¿ØÖÆ															*/
@@ -56,8 +56,11 @@ protected:
 class ConvFwd1x1Problem : public ProblemCtrlBase
 {
 public:
-	ConvFwd1x1Problem() : ProblemCtrlBase() { solver = new ConvFwd1x1Solver(this); }
-	ConvFwd1x1Problem(std::string name) :ProblemCtrlBase(name) { solver = new ConvFwd1x1Solver(this); }
+	ConvFwd1x1Problem(std::string name = "", LogFile * file = nullptr)
+		:ProblemCtrlBase(name, file) 
+	{
+		solver = new ConvFwd1x1Solver(this, logFile);
+	}
 	~ConvFwd1x1Problem() { delete solver; }
 
 	void TuneProblem();

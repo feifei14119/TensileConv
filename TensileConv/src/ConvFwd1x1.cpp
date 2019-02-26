@@ -11,19 +11,27 @@ using namespace AutoTune;
 /************************************************************************/
 #pragma region SOLUTION
 
-ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem)
-	: SolutionCtrlBase(problem)
-{	
+ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string name, LogFile * file)
+	: SolutionCtrlBase(problem, name, file)
+{
 	this->problem = problem;
 
-	solutionName = "TensileConv";
+	switch (searchMethord)
+	{
+	case AutoTune::E_SearchMethord::SEARCH_BRUTE:
+		solutionName = "Brust Search";
+		break;
+	case AutoTune::E_SearchMethord::SEARCH_GENETIC:
+		solutionName = "Genetic Search";
+		break;
+	}
 
 	kernelParam.PCK_order = 123;
 	kernelParam.c_in_lds_atomic_group = 1;
 	kernelParam.c_in_lds_split_group = 1;
 	kernelParam.c_in_l2_atomic_group = 1;
-	kernelParam.c_in_l2_split_group = 16;
-	kernelParam.k_out_maps = 3;
+	kernelParam.c_in_l2_split_group = 1;
+	kernelParam.k_out_maps = 8;
 	kernelParam.group_size_x = 64;
 }
 
@@ -92,7 +100,6 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	//searchParam->ValueArray.push_back(1024);
 	solutionParamSpace->AddOneParam(searchParam);
 	geneticSearch->AddOneGenePool(searchParam);
-
 	switch (searchMethord)
 	{
 	case AutoTune::E_SearchMethord::SEARCH_BRUTE:
@@ -298,6 +305,7 @@ void ConvFwd1x1Solution::GetBestKernel()
 	OUTPUT("+ Best solution: " + solutionName);
 	OUTPUT("+ Best score: %.3f(us), %.1f(GFlops), %.1f%%", 
 		solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
+	OUTPUT("+ Search time: %.1f(sec) = %d:%d", searchElapsedSec, ((int)searchElapsedSec) / 60, ((int)searchElapsedSec) % 60);
 	OUTPUT("+ Kernel name: " + kernelName);
 	OUTPUT("+ Kernel file: " + kernelFile);
 	getBestKernelParam();
@@ -310,6 +318,12 @@ void ConvFwd1x1Solution::GetBestKernel()
 	launchKernel();
 	getBackResult();
 	releaseDevMem();
+
+	logFile->Log("Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
+	logFile->Log("%s score: %.3f(us), %.1f(GFlops), %.1f%%", solutionName.c_str(),
+		solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
+	logFile->Log("%s search time: %.1f(sec) = %d:%d", solutionName.c_str(),
+		searchElapsedSec, ((int)searchElapsedSec)/60, ((int)searchElapsedSec) % 60);
 }
 
 #pragma endregion
@@ -319,15 +333,14 @@ void ConvFwd1x1Solution::GetBestKernel()
 /************************************************************************/
 #pragma region SOLVER
 
-ConvFwd1x1Solver::ConvFwd1x1Solver(ConvFwd1x1Problem * problem)
-	: SolverCtrlBase(problem)
-{
-	this->problem = problem;
+ConvFwd1x1Solver::ConvFwd1x1Solver(ConvFwd1x1Problem * problem, LogFile * file)
+	: SolverCtrlBase(problem,file) 
+{ 
+	this->problem = problem; 
 }
-
 void ConvFwd1x1Solver::generateSolver()
 {
-	ConvFwd1x1Solution * solution = new ConvFwd1x1Solution((ConvFwd1x1Problem*)problem);	
+	ConvFwd1x1Solution * solution = new ConvFwd1x1Solution((ConvFwd1x1Problem*)problem, "", logFile);
 	solutionList->push_back(solution);
 }
 
