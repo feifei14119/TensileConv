@@ -38,7 +38,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
 	T_SearchParam * searchParam = new T_SearchParam();
-#if 1
+
 	searchParam->Name = "PCK_order";
 	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(123);
@@ -106,20 +106,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(512);
 	//searchParam->ValueArray.push_back(1024);
 	searchSpace->AddOneSearchParam(searchParam);
-#endif
-#if 0
-	searchParam->Name = "PCK_order";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(123);
-	searchParam->ValueArray.push_back(132);
-	searchSpace->AddOneSearchParam(searchParam);
-	searchParam->Name = "group_size_x";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(64);
-	searchParam->ValueArray.push_back(128);
-	searchParam->ValueArray.push_back(4096);
-	searchSpace->AddOneSearchParam(searchParam);
-#endif
+
 	return E_ReturnState::SUCCESS;
 }
 
