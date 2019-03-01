@@ -6,15 +6,15 @@
 
 namespace TensileConv{
 namespace AutoTune{
-/************************************************************************/
-/* 搜索参数					                                             */
-/************************************************************************/
+
 typedef enum SearchMethordEnum
 {
 	SEARCH_BRUTE = 0,
 	SEARCH_GENETIC = 1
 } E_SearchMethord;
-
+/************************************************************************/
+/* 搜索参数					                                            */
+/************************************************************************/
 typedef struct SearchParamType
 {
 	SearchParamType(std::string name = "")
@@ -55,39 +55,115 @@ typedef struct SearchParamType
 	}
 } T_SearchParam;
 
-class SearchSpace
+/************************************************************************/
+/* 搜索基类																*/
+/************************************************************************/
+class SearchSpaceBase
 {
-public:
-	SearchSpace()
-	{
-		searchParams = new std::vector<T_SearchParam>;
-	}
-
-	~SearchSpace()
-	{
-		delete searchParams;
-	}
+protected:
+	E_SearchMethord searchMethod;
+	std::vector<T_SearchParam*> * searchParams;	// 搜索参数数组列表
+	int paramNumber = 0;
+	int paramCombNum = 1;
+	int searchedCombNum = 1;
+	int checkedCombNum = 1;
 
 public:
-	int ParamNum = 0;
+	SearchSpaceBase() { searchParams = new std::vector<T_SearchParam*>; }
+	~SearchSpaceBase() { delete searchParams; }
+	int ParamNum() { return paramNumber; }
+	int ParamCombNum() { return paramCombNum; }
+	int SearchedCombNum() { return searchedCombNum; }
+	int CheckedCombNum() { return checkedCombNum; }
+	E_SearchMethord SearchMethod() { return searchMethod; }
+	std::vector<T_SearchParam*> * SearchParams() { searchedCombNum++; return searchParams; }
 
+	// 初始化搜索
+	virtual void InitSearching() 
+	{
+		searchedCombNum = 0;
+		checkedCombNum = 0; 
+	}
+	// 添加一组新的参数列表
+	virtual E_ReturnState AddOneSearchParam(T_SearchParam * param) = 0;
+	// 产生一组新的参数组合
+	virtual E_ReturnState GenerateNextComb() = 0;
+	// 记录当前参数组合
+	void RecordCurrComb()
+	{
+		for (T_SearchParam * param : *searchParams)
+		{
+			param->BestIdx = param->CurrIdx;
+			param->BestValue = param->CurrValue;
+		}
+	}
+	// 设置当前组合的分数
+	virtual void SetOneCombScore(double value) { checkedCombNum++; };
+};
+
+/************************************************************************/
+/* 暴力搜索																*/
+/************************************************************************/
+class BruteSearch : public SearchSpaceBase
+{
 private:
-	std::vector<T_SearchParam> * searchParams;	// 搜索参数数组列表
-	int searchParamIdx = 0;
-	bool moveCurrIdx = true;
-	int getParamIdx = 0;
+	int searchParamIdx;
+	bool moveCurrIdx;
+	int getParamIdx;
 
 public:
-	/************************************************************************/
-	/* 获取一组新的参数组合													*/
-	/************************************************************************/
-	E_ReturnState GetNexComb()
+	BruteSearch() : SearchSpaceBase() { searchMethod = E_SearchMethord::SEARCH_BRUTE; };
+	
+	void InitSearching()
+	{
+		searchParamIdx = 0;
+		moveCurrIdx = true;
+		getParamIdx = 0;
+	}
+	E_ReturnState AddOneSearchParam(T_SearchParam * param)
+	{
+		T_SearchParam *newParam = new T_SearchParam();
+		*newParam = *param;
+
+		if (newParam->ValueArray.size() == 0)
+		{
+			if (newParam->Step == 0)
+			{
+				return E_ReturnState::FAIL;
+			}
+
+			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
+
+			if (len <= 0)
+			{
+				return E_ReturnState::FAIL;
+			}
+
+			int val = newParam->MinValue;
+			for (int i = 0; i < len; i++)
+			{
+				newParam->ValueArray.push_back(val);
+				val + newParam->Step;
+			}
+		}
+
+		newParam->CurrIdx = 0;
+		newParam->CurrValue = newParam->ValueArray[0];
+		newParam->ValueNum = newParam->ValueArray.size();
+
+		searchParams->push_back(newParam);
+		paramNumber++;
+		paramCombNum *= newParam->ValueNum;
+
+		return E_ReturnState::SUCCESS;
+	}
+	E_ReturnState GenerateNextComb()
 	{
 		T_SearchParam * currParam;
-		currParam = &((*searchParams)[searchParamIdx]);
+		currParam = (*searchParams)[searchParamIdx];
 
 		// 遍历完成: 如果已经指向最后一个参数且仍需调整指针,则搜索完成
-		if ((searchParamIdx >= ParamNum - 1) && (currParam->CurrIdx >= currParam->ValueNum - 1) && moveCurrIdx)
+		if ((searchParamIdx >= paramNumber - 1) && (currParam->CurrIdx >= currParam->ValueNum - 1) && moveCurrIdx)
 		{
 			moveCurrIdx = true;
 			searchParamIdx = 0;
@@ -113,7 +189,7 @@ public:
 		}
 
 		// 搜索完一轮完成: 当前正在搜索最后一个参数
-		if (searchParamIdx >= ParamNum - 1)
+		if (searchParamIdx >= paramNumber - 1)
 		{
 			moveCurrIdx = true;
 			searchParamIdx = 0;
@@ -123,90 +199,21 @@ public:
 		// 搜索下一组参数
 		searchParamIdx++;
 		moveCurrIdx = moveNextIdx;
-		GetNexComb();
-	}
-
-	/************************************************************************/
-	/* 记录当前参数组合														*/
-	/************************************************************************/
-	E_ReturnState RecordBestComb()
-	{
-		for (int i = 0; i < ParamNum; i++)
-		{
-			(*searchParams)[i].BestIdx = (*searchParams)[i].CurrIdx;
-			(*searchParams)[i].BestValue = (*searchParams)[i].CurrValue;
-		}
-		return E_ReturnState::SUCCESS;
-	}
-
-	/************************************************************************/
-	/* 添加一组新的参数列表													*/
-	/************************************************************************/
-	E_ReturnState AddOneParam(T_SearchParam * param)
-	{
-		T_SearchParam *newParam = new T_SearchParam();
-		*newParam = *param;
-
-		if (newParam->ValueArray.size() == 0)
-		{
-			if (newParam->Step == 0)
-			{
-				return E_ReturnState::FAIL;
-			}
-
-			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
-
-			if (len <= 0)
-			{
-				return E_ReturnState::FAIL;
-			}
-
-			int val = newParam->MinValue;
-			for (int i = 0; i < len; i++)
-			{
-				newParam->ValueArray.push_back(val);
-				val + newParam->Step;
-			}
-		}
-
-		newParam->CurrIdx = 0;
-		newParam->CurrValue = newParam->ValueArray[0];
-		newParam->ValueNum = newParam->ValueArray.size();
-
-		searchParams->push_back(*newParam);
-		ParamNum++;
-
-		return E_ReturnState::SUCCESS;
-	}
-
-	/************************************************************************/
-	/* 获取下一个参数															*/
-	/************************************************************************/
-	T_SearchParam * GetOneParam()
-	{
-		if (searchParams == NULL)
-		{
-			getParamIdx = 0;
-			return NULL;
-		}
-
-		if (getParamIdx >= searchParams->size())
-		{
-			getParamIdx = 0;
-			return NULL;
-		}
-
-		getParamIdx++;
-		return &(*searchParams)[getParamIdx - 1];
+		GenerateNextComb();
 	}
 };
 
-class GeneticSearch
+/************************************************************************/
+/* 遗传算法搜索															*/
+/************************************************************************/
+class GeneticSearch : SearchSpaceBase
 {
-protected:
-#define SURV_CHANCE (0.7)		// 10个里面存活7个
-#define CORSS_CHANCE (0.8)
-#define MUTATE_CHANCE (0.1)
+private:
+#define SURV_CHANCE		(0.7) // 10个里面存活7个
+#define CORSS_CHANCE	(0.8)
+#define MUTATE_CHANCE	(0.1)
+#define POP_SIZE		(10) // 每代种群10个个体
+#define MAX_GENERATION	(50) // 50代种群
 
 	// 一个基因位点
 	typedef struct GeneLocusType
@@ -220,107 +227,6 @@ protected:
 	{
 		std::vector<T_GeneLocus> Chrom;
 	} T_Chromosome;
-
-public:
-#define POP_SIZE		(10) // 每代种群10个个体
-#define MAX_GENERATION	(50) // 50代种群
-	GeneticSearch() { genePool = new std::vector<T_SearchParam*>; }
-	~GeneticSearch() 
-	{
-		delete genePool;
-		delete &population;
-		delete &newPopulation;
-		delete &populationValue;
-		delete &surviveChance;
-		delete &rouletteChance;
-	}
-
-	void InitGeneticSearch()
-	{
-		initPopulation();
-	}
-
-	E_ReturnState AddOneGenePool(T_SearchParam * param)
-	{
-		T_SearchParam *newParam = new T_SearchParam();
-		*newParam = *param;
-
-		if (newParam->ValueArray.size() == 0)
-		{
-			if (newParam->Step == 0)
-			{
-				return E_ReturnState::FAIL;
-			}
-
-			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
-
-			if (len <= 0)
-			{
-				return E_ReturnState::FAIL;
-			}
-
-			int val = newParam->MinValue;
-			for (int i = 0; i < len; i++)
-			{
-				newParam->ValueArray.push_back(val);
-				val + newParam->Step;
-			}
-		}
-
-		newParam->CurrIdx = 0;
-		newParam->CurrValue = newParam->ValueArray[0];
-		newParam->ValueNum = newParam->ValueArray.size();
-
-		genePool->push_back(newParam);
-
-		return E_ReturnState::SUCCESS;
-	}
-
-	/************************************************************************/
-	/* 记录当前染色体															*/
-	/************************************************************************/
-	void RecordCurrChrom()
-	{
-		for (T_SearchParam * pGene : *genePool)
-		{
-			pGene->BestIdx = pGene->CurrIdx;
-			pGene->BestValue = pGene->CurrValue;
-		}
-	}
-
-	/************************************************************************/
-	/* 记录一组有效参数组合以及其分数											*/
-	/************************************************************************/
-	void SetOneChromValue(double value)
-	{
-		setObjChromValue(value);
-
-		// 指向下一个种群个体
-		currObjChromIdx++;
-
-		// 如果当代种群个体遍历完成，则进行种群进化
-		if (currObjChromIdx == POP_SIZE)
-		{
-			currObjChromIdx = 0;
-			populationFit();
-			populationChance();
-			sellectPopulation();
-			crossover();
-			mutation();
-			population = newPopulation;
-		}
-	}
-
-	/************************************************************************/
-	/* 生成获得一组参数组合													*/
-	/************************************************************************/
-	std::vector<T_SearchParam*> * GetOneChrom()
-	{
-		genRandChrom();
-		return genePool;
-	}
-
-protected:
 	std::vector<T_SearchParam*> * genePool;	// 基因库,即搜索参数数组列表
 	std::vector<T_Chromosome> population;
 	int currObjChromIdx = 0;
@@ -339,25 +245,7 @@ protected:
 			genRandGene(pGene);
 		}
 	}
-	// 初始化种群
-	void initPopulation()
-	{
-		// 初始化种群数量
-		population.resize(POP_SIZE);
-		newPopulation.resize(POP_SIZE);
-		populationValue.resize(POP_SIZE);
-		surviveChance.resize(POP_SIZE);
-		rouletteChance.resize(POP_SIZE);
-		currObjChromIdx = 0;
-
-		// 初始化染色体长度
-		for (int objIdx = 0; objIdx < population.size(); objIdx++)
-		{
-			population[objIdx].Chrom.resize(genePool->size());
-			newPopulation[objIdx].Chrom.resize(genePool->size());
-		}
-	}
-
+	
 	// 种群评价
 	std::vector<double> populationValue;
 	void setObjChromValue(double value)
@@ -380,7 +268,7 @@ protected:
 		std::sort(populationValue.begin(), populationValue.end());
 		thresholdPos = int(POP_SIZE * SURV_CHANCE);
 		thresholdValue = populationValue[thresholdPos];
-		
+
 		for (int i = 0; i < POP_SIZE; i++)
 		{
 			if (populationValue[i] >= thresholdValue)
@@ -478,6 +366,105 @@ protected:
 				newPopulation[objIdx].Chrom[mutPos].Idx = (*genePool)[mutPos]->CurrIdx;
 				newPopulation[objIdx].Chrom[mutPos].Val = (*genePool)[mutPos]->CurrValue;
 			}
+		}
+	}
+	
+public:
+	GeneticSearch() 
+	{ 
+		genePool = searchParams;
+		searchMethod = E_SearchMethord::SEARCH_GENETIC; 
+		paramCombNum = POP_SIZE * MAX_GENERATION;
+	}
+	~GeneticSearch() 
+	{
+		delete &population;
+		delete &newPopulation;
+		delete &populationValue;
+		delete &surviveChance;
+		delete &rouletteChance;
+	}
+
+	void InitSearching()
+	{
+		// 初始化种群数量
+		population.resize(POP_SIZE);
+		newPopulation.resize(POP_SIZE);
+		populationValue.resize(POP_SIZE);
+		surviveChance.resize(POP_SIZE);
+		rouletteChance.resize(POP_SIZE);
+		currObjChromIdx = 0;
+
+		// 初始化染色体长度
+		for (int objIdx = 0; objIdx < population.size(); objIdx++)
+		{
+			population[objIdx].Chrom.resize(genePool->size());
+			newPopulation[objIdx].Chrom.resize(genePool->size());
+		}
+	}
+
+	E_ReturnState AddOneSearchParam(T_SearchParam * param)
+	{
+		T_SearchParam *newParam = new T_SearchParam();
+		*newParam = *param;
+
+		if (newParam->ValueArray.size() == 0)
+		{
+			if (newParam->Step == 0)
+			{
+				return E_ReturnState::FAIL;
+			}
+
+			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
+
+			if (len <= 0)
+			{
+				return E_ReturnState::FAIL;
+			}
+
+			int val = newParam->MinValue;
+			for (int i = 0; i < len; i++)
+			{
+				newParam->ValueArray.push_back(val);
+				val + newParam->Step;
+			}
+		}
+
+		newParam->CurrIdx = 0;
+		newParam->CurrValue = newParam->ValueArray[0];
+		newParam->ValueNum = newParam->ValueArray.size();
+
+		genePool->push_back(newParam);
+
+		return E_ReturnState::SUCCESS;
+	}
+	E_ReturnState GenerateNextComb()
+	{
+		if (checkedCombNum >= POP_SIZE * MAX_GENERATION)
+			return E_ReturnState::FAIL;
+
+		genRandChrom();
+		return E_ReturnState::SUCCESS;
+	}
+	void SetOneCombScore(double value)
+	{
+		SearchSpaceBase::SetOneCombScore(value);
+
+		setObjChromValue(value);
+
+		// 指向下一个种群个体
+		currObjChromIdx++;
+
+		// 如果当代种群个体遍历完成，则进行种群进化
+		if (currObjChromIdx == POP_SIZE)
+		{
+			currObjChromIdx = 0;
+			populationFit();
+			populationChance();
+			sellectPopulation();
+			crossover();
+			mutation();
+			population = newPopulation;
 		}
 	}
 };

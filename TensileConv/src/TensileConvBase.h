@@ -44,16 +44,27 @@ public:
 		stream = rtOcl->CreatCmdQueue(true);
 
 		this->problem = problem;
-		solutionParamSpace = new AutoTune::SearchSpace();
-		geneticSearch = new AutoTune::GeneticSearch();
 		repeatTime = *(int*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_LOOP);
-		searchMethord = *(AutoTune::E_SearchMethord*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
+
+		searchMethod = *(AutoTune::E_SearchMethord*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
+		switch (searchMethod)
+		{
+		case AutoTune::E_SearchMethord::SEARCH_BRUTE:
+			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::BruteSearch();
+			break;
+		case AutoTune::E_SearchMethord::SEARCH_GENETIC:
+			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::GeneticSearch();
+			break;
+		}
 	}
-	virtual ~SolutionCtrlBase() { delete stream; delete solutionParamSpace; delete geneticSearch; }
+	virtual ~SolutionCtrlBase() 
+	{ 
+		delete stream; 
+		delete searchSpace;
+	}
 
 	void RunSolution();
 	virtual void GetBestKernel() { INFO("Best solution: " + solutionName); }
-	void SetSearchMethord(AutoTune::E_SearchMethord methord) { searchMethord = methord; }
 
 	std::string KernelName() { return kernelName; }
 	std::string KernelFile() { return kernelFile; }
@@ -71,11 +82,9 @@ protected:
 	cl_event profEvt;
 
 	ProblemCtrlBase * problem;
-	std::string solutionName;						// 配置名称
-	AutoTune::E_SearchMethord searchMethord;
-	AutoTune::SearchSpace *solutionParamSpace;		// 解决方案参数搜索空间
-	AutoTune::GeneticSearch * geneticSearch;
-	int SearchedKernelCnt, SearchKernelNum;
+	std::string solutionName;					// 配置名称
+	AutoTune::E_SearchMethord searchMethod;		// 搜索方法选择
+	AutoTune::SearchSpaceBase * searchSpace;	// 参数搜索空间
 	double searchElapsedSec;
 
 	std::string kernelName;
@@ -89,21 +98,24 @@ protected:
 	virtual E_ReturnState generateSolutionParamSpace() { INFO("Generate solution parameters space."); }
 	virtual E_ReturnState getKernelParam() 
 	{ 
-		switch (searchMethord)
+		switch (searchMethod)
 		{
 		case AutoTune::E_SearchMethord::SEARCH_BRUTE:
 			INFO("Searching %.1f%%: %d / %d kernels.",
-				100.0 * SearchedKernelCnt / SearchKernelNum, SearchedKernelCnt++, SearchKernelNum);
+				100.0 * searchSpace->SearchedCombNum() / searchSpace->ParamCombNum(),
+				searchSpace->SearchedCombNum(), searchSpace->ParamCombNum());
 			break;
 		case AutoTune::E_SearchMethord::SEARCH_GENETIC:
 			INFO("Searching %.1f%%: %d / %d kernels.",
-				100.0 * SearchedKernelCnt / SearchKernelNum, SearchedKernelCnt, SearchKernelNum);
+				100.0 * searchSpace->CheckedCombNum() / searchSpace->ParamCombNum(),
+				searchSpace->CheckedCombNum(), searchSpace->ParamCombNum());
 			break;
 		}
 	}
 	virtual E_ReturnState generateKernel() { INFO("Generate program and build kernel."); }
 	virtual E_ReturnState prepareKernelArgs() { INFO("Prepare kernel args."); };
 	virtual E_ReturnState launchKernel();
+	virtual void recordScore(double elapsedTime);
 	virtual void getBackResult() { INFO("Copy result back to cpu."); };
 	virtual void releaseDevMem() { INFO("Release resource."); };
 };
@@ -157,9 +169,9 @@ public:
 		cmdArgs = CmdArgs::GetCmdArgs();
 		rtOcl = RuntimeOCL::GetInstance();
 
-		problemParamSpace = new AutoTune::SearchSpace();
+		searchSpace = new AutoTune::BruteSearch();
 	}
-	virtual ~ProblemCtrlBase() { delete problemParamSpace; }
+	virtual ~ProblemCtrlBase() { delete searchSpace; }
 
 	virtual void RunProblem();
 	SolutionCtrlBase * BestSolution() { return solver->BestSolution(); }
@@ -175,15 +187,15 @@ protected:
 	SolverCtrlBase * solver;
 
 	std::string problemName;
-	AutoTune::SearchSpace *problemParamSpace;		// 问题参数搜索空间
+	AutoTune::BruteSearch * searchSpace;	// 问题参数搜索空间
 
 	double calculation;					// 当前正在处理的问题配置的计算量
 	double theoryElapsedTime;			// 当前正在处理的问题配置的理论执行时间
 
-	virtual E_ReturnState initHostParam() = 0;
-	virtual void runHostCompute() = 0;
-	virtual E_ReturnState verifyDevCompute() = 0;
-	virtual void releaseHostParam() = 0;
+	virtual void initHostParam() { INFO("initialize host."); }
+	virtual void runHostCompute() { INFO("run host calculate."); }
+	virtual void verifyDevCompute() { INFO("verify device calculation."); }
+	virtual void releaseHostParam() { INFO("release host."); };
 	virtual void caculateTheoryPerformance() {}
 };
 }

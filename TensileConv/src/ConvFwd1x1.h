@@ -82,9 +82,9 @@ public:
 
 private:
 	void generateProblem();
-	E_ReturnState initHostParam();
+	void initHostParam();
 	void runHostCompute();
-	E_ReturnState verifyDevCompute();
+	void verifyDevCompute();
 	void releaseHostParam();
 	void caculateTheoryPerformance();
 

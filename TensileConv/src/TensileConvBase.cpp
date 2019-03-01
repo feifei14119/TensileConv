@@ -9,60 +9,39 @@ using namespace AutoTune;
 /************************************************************************/
 void SolutionCtrlBase::RunSolution()
 {
+	time_t t1 = time(0);
+
 	PRINT_SEPARATOR2();
 	OUTPUT("* solution Name: %s.", solutionName.c_str());
 	PRINT_SEPARATOR2();
 
 	// 生成解决方案空间
-#if MULT_SOLUTION
 	generateSolutionParamSpace();
-	if (searchMethord == SEARCH_GENETIC)
-	{
-		geneticSearch->InitGeneticSearch();
-	}
-#endif
+	searchSpace->InitSearching();
 
-	time_t t1 = time(0);
 	// 遍历每个problem的solution参数空间
-#define TempDo(x)	do{if(x != E_ReturnState::SUCCESS) goto CONTINUE_SEARCH;}while(0)
+#define TempDo(x)	if(x != E_ReturnState::SUCCESS) goto CONTINUE;
 	while (true)
 	{
-		getKernelParam();
+		TempDo(getKernelParam());
 		TempDo(generateKernel());
 		TempDo(prepareKernelArgs());
 		TempDo(launchKernel());
-#if !MULT_SOLUTION
-		getBackResult();
-#endif
 		releaseDevMem();
 
-	CONTINUE_SEARCH:
-		if ((searchMethord == SEARCH_BRUTE) && (solutionParamSpace->ParamNum > 0))
+		CONTINUE:
+		if (searchSpace->GenerateNextComb() != E_ReturnState::SUCCESS)
 		{
-			if (solutionParamSpace->GetNexComb() == E_ReturnState::FAIL)
-			{
-				INFO("search kernel parameters finished.");
-				break;
-			}
-		}
-		else if (searchMethord == SEARCH_GENETIC)
-		{
-			if (SearchedKernelCnt > POP_SIZE * MAX_GENERATION)
-			{
-				INFO("search kernel parameters finished.");
-				break;
-			}
-		}
-		else
-		{
+			INFO("search solution parameters finished.");
 			break;
 		}
 
 		sleep(0.5);
+		PRINT_SEPARATOR('-');
 	}
 #undef TempDo(x)
-	time_t t2 = time(0);
 
+	time_t t2 = time(0);
 	searchElapsedSec = difftime(t2,t1);
 }
 
@@ -75,63 +54,55 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 		usleep(0.1);
 	}
 
-	double elpTime = 0;
 	int loopCnt = 0;
-	std::vector<double> elapsedTimes;
+	double t = 0, elapsedTime = 0;
+	for (int i = 0; i < repeatTime; i++)
 	{
-		for (int i = 0; i < repeatTime; i++)
-		{
-			stream->Launch(kernel, global_sz, group_sz, &profEvt);
-			stream->Flush();
-			stream->Finish();
-			elpTime = rtOcl->GetProfilingTime(&profEvt);
-			elapsedTimes.push_back(elpTime);
-			usleep(0.01);
+		stream->Launch(kernel, global_sz, group_sz, &profEvt);
+		stream->Flush();
+		stream->Finish();
+		usleep(0.01);
 
-			loopCnt++;
-			if (elpTime > 5e-3)
-			{
-				break;
-			}
+		t = rtOcl->GetProfilingTime(&profEvt);
+		elapsedTime += t;
+
+		loopCnt++;
+		if (t > 5e-3)
+		{
+			break;
 		}
 	}
+
 	INFO("launch kernel %d times.", loopCnt);
+	elapsedTime /= loopCnt;
+	recordScore(elapsedTime);
+	
+	return E_ReturnState::SUCCESS;
+}
 
-	// collect performence
+void SolutionCtrlBase::recordScore(double elapsedTime)
+{
+	searchSpace->SetOneCombScore(elapsedTime);
+	if (solutionScore.ElapsedTime > elapsedTime)
 	{
-		// for this solution config
-		T_Score score;
-		score.ElapsedTime = 0;
-		for (int i = 0; i < elapsedTimes.size(); i++)
-		{
-			score.ElapsedTime += elapsedTimes[i];
-		}
-		score.ElapsedTime /= elapsedTimes.size();
-		score.Flops = problem->Calculation() / score.ElapsedTime;
-		score.Performence = problem->TheoryElapsedTime() / score.ElapsedTime;
-		INFO("elapsed = %.1f(us), performence = %.1f(Gflops) = %.1f%%", 
-			score.ElapsedTime * 1e6, score.Flops * 1e-9, score.Performence * 100);
-
-		if (searchMethord == SEARCH_GENETIC)
-		{
-			geneticSearch->SetOneChromValue(score.ElapsedTime);
-			SearchedKernelCnt++;
-		}
-
-		// for this problem(all solution config)
-		if (solutionScore.ElapsedTime > score.ElapsedTime)
-		{
-			solutionScore.ElapsedTime = score.ElapsedTime;
-			solutionScore.Performence = score.Performence;
-			solutionScore.Flops = problem->Calculation() / solutionScore.ElapsedTime;
-			solutionParamSpace->RecordBestComb();
-			geneticSearch->RecordCurrChrom();
-		}
-		INFO("Best for now: elapsed = %.1f(us), performence = %.1f%%",
-			solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
+		searchSpace->RecordCurrComb();
 	}
 
-	return E_ReturnState::SUCCESS;
+	T_Score score;
+	score.ElapsedTime = elapsedTime;
+	score.Flops = problem->Calculation() / score.ElapsedTime;
+	score.Performence = problem->TheoryElapsedTime() / score.ElapsedTime;
+	INFO("elapsed = %.1f(us), performence = %.1f(Gflops) = %.1f%%",
+		score.ElapsedTime * 1e6, score.Flops * 1e-9, score.Performence * 100);
+
+	if (solutionScore.ElapsedTime > score.ElapsedTime)
+	{
+		solutionScore.ElapsedTime = score.ElapsedTime;
+		solutionScore.Performence = score.Performence;
+		solutionScore.Flops = problem->Calculation() / solutionScore.ElapsedTime;
+	}
+	INFO("Best for now: elapsed = %.1f(us), performence = %.1f%%",
+		solutionScore.ElapsedTime * 1e6, solutionScore.Performence * 100);
 }
 
 /************************************************************************/
@@ -158,9 +129,7 @@ void SolverCtrlBase::RunSolver()
 	}
 
 	// best solution
-#if MULT_SOLUTION
 	bestSolution->GetBestKernel();
-#endif
 }
 
 /************************************************************************/
@@ -175,31 +144,21 @@ void ProblemCtrlBase::RunProblem()
 	// 遍历problem参数空间,搜索参数空间
 	while (true)
 	{
-		INFO("initialize host.");				initHostParam(); caculateTheoryPerformance();
-#if CPU_VERIFY
-		INFO("run host calculate.");			runHostCompute();
-#endif
-		INFO("solve this problem.");			solver->RunSolver();
-#if CPU_VERIFY
-		INFO("verify device calculation.");		verifyDevCompute();
-#endif
-		INFO("release host.");					releaseHostParam();
+		searchSpace->InitSearching();
+		initHostParam();
+		caculateTheoryPerformance();
+		runHostCompute();
+		solver->RunSolver();
+		verifyDevCompute();
+		releaseHostParam();
 
-		if (problemParamSpace->ParamNum > 0)
+		if (searchSpace->GenerateNextComb() != E_ReturnState::SUCCESS)
 		{
-			INFO("search problem parameters.");
-			if (problemParamSpace->GetNexComb() == E_ReturnState::FAIL)
-			{
-				INFO("search problem parameters finished.");
-				break;
-			}
-		}
-		else
-		{
+			INFO("search problem parameters finished.");
 			break;
 		}
 
-		sleep(5);
+		sleep(1);
 	}
 }
 

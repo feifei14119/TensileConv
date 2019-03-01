@@ -1524,7 +1524,7 @@ void KernelWriterConv1x1::l2_wave_sync()
 /************************************************************************************/
 void KernelWriterConv1x1::print_kernel_param()
 {
-	PRINT_SEPARATOR3();
+	OUTPUT("");
 	OUTPUT("- Kernel Param:");
 	OUTPUT("- 	PCK_order = %d", PCK_order);
 	OUTPUT("- 	c_lds_atomic = %d, \tc_lds_split = %d", c_in_lds_atomic_group, c_in_lds_split_group);
@@ -1537,7 +1537,7 @@ void KernelWriterConv1x1::print_kernel_param()
 	OUTPUT("- 	align = %d, \t\tpix_group = %d", align, pix_group);
 	OUTPUT("- 	group_size = %d, %d", group_sz.x, group_sz.y);
 	OUTPUT("- 	sigal_size = %d B, l2_size = %.2f MB, debug_size = %d", size_sig, size_l2/1024.0/1024.0, size_dbg);
-	PRINT_SEPARATOR3();
+	OUTPUT("");
 }
 E_ReturnState KernelWriterConv1x1::simulate_index()
 {

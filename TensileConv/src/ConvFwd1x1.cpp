@@ -16,7 +16,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 {
 	this->problem = problem;
 
-	switch (searchMethord)
+	switch (searchMethod)
 	{
 	case AutoTune::E_SearchMethord::SEARCH_BRUTE:
 		solutionName = "Brust Search";
@@ -37,50 +37,56 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
-	T_SearchParam * searchParam;
-	
-	searchParam = new T_SearchParam("PCK_order");
+	T_SearchParam * searchParam = new T_SearchParam();
+#if 1
+	searchParam->Name = "PCK_order";
+	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(123);
 	searchParam->ValueArray.push_back(132);
 	searchParam->ValueArray.push_back(213);
 	searchParam->ValueArray.push_back(231);
 	searchParam->ValueArray.push_back(312);
 	searchParam->ValueArray.push_back(321);
-	solutionParamSpace->AddOneParam(searchParam);
-	geneticSearch->AddOneGenePool(searchParam);
-	searchParam = new T_SearchParam("c_in_lds_atomic_group");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "c_in_lds_atomic_group";
+	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(1);
 	//searchParam->ValueArray.push_back(2);
 	//searchParam->ValueArray.push_back(4);
 	//searchParam->ValueArray.push_back(8);
 	//searchParam->ValueArray.push_back(16);
-	solutionParamSpace->AddOneParam(searchParam);
-	geneticSearch->AddOneGenePool(searchParam);
-	searchParam = new T_SearchParam("c_in_lds_split_group");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "c_in_lds_split_group";
+	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(1);
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
-	solutionParamSpace->AddOneParam(searchParam);
-	geneticSearch->AddOneGenePool(searchParam);
-	searchParam = new T_SearchParam("c_in_l2_atomic_group");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "c_in_l2_atomic_group";
+	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(1);
 	//searchParam->ValueArray.push_back(2);
 	//searchParam->ValueArray.push_back(4);
 	//searchParam->ValueArray.push_back(8);
 	//searchParam->ValueArray.push_back(16);
-	solutionParamSpace->AddOneParam(searchParam);
-	geneticSearch->AddOneGenePool(searchParam);
-	searchParam = new T_SearchParam("c_in_l2_split_group");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "c_in_l2_split_group";
+	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(1);
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
-	solutionParamSpace->AddOneParam(searchParam);
-	geneticSearch->AddOneGenePool(searchParam);
-	searchParam = new T_SearchParam("k_out_maps");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "k_out_maps";
+	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
@@ -90,68 +96,46 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(3);
 	searchParam->ValueArray.push_back(5);
 	searchParam->ValueArray.push_back(7);*/
-	solutionParamSpace->AddOneParam(searchParam);
-	geneticSearch->AddOneGenePool(searchParam);
-	searchParam = new T_SearchParam("group_size_x");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "group_size_x";
+	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
 	searchParam->ValueArray.push_back(256);
 	searchParam->ValueArray.push_back(512);
 	//searchParam->ValueArray.push_back(1024);
-	solutionParamSpace->AddOneParam(searchParam);
-	geneticSearch->AddOneGenePool(searchParam);
-	switch (searchMethord)
-	{
-	case AutoTune::E_SearchMethord::SEARCH_BRUTE:
-		SearchedKernelCnt = 1;
-		SearchKernelNum = 6 * 1 * 5 * 1 * 5 * 5 * 5;
-		break;
-	case AutoTune::E_SearchMethord::SEARCH_GENETIC:
-		SearchedKernelCnt = 1;
-		SearchKernelNum = POP_SIZE * MAX_GENERATION;
-		break;
-	}
-
+	searchSpace->AddOneSearchParam(searchParam);
+#endif
+#if 0
+	searchParam->Name = "PCK_order";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(123);
+	searchParam->ValueArray.push_back(132);
+	searchSpace->AddOneSearchParam(searchParam);
+	searchParam->Name = "group_size_x";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(64);
+	searchParam->ValueArray.push_back(128);
+	searchParam->ValueArray.push_back(4096);
+	searchSpace->AddOneSearchParam(searchParam);
+#endif
 	return E_ReturnState::SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::getKernelParam()
 {
 	SolutionCtrlBase::getKernelParam();
-
-	switch (searchMethord)
+	
+	for (T_SearchParam *param : *(searchSpace->SearchParams()))
 	{
-	case SEARCH_BRUTE:
-		while (true)
-		{
-			T_SearchParam * param = solutionParamSpace->GetOneParam();
-
-			if (param == NULL)
-				break;
-
-			if (param->Name == "PCK_order")				kernelParam.PCK_order = param->CurrValue;
-			if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->CurrValue;
-			if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->CurrValue;
-			if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->CurrValue;
-			if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->CurrValue;
-			if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->CurrValue;
-			if (param->Name == "group_size_x")			kernelParam.group_size_x = param->CurrValue;
-		}
-		break;
-
-	case SEARCH_GENETIC:
-		std::vector<T_SearchParam*> *paramList = geneticSearch->GetOneChrom();
-		for (T_SearchParam *param : *paramList)
-		{
-			if (param->Name == "PCK_order")				kernelParam.PCK_order = param->CurrValue;
-			if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->CurrValue;
-			if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->CurrValue;
-			if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->CurrValue;
-			if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->CurrValue;
-			if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->CurrValue;
-			if (param->Name == "group_size_x")			kernelParam.group_size_x = param->CurrValue;
-		}
-		break;
+		if (param->Name == "PCK_order")				kernelParam.PCK_order = param->CurrValue;
+		if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->CurrValue;
+		if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->CurrValue;
+		if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->CurrValue;
+		if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->CurrValue;
+		if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->CurrValue;
+		if (param->Name == "group_size_x")			kernelParam.group_size_x = param->CurrValue;
 	}
 
 	kernelParam.N = problem->N();
@@ -159,49 +143,25 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 	kernelParam.W = problem->W(); kernelParam.H = problem->H();
 	kernelParam.EnBias = problem->EnBias();
 	kernelParam.Relu = problem->Relu();
+
+	return E_ReturnState::SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 {
 	OUTPUT("+ Serching param comb: ");
 
-	switch (searchMethord)
+	for (T_SearchParam *param : *(searchSpace->SearchParams()))
 	{
-	case SEARCH_BRUTE:
-		while (true)
-		{
-			T_SearchParam * param = solutionParamSpace->GetOneParam();
+		if (param->Name == "PCK_order")				kernelParam.PCK_order = param->BestValue;
+		if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->BestValue;
+		if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->BestValue;
+		if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->BestValue;
+		if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->BestValue;
+		if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->BestValue;
+		if (param->Name == "group_size_x")			kernelParam.group_size_x = param->BestValue;
 
-			if (param == NULL)
-				break;
-
-			if (param->Name == "PCK_order")				kernelParam.PCK_order = param->BestValue;
-			if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->BestValue;
-			if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->BestValue;
-			if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->BestValue;
-			if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->BestValue;
-			if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->BestValue;
-			if (param->Name == "group_size_x")			kernelParam.group_size_x = param->BestValue;
-
-			OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
-		}
-		break;
-
-	case SEARCH_GENETIC:
-		std::vector<T_SearchParam*> *paramList = geneticSearch->GetOneChrom();
-		for (T_SearchParam *param : *paramList)
-		{
-			if (param->Name == "PCK_order")				kernelParam.PCK_order = param->BestValue;
-			if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->BestValue;
-			if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->BestValue;
-			if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->BestValue;
-			if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->BestValue;
-			if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->BestValue;
-			if (param->Name == "group_size_x")			kernelParam.group_size_x = param->BestValue;
-
-			OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
-		}
-		break;
+		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
 	}
 
 	kernelParam.N = problem->N();
@@ -301,6 +261,7 @@ void ConvFwd1x1Solution::releaseDevMem()
 void ConvFwd1x1Solution::GetBestKernel()
 {
 	PRINT_SEPARATOR('+');
+
 	OUTPUT("+ Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	OUTPUT("+ Best solution: " + solutionName);
 	OUTPUT("+ Best score: %.3f(us), %.1f(GFlops), %.1f%%", 
@@ -313,7 +274,6 @@ void ConvFwd1x1Solution::GetBestKernel()
 	generateKernel();
 	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
 	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
-	PRINT_SEPARATOR('+');
 	prepareKernelArgs();
 	launchKernel();
 	getBackResult();
@@ -324,6 +284,8 @@ void ConvFwd1x1Solution::GetBestKernel()
 		solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
 	logFile->Log("%s search time: %.1f(sec) = %d:%d", solutionName.c_str(),
 		searchElapsedSec, ((int)searchElapsedSec)/60, ((int)searchElapsedSec) % 60);
+
+	PRINT_SEPARATOR('+');
 }
 
 #pragma endregion
@@ -353,43 +315,50 @@ void ConvFwd1x1Solver::generateSolver()
 
 void ConvFwd1x1Problem::generateProblem()
 {
-	T_SearchParam * searchParam;
+	T_SearchParam * searchParam = new T_SearchParam();
 
-	searchParam = new T_SearchParam("C");
+	searchParam->Name = "C";
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
 	searchParam->ValueArray.push_back(256);
 	searchParam->ValueArray.push_back(512);
 	searchParam->ValueArray.push_back(1024);
 	searchParam->ValueArray.push_back(2048);
-	problemParamSpace->AddOneParam(searchParam);
-	searchParam = new T_SearchParam("K");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "K";
 	searchParam->ValueArray.push_back(64);
 	searchParam->ValueArray.push_back(128);
 	searchParam->ValueArray.push_back(256);
 	searchParam->ValueArray.push_back(512);
 	searchParam->ValueArray.push_back(1024);
 	searchParam->ValueArray.push_back(2048);
-	problemParamSpace->AddOneParam(searchParam);
-	searchParam = new T_SearchParam("N");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "N";
 	searchParam->ValueArray.push_back(1);
 	searchParam->ValueArray.push_back(2);
 	searchParam->ValueArray.push_back(4);
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
-	problemParamSpace->AddOneParam(searchParam);
-	searchParam = new T_SearchParam("WH");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "WH";
 	searchParam->ValueArray.push_back(7);
 	searchParam->ValueArray.push_back(14);
 	searchParam->ValueArray.push_back(28);
 	searchParam->ValueArray.push_back(56);
 	searchParam->ValueArray.push_back(112);
-	problemParamSpace->AddOneParam(searchParam);
-	searchParam = new T_SearchParam("UV");
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "UV";
 	searchParam->ValueArray.push_back(0);
 	searchParam->ValueArray.push_back(1);
-	problemParamSpace->AddOneParam(searchParam);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	enBias = false;
+	relu = E_Relu::NORELU;
 }
 
 void ConvFwd1x1Problem::TuneProblem()
@@ -400,27 +369,45 @@ void ConvFwd1x1Problem::TuneProblem()
 
 void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu)
 {
-	batch = N;
-	in_width = WH;		in_height = WH;
-	in_chan = C;		out_chan = K;
-	stride_x = UV;		stride_y = UV;
+	T_SearchParam * searchParam = new T_SearchParam();
+
+	searchParam->Name = "WH";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(WH);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "C";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(C);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "K";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(K);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "N";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(N);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "UV";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(UV);
+	searchSpace->AddOneSearchParam(searchParam);
+
 	enBias = isBias;
 	relu = (E_Relu)Relu;
 
 	RunProblem();
 }
 
-E_ReturnState ConvFwd1x1Problem::initHostParam()
+void ConvFwd1x1Problem::initHostParam()
 {
-	while (true)
+	ProblemCtrlBase::initHostParam();
+	
+	for (T_SearchParam *param : *(searchSpace->SearchParams()))
 	{
-		T_SearchParam * param = problemParamSpace->GetOneParam();
-
-		if (param == NULL)
-		{
-			break;
-		}
-
 		if (param->Name == "N")
 		{
 			batch = param->CurrValue;
@@ -501,8 +488,6 @@ E_ReturnState ConvFwd1x1Problem::initHostParam()
 	{
 		h_out[i] = 555.555;
 	}
-
-	return E_ReturnState::SUCCESS;
 }
 
 void ConvFwd1x1Problem::caculateTheoryPerformance()
@@ -518,6 +503,11 @@ void ConvFwd1x1Problem::caculateTheoryPerformance()
 
 void ConvFwd1x1Problem::runHostCompute()
 {
+	if (!CPU_VERIFY)
+		return;
+
+	ProblemCtrlBase::runHostCompute();
+
 	int stride_n_in;			// stride for differetn batch of input
 	int stride_c_in;			// stride for differetn channel in the same batch of input
 	int stride_k_wei;			// stride for differetn feature of weight
@@ -598,8 +588,13 @@ void ConvFwd1x1Problem::runHostCompute()
 	}
 }
 
-E_ReturnState ConvFwd1x1Problem::verifyDevCompute()
+void ConvFwd1x1Problem::verifyDevCompute()
 {
+	if (!CPU_VERIFY)
+		return;
+
+	ProblemCtrlBase::verifyDevCompute();
+
 	float diff = 0;
 	for (int i = 0; i < size_out; i++)
 	{
@@ -609,15 +604,17 @@ E_ReturnState ConvFwd1x1Problem::verifyDevCompute()
 
 	if (!(diff >= 0 && diff < MIN_FP32_ERR))
 	{
-		ERR("verify failed! mean err = %.2f", diff);
+		WARN("verify failed! mean err = %.2f", diff);
+		return;
 	}
 
 	INFO("verify success. mean err = %.1f", diff);
-	return E_ReturnState::SUCCESS;
 }
 
 void ConvFwd1x1Problem::releaseHostParam()
 {
+	ProblemCtrlBase::releaseHostParam();
+
 	free(h_in);
 	free(h_wei);
 	free(h_bias);
