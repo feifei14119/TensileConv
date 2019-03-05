@@ -9,8 +9,10 @@ namespace AutoTune{
 
 typedef enum SearchMethordEnum
 {
-	SEARCH_BRUTE = 0,
-	SEARCH_GENETIC = 1
+	SEARCH_NONE = 0,
+	SEARCH_AUTO = 1,	// 如果有记录,则不进行搜索
+	SEARCH_BRUTE = 2,
+	SEARCH_GENETIC = 3
 } E_SearchMethord;
 /************************************************************************/
 /* 搜索参数					                                            */

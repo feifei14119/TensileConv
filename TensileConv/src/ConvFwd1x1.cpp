@@ -1,10 +1,72 @@
 #pragma once 
 
 #include "ConvFwd1x1.h"
+#include <fstream>
 
 using namespace TensileConv;
 using namespace AutoGen;
 using namespace AutoTune;
+
+/************************************************************************/
+/* 还没想好放到哪儿									                    */
+/************************************************************************/
+static std::string dbFileName;
+static std::string dbDirPath = "./db/";
+static std::map<std::string, T_SaveParam> * saveCfgs;
+static T_SaveParam setKernelParam;
+static std::string genKeyStr(int N, int C, int H, int W, int K, bool bias, E_Relu relu)
+{
+	char tmpc[MAP_KEY_LEN];
+	sprintf(tmpc, "N%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
+	return std::string(tmpc);
+}
+
+static void loadDbFile()
+{
+	saveCfgs = new std::map<std::string, T_SaveParam>();
+
+	RuntimeOCL * rtOcl = RuntimeOCL::GetInstance();
+	dbFileName = "conv1x1_fwd_dir_" + rtOcl->Device()->DeviceInfo()->name;
+	ensure_dir(dbDirPath.c_str());
+	std::string full_name = dbDirPath + dbFileName;
+
+	std::ifstream fin(full_name.c_str(), std::ios::in | std::ios::binary);
+
+	if (!fin.is_open())
+	{
+		std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary);
+		fout.close();
+	}
+	else
+	{
+		unsigned int fileSize;
+		unsigned int rcdNum;
+		unsigned int rcdSize = sizeof(T_SaveParam);
+		fin.seekg(0, std::ios::end);
+
+		fileSize = (size_t)fin.tellg();
+		rcdNum = fileSize / rcdSize;
+		fin.seekg(0, std::ios::beg);
+
+		for (int i = 0; i < rcdNum; i++)
+		{
+			T_SaveParam * pSaveParam = new T_SaveParam;
+			fin.read((char*)pSaveParam, rcdSize);
+			saveCfgs->insert(std::pair<std::string, T_SaveParam>(pSaveParam->key, *pSaveParam));
+		}
+
+		fin.close();
+	}
+}
+
+static void saveDbFile(T_SaveParam saveParam)
+{
+	std::string full_name = dbDirPath + dbFileName;
+	std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary | std::ios::app);
+	fout.seekp(0, std::ios::end);
+	fout.write((char*)(&saveParam), sizeof(T_SaveParam));
+	fout.close();
+}
 
 /************************************************************************/
 /* solution 控制										                    */
@@ -15,9 +77,13 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 	: SolutionCtrlBase(problem, name, file)
 {
 	this->problem = problem;
+	EnSearch = problem->EnSearch;
 
 	switch (searchMethod)
 	{
+	case AutoTune::E_SearchMethord::SEARCH_AUTO:
+		solutionName = "Genetic Search";
+		break;
 	case AutoTune::E_SearchMethord::SEARCH_BRUTE:
 		solutionName = "Brust Search";
 		break;
@@ -134,30 +200,6 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 	return E_ReturnState::SUCCESS;
 }
 
-E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
-{
-	OUTPUT("+ Serching param comb: ");
-
-	for (T_SearchParam *param : *(searchSpace->SearchParams()))
-	{
-		if (param->Name == "PCK_order")				kernelParam.PCK_order = param->BestValue;
-		if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->BestValue;
-		if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->BestValue;
-		if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->BestValue;
-		if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->BestValue;
-		if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->BestValue;
-		if (param->Name == "group_size_x")			kernelParam.group_size_x = param->BestValue;
-
-		OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
-	}
-
-	kernelParam.N = problem->N();
-	kernelParam.C = problem->C(); kernelParam.K = problem->K();
-	kernelParam.W = problem->W(); kernelParam.H = problem->H();
-	kernelParam.EnBias = problem->EnBias(); 
-	kernelParam.Relu = problem->Relu();
-}
-
 E_ReturnState ConvFwd1x1Solution::generateKernel()
 {		
 	// generate kernel source
@@ -245,34 +287,91 @@ void ConvFwd1x1Solution::releaseDevMem()
 	if (size_dbg > 0)		free(h_dbg);
 }
 
+E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
+{
+	OUTPUT("+ Serching param comb: ");
+
+	if (EnSearch)
+	{
+		for (T_SearchParam *param : *(searchSpace->SearchParams()))
+		{
+			if (param->Name == "PCK_order")				kernelParam.PCK_order = param->BestValue;
+			if (param->Name == "c_in_lds_atomic_group")	kernelParam.c_in_lds_atomic_group = param->BestValue;
+			if (param->Name == "c_in_lds_split_group")	kernelParam.c_in_lds_split_group = param->BestValue;
+			if (param->Name == "c_in_l2_atomic_group")	kernelParam.c_in_l2_atomic_group = param->BestValue;
+			if (param->Name == "c_in_l2_split_group")	kernelParam.c_in_l2_split_group = param->BestValue;
+			if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->BestValue;
+			if (param->Name == "group_size_x")			kernelParam.group_size_x = param->BestValue;
+
+			OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
+		}
+	}
+	else
+	{
+		kernelParam.PCK_order = setKernelParam.PCK_order;
+		kernelParam.c_in_lds_atomic_group = setKernelParam.c_in_lds_atomic_group;
+		kernelParam.c_in_lds_split_group = setKernelParam.c_in_lds_split_group;
+		kernelParam.c_in_l2_atomic_group = setKernelParam.c_in_l2_atomic_group;
+		kernelParam.c_in_l2_split_group = setKernelParam.c_in_l2_split_group;
+		kernelParam.k_out_maps = setKernelParam.k_out_maps;
+		kernelParam.group_size_x = setKernelParam.group_size_x;
+
+		solutionScore.ElapsedTime = setKernelParam.elapsedSec;
+	}
+
+	kernelParam.N = problem->N();
+	kernelParam.C = problem->C(); kernelParam.K = problem->K();
+	kernelParam.W = problem->W(); kernelParam.H = problem->H();
+	kernelParam.EnBias = problem->EnBias();
+	kernelParam.Relu = problem->Relu();
+}
 void ConvFwd1x1Solution::GetBestKernel()
 {
 	PRINT_SEPARATOR('+');
 
 	OUTPUT("+ Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	OUTPUT("+ Best solution: " + solutionName);
-	OUTPUT("+ Best score: %.3f(us), %.1f(GFlops), %.1f%%", 
-		solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
+	OUTPUT("+ Best score: %.3f(us), %.1f(GFlops), %.1f%%", solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
 	OUTPUT("+ Search time: %.1f(sec) = %d:%d", searchElapsedSec, ((int)searchElapsedSec) / 60, ((int)searchElapsedSec) % 60);
 	OUTPUT("+ Kernel name: " + kernelName);
 	OUTPUT("+ Kernel file: " + kernelFile);
 	getBestKernelParam();
 
-	generateKernel();
+	if (solutionScore.ElapsedTime != -1)
+		generateKernel();
 	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
 	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
-	prepareKernelArgs();
-	launchKernel();
-	getBackResult();
-	releaseDevMem();
+	if(EnSearch)	prepareKernelArgs();
+	if (EnSearch)	launchKernel();
+	if (EnSearch)	getBackResult();
+	if (EnSearch)	releaseDevMem();
 
 	logFile->Log("Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
-	logFile->Log("%s score: %.3f(us), %.1f(GFlops), %.1f%%", solutionName.c_str(),
-		solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
-	logFile->Log("%s search time: %.1f(sec) = %d:%d", solutionName.c_str(),
-		searchElapsedSec, ((int)searchElapsedSec)/60, ((int)searchElapsedSec) % 60);
+	logFile->Log("%s score: %.3f(us), %.1f(GFlops), %.1f%%", solutionName.c_str(), solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
+	logFile->Log("%s search time: %.1f(sec) = %d:%d", solutionName.c_str(),	searchElapsedSec, ((int)searchElapsedSec)/60, ((int)searchElapsedSec) % 60);
 
 	PRINT_SEPARATOR('+');
+
+	if (EnSearch)
+	{
+		T_SaveParam saveParam;
+		saveParam.N = kernelParam.N; saveParam.C = kernelParam.C; saveParam.K = kernelParam.K;
+		saveParam.W = kernelParam.W; saveParam.H = kernelParam.H;
+		saveParam.bias = kernelParam.EnBias; saveParam.relu = kernelParam.Relu;
+		saveParam.PCK_order = kernelParam.PCK_order;
+		saveParam.c_in_lds_atomic_group = kernelParam.c_in_lds_atomic_group;
+		saveParam.c_in_lds_split_group = kernelParam.c_in_lds_split_group;
+		saveParam.c_in_l2_atomic_group = kernelParam.c_in_l2_atomic_group;
+		saveParam.c_in_l2_split_group = kernelParam.c_in_l2_split_group;
+		saveParam.k_out_maps = kernelParam.k_out_maps;
+		saveParam.group_size_x = kernelParam.group_size_x;
+		saveParam.elapsedSec = solutionScore.ElapsedTime;
+		std::string key = genKeyStr(saveParam.N, saveParam.C, saveParam.H, saveParam.W, saveParam.K, saveParam.bias, saveParam.relu);
+		memcpy(saveParam.key, key.c_str(), MAP_KEY_LEN);
+
+		saveDbFile(saveParam);
+		saveCfgs->insert(std::pair<std::string, T_SaveParam>(saveParam.key, saveParam));
+	}
 }
 
 #pragma endregion
@@ -285,11 +384,14 @@ void ConvFwd1x1Solution::GetBestKernel()
 ConvFwd1x1Solver::ConvFwd1x1Solver(ConvFwd1x1Problem * problem, LogFile * file)
 	: SolverCtrlBase(problem,file) 
 { 
-	this->problem = problem; 
+	this->problem = problem;
 }
 void ConvFwd1x1Solver::generateSolver()
 {
+	EnSearch = problem->EnSearch;
+
 	ConvFwd1x1Solution * solution = new ConvFwd1x1Solution((ConvFwd1x1Problem*)problem, "", logFile);
+	solution->EnSearch = EnSearch;
 	solutionList->push_back(solution);
 }
 
@@ -299,6 +401,15 @@ void ConvFwd1x1Solver::generateSolver()
 /* problem 控制															*/
 /************************************************************************/
 #pragma region PROBLEM
+
+ConvFwd1x1Problem::ConvFwd1x1Problem(std::string name, LogFile * file)
+	:ProblemCtrlBase(name, file)
+{
+	solver = new ConvFwd1x1Solver(this, logFile);
+
+	if(saveCfgs == nullptr)
+		loadDbFile();
+}
 
 void ConvFwd1x1Problem::generateProblem()
 {
@@ -386,6 +497,28 @@ void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool is
 	enBias = isBias;
 	relu = (E_Relu)Relu;
 
+	std::string key = genKeyStr(N, C, WH, WH, K, isBias, relu);
+	std::map<std::string, T_SaveParam>::iterator it;
+	it = saveCfgs->find(key);
+	
+	EnSearch = true;
+	memset(&setKernelParam, 0, sizeof(setKernelParam));
+	setKernelParam.elapsedSec = -1;
+	if (*(int*)cmdArgs->GetOneArg(CMD_ARG_SEARCH) == SEARCH_NONE)
+	{
+		EnSearch = false;
+		if (it != saveCfgs->end())
+			setKernelParam = it->second;
+	}
+	else if (*(int*)cmdArgs->GetOneArg(CMD_ARG_SEARCH) == SEARCH_AUTO)
+	{
+		if (it != saveCfgs->end())
+		{
+			EnSearch = false;
+			setKernelParam = it->second;
+		}
+	}
+
 	RunProblem();
 }
 
@@ -438,6 +571,9 @@ void ConvFwd1x1Problem::initHostParam()
 	size_bias = out_chan;
 	size_out = in_width * in_height * out_chan * batch;
 	
+	if (!EnSearch) 
+		return;
+
 	h_in = (float*)malloc(size_in * sizeof(float));
 	h_wei = (float*)malloc(size_wei * sizeof(float));
 	h_bias = (float*)malloc(size_bias * sizeof(float));

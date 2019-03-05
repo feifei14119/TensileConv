@@ -114,9 +114,10 @@ void SolverCtrlBase::RunSolver()
 	generateSolver();
 
 	// 遍历solver的各个solution
+	bestSolution = (*solutionList)[0];
 	for(SolutionCtrlBase * solution : *solutionList)
 	{
-		solution->RunSolution();
+		if (EnSearch)	solution->RunSolution();
 		
 		T_Score score = solution->SolutionScore();
 		scoreList->push_back(score);
@@ -146,11 +147,11 @@ void ProblemCtrlBase::RunProblem()
 	{
 		searchSpace->InitSearching();
 		initHostParam();
-		caculateTheoryPerformance();
-		runHostCompute();
+		if (EnSearch)	caculateTheoryPerformance();
+		if (EnSearch)	runHostCompute();
 		solver->RunSolver();
-		verifyDevCompute();
-		releaseHostParam();
+		if (EnSearch)	verifyDevCompute();
+		if (EnSearch)	releaseHostParam();
 
 		if (searchSpace->GenerateNextComb() != E_ReturnState::SUCCESS)
 		{

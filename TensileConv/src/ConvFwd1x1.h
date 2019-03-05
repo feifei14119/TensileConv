@@ -5,6 +5,21 @@
 
 namespace TensileConv {
 
+#define MAP_KEY_LEN (30)
+	typedef struct SaveParamStruct
+	{
+		char key[MAP_KEY_LEN];
+		int N, C, H, W, K;
+		bool bias; E_Relu relu;
+		int PCK_order;
+		int c_in_lds_atomic_group;
+		int c_in_lds_split_group;
+		int c_in_l2_atomic_group;
+		int c_in_l2_split_group;
+		int k_out_maps;
+		int group_size_x;
+		double elapsedSec;
+	} T_SaveParam;
 /************************************************************************/
 /* solution ¿ØÖÆ										                    */
 /************************************************************************/
@@ -15,12 +30,15 @@ public:
 	ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string name = "", LogFile * file = nullptr);
 	AutoGen::T_Conv1x1KernelParam KernelParam() { return kernelParam; }
 	void GetBestKernel();
+	size_t SignalSize() { return size_sig; }
+	size_t L2SplitSize() { return size_l2; }
+	size_t DebugSize() { return size_dbg; }
 
 private:
 	float *h_sig, *h_l2, *h_dbg;
 	cl_mem d_in, d_wei, d_bias, d_out, d_sig, d_l2, d_dbg;
 	float negSlop;
-	size_t size_sig, size_l2, size_dbg;
+	size_t size_sig = 0, size_l2 = 0, size_dbg = 0;
 
 protected:
 	ConvFwd1x1Problem * problem;
@@ -43,7 +61,6 @@ class ConvFwd1x1Solver : public SolverCtrlBase
 {
 public:
 	ConvFwd1x1Solver(ConvFwd1x1Problem * problem, LogFile * file = nullptr);
-	~ConvFwd1x1Solver()	{}
 	
 protected:
 	ConvFwd1x1Problem * problem;
@@ -56,12 +73,11 @@ protected:
 class ConvFwd1x1Problem : public ProblemCtrlBase
 {
 public:
-	ConvFwd1x1Problem(std::string name = "", LogFile * file = nullptr)
-		:ProblemCtrlBase(name, file) 
-	{
-		solver = new ConvFwd1x1Solver(this, logFile);
+	ConvFwd1x1Problem(std::string name = "", LogFile * file = nullptr);
+	~ConvFwd1x1Problem() 
+	{ 
+		delete solver; 
 	}
-	~ConvFwd1x1Problem() { delete solver; }
 
 	void TuneProblem();
 	void TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu);

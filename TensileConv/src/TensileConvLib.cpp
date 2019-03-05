@@ -1,7 +1,7 @@
 ﻿#include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string>
 #include <CL/opencl.h>
 
 #include "ConvFwd1x1.h"

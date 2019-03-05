@@ -46,13 +46,18 @@ public:
 		this->problem = problem;
 		repeatTime = *(int*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_LOOP);
 
-		searchMethod = *(AutoTune::E_SearchMethord*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
-		switch (searchMethod)
+		switch (*(AutoTune::E_SearchMethord*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_SEARCH))
 		{
+		case AutoTune::E_SearchMethord::SEARCH_AUTO:
+			searchMethod = AutoTune::E_SearchMethord::SEARCH_GENETIC;
+			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::GeneticSearch();
+			break;
 		case AutoTune::E_SearchMethord::SEARCH_BRUTE:
+			searchMethod = AutoTune::E_SearchMethord::SEARCH_BRUTE;
 			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::BruteSearch();
 			break;
 		case AutoTune::E_SearchMethord::SEARCH_GENETIC:
+			searchMethod = AutoTune::E_SearchMethord::SEARCH_GENETIC;
 			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::GeneticSearch();
 			break;
 		}
@@ -63,6 +68,7 @@ public:
 		delete searchSpace;
 	}
 
+	bool EnSearch;
 	void RunSolution();
 	virtual void GetBestKernel() { INFO("Best solution: " + solutionName); }
 
@@ -140,6 +146,7 @@ public:
 		delete solutionList;
 	}
 
+	bool EnSearch;
 	void RunSolver();
 	T_Score BestScore() { return bestScore; }
 	SolutionCtrlBase * BestSolution() { return bestSolution; }
@@ -171,8 +178,12 @@ public:
 
 		searchSpace = new AutoTune::BruteSearch();
 	}
-	virtual ~ProblemCtrlBase() { delete searchSpace; }
+	virtual ~ProblemCtrlBase() 
+	{ 
+		delete searchSpace; 
+	}
 
+	bool EnSearch;
 	virtual void RunProblem();
 	SolutionCtrlBase * BestSolution() { return solver->BestSolution(); }
 	double Calculation() { return calculation; }
@@ -191,7 +202,7 @@ protected:
 
 	double calculation;					// 当前正在处理的问题配置的计算量
 	double theoryElapsedTime;			// 当前正在处理的问题配置的理论执行时间
-
+	
 	virtual void initHostParam() { INFO("initialize host."); }
 	virtual void runHostCompute() { INFO("run host calculate."); }
 	virtual void verifyDevCompute() { INFO("verify device calculation."); }
