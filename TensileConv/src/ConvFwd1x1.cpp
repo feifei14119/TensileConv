@@ -77,18 +77,18 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 	: SolutionCtrlBase(problem, name, file)
 {
 	this->problem = problem;
-	EnSearch = problem->EnSearch;
+	enableSearch = problem->EnSearch;
+	searchMethod = problem->SearchMethod;
 
 	switch (searchMethod)
 	{
-	case AutoTune::E_SearchMethord::SEARCH_AUTO:
-		solutionName = "Genetic Search";
-		break;
 	case AutoTune::E_SearchMethord::SEARCH_BRUTE:
 		solutionName = "Brust Search";
+		searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::BruteSearch();
 		break;
 	case AutoTune::E_SearchMethord::SEARCH_GENETIC:
 		solutionName = "Genetic Search";
+		searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::GeneticSearch();
 		break;
 	}
 
@@ -291,7 +291,7 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 {
 	OUTPUT("+ Serching param comb: ");
 
-	if (EnSearch)
+	if (enableSearch)
 	{
 		for (T_SearchParam *param : *(searchSpace->SearchParams()))
 		{
@@ -341,10 +341,10 @@ void ConvFwd1x1Solution::GetBestKernel()
 		generateKernel();
 	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
 	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
-	if(EnSearch)	prepareKernelArgs();
-	if (EnSearch)	launchKernel();
-	if (EnSearch)	getBackResult();
-	if (EnSearch)	releaseDevMem();
+	if(enableSearch)	prepareKernelArgs();
+	if (enableSearch)	launchKernel();
+	if (enableSearch)	getBackResult();
+	if (enableSearch)	releaseDevMem();
 
 	logFile->Log("Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	logFile->Log("%s score: %.3f(us), %.1f(GFlops), %.1f%%", solutionName.c_str(), solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
@@ -352,7 +352,7 @@ void ConvFwd1x1Solution::GetBestKernel()
 
 	PRINT_SEPARATOR('+');
 
-	if (EnSearch)
+	if (enableSearch)
 	{
 		T_SaveParam saveParam;
 		saveParam.N = kernelParam.N; saveParam.C = kernelParam.C; saveParam.K = kernelParam.K;
@@ -391,7 +391,6 @@ void ConvFwd1x1Solver::generateSolver()
 	EnSearch = problem->EnSearch;
 
 	ConvFwd1x1Solution * solution = new ConvFwd1x1Solution((ConvFwd1x1Problem*)problem, "", logFile);
-	solution->EnSearch = EnSearch;
 	solutionList->push_back(solution);
 }
 
@@ -465,7 +464,7 @@ void ConvFwd1x1Problem::TuneProblem()
 	RunProblem();
 }
 
-void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu)
+void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu, int TuneMethod)
 {
 	T_SearchParam * searchParam = new T_SearchParam();
 
@@ -502,21 +501,30 @@ void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool is
 	it = saveCfgs->find(key);
 	
 	EnSearch = true;
+	SearchMethod = E_SearchMethord::SEARCH_GENETIC;
 	memset(&setKernelParam, 0, sizeof(setKernelParam));
 	setKernelParam.elapsedSec = -1;
-	if (*(int*)cmdArgs->GetOneArg(CMD_ARG_SEARCH) == SEARCH_NONE)
+	if (TuneMethod == SEARCH_NONE)
 	{
 		EnSearch = false;
 		if (it != saveCfgs->end())
 			setKernelParam = it->second;
 	}
-	else if (*(int*)cmdArgs->GetOneArg(CMD_ARG_SEARCH) == SEARCH_AUTO)
+	else if (TuneMethod == SEARCH_AUTO)
 	{
 		if (it != saveCfgs->end())
 		{
 			EnSearch = false;
 			setKernelParam = it->second;
 		}
+	}
+	else if (TuneMethod == SEARCH_BRUTE)
+	{
+		SearchMethod = E_SearchMethord::SEARCH_BRUTE;
+	}
+	else if (TuneMethod == SEARCH_GENETIC)
+	{
+		SearchMethod = E_SearchMethord::SEARCH_GENETIC;
 	}
 
 	RunProblem();

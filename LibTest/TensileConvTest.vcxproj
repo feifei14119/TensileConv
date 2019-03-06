@@ -74,7 +74,7 @@
     <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
     <RemoteLdToolExe>g++</RemoteLdToolExe>
     <RemoteProjectDir>$(RemoteRootDir)/$(ProjectName)/</RemoteProjectDir>
-    <OutDir>$(ProjectDir)..\out\</OutDir>
+    <OutDir>$(ProjectDir)..\..\out\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

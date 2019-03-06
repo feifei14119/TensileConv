@@ -282,6 +282,8 @@ namespace feifei
 	static std::string GetKernelTempPath()
 	{
 		CmdArgs * cmd = CmdArgs::GetCmdArgs();
+		if (cmd->ExecutePath() == "")
+			return "./kernel";
 		return cmd->ExecutePath() + "/kernel";
 	}
 }

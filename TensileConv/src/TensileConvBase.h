@@ -12,7 +12,6 @@
 
 namespace TensileConv {
 
-#define		MULT_SOLUTION	(1)
 #define		CPU_VERIFY		(1)
 
 /************************************************************************/
@@ -39,28 +38,11 @@ public:
 		solutionScore.ElapsedTime = (std::numeric_limits<double>::max)();
 		solutionScore.Performence = 0;
 
-		cmdArgs = CmdArgs::GetCmdArgs();
 		rtOcl = RuntimeOCL::GetInstance();
 		stream = rtOcl->CreatCmdQueue(true);
 
+		repeatTime = 10;
 		this->problem = problem;
-		repeatTime = *(int*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_LOOP);
-
-		switch (*(AutoTune::E_SearchMethord*)cmdArgs->GetOneArg(E_ArgId::CMD_ARG_SEARCH))
-		{
-		case AutoTune::E_SearchMethord::SEARCH_AUTO:
-			searchMethod = AutoTune::E_SearchMethord::SEARCH_GENETIC;
-			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::GeneticSearch();
-			break;
-		case AutoTune::E_SearchMethord::SEARCH_BRUTE:
-			searchMethod = AutoTune::E_SearchMethord::SEARCH_BRUTE;
-			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::BruteSearch();
-			break;
-		case AutoTune::E_SearchMethord::SEARCH_GENETIC:
-			searchMethod = AutoTune::E_SearchMethord::SEARCH_GENETIC;
-			searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::GeneticSearch();
-			break;
-		}
 	}
 	virtual ~SolutionCtrlBase() 
 	{ 
@@ -68,7 +50,6 @@ public:
 		delete searchSpace;
 	}
 
-	bool EnSearch;
 	void RunSolution();
 	virtual void GetBestKernel() { INFO("Best solution: " + solutionName); }
 
@@ -89,6 +70,7 @@ protected:
 
 	ProblemCtrlBase * problem;
 	std::string solutionName;					// 配置名称
+	bool enableSearch;
 	AutoTune::E_SearchMethord searchMethod;		// 搜索方法选择
 	AutoTune::SearchSpaceBase * searchSpace;	// 参数搜索空间
 	double searchElapsedSec;
@@ -173,7 +155,6 @@ public:
 		problemName = name;
 		logFile = file;
 
-		cmdArgs = CmdArgs::GetCmdArgs();
 		rtOcl = RuntimeOCL::GetInstance();
 
 		searchSpace = new AutoTune::BruteSearch();
@@ -184,6 +165,7 @@ public:
 	}
 
 	bool EnSearch;
+	AutoTune::E_SearchMethord SearchMethod;
 	virtual void RunProblem();
 	SolutionCtrlBase * BestSolution() { return solver->BestSolution(); }
 	double Calculation() { return calculation; }

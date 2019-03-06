@@ -80,7 +80,7 @@ public:
 	}
 
 	void TuneProblem();
-	void TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu);
+	void TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu, int TuneMethod);
 
 	int N() { return batch; }
 	int W() { return in_width; } int H() { return in_height; }

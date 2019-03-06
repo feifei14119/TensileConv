@@ -30,7 +30,8 @@ int main(int argc, char *argv[])
 	int N = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_N);
 	int UV = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_UV);
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
-	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU) == 1;
+	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU);
+	int TuneMethod = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
 
 	ConvFwd1x1Problem * conv = new ConvFwd1x1Problem("DirConv1x1Fwd", logFile);
 	conv->TuneProblem(WH, C, K, N, UV, Bias, Relu);

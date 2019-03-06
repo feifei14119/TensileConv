@@ -157,7 +157,8 @@ namespace feifei
 		{
 			//compiler = "clang"; 
 			compiler = "/opt/rocm/opencl/bin/x86_64/clang";
-			SetKernelTempDir(GetKernelTempPath());
+			std::string dir = GetKernelTempPath();
+			SetKernelTempDir(dir);
 		}
 
 	protected:

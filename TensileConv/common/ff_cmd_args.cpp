@@ -76,6 +76,8 @@ namespace feifei
 	 */
 	void CmdArgs::paserCmdArgs(int argc, char *argv[])
 	{
+		if (argc == 0)
+			return;
 		// use first arg to get current path
 		size_t p;
 		p = std::string(argv[0]).rfind('/');

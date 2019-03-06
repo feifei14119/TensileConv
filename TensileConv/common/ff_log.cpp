@@ -232,20 +232,20 @@ namespace feifei
 	{
 		log_char_buffer = (char *)malloc(CHAR_BUFF_SIZE);
 
-		ensure_dir(".//log//");
+		ensure_dir("./log");
 
 		if (isNew == true)
 		{
 			time_t t = time(0);
 			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
 			strftime(log_char_buffer, CHAR_BUFF_SIZE, "_%F_%H-%M-%S.log", localtime(&t));
-			this->file_name = ".//log//" + std::string(file_name) + log_char_buffer;
+			this->file_name = "./log/" + std::string(file_name) + log_char_buffer;
 
 			log_file = new std::ofstream(this->file_name, std::ios::out | std::ios::trunc);
 		}
 		else
 		{
-			this->file_name = ".//log//" + std::string(file_name) + std::string(".log");
+			this->file_name = "./log/" + std::string(file_name) + std::string(".log");
 			log_file = new std::ofstream(this->file_name, std::ios::out | std::ios::app);
 		}
 
