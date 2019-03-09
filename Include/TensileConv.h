@@ -13,10 +13,10 @@ namespace TensileConv
 	};
 	enum class E_TCSearch
 	{
-		NOSEARCH = 0,
-		AUTO = 1,
-		BRUTE = 2,
-		GENETIC = 3
+		NOSEARCH = 0,	// 不search.   若db有解,则返回最优解; 否则返回时间为-1秒
+		AUTO = 1,		// 自动search. 若db有解,则返回最优解; 否则执行自动搜索后返回最优解
+		BRUTE = 2,		// 强制暴力搜索寻找最优解
+		GENETIC = 3		// 强制使用遗传算法搜索最优解
 	};
 
 	typedef struct TCSolutionType

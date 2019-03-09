@@ -152,6 +152,8 @@ public:
 		newParam->CurrIdx = 0;
 		newParam->CurrValue = newParam->ValueArray[0];
 		newParam->ValueNum = newParam->ValueArray.size();
+		newParam->BestIdx = 0;
+		newParam->BestValue = newParam->ValueArray[0];
 
 		searchParams->push_back(newParam);
 		paramNumber++;
@@ -435,6 +437,8 @@ public:
 		newParam->CurrIdx = 0;
 		newParam->CurrValue = newParam->ValueArray[0];
 		newParam->ValueNum = newParam->ValueArray.size();
+		newParam->BestIdx = 0;
+		newParam->BestValue = newParam->ValueArray[0];
 
 		genePool->push_back(newParam);
 

@@ -80,6 +80,8 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 	enableSearch = problem->EnSearch;
 	searchMethod = problem->SearchMethod;
 
+	d_in = d_wei = d_bias = d_out = nullptr;
+
 	switch (searchMethod)
 	{
 	case AutoTune::E_SearchMethord::SEARCH_BRUTE:
@@ -91,16 +93,9 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 		searchSpace = (AutoTune::SearchSpaceBase*)new AutoTune::GeneticSearch();
 		break;
 	}
-
-	kernelParam.PCK_order = 123;
-	kernelParam.c_in_lds_atomic_group = 1;
-	kernelParam.c_in_lds_split_group = 1;
-	kernelParam.c_in_l2_atomic_group = 1;
-	kernelParam.c_in_l2_split_group = 1;
-	kernelParam.k_out_maps = 8;
-	kernelParam.group_size_x = 64;
 }
 
+#if 1
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
 	T_SearchParam * searchParam = new T_SearchParam();
@@ -118,10 +113,6 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->Name = "c_in_lds_atomic_group";
 	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(1);
-	//searchParam->ValueArray.push_back(2);
-	//searchParam->ValueArray.push_back(4);
-	//searchParam->ValueArray.push_back(8);
-	//searchParam->ValueArray.push_back(16);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_lds_split_group";
@@ -136,10 +127,6 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->Name = "c_in_l2_atomic_group";
 	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(1);
-	//searchParam->ValueArray.push_back(2);
-	//searchParam->ValueArray.push_back(4);
-	//searchParam->ValueArray.push_back(8);
-	//searchParam->ValueArray.push_back(16);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_l2_split_group";
@@ -158,10 +145,10 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(8);
 	searchParam->ValueArray.push_back(16);
 	searchParam->ValueArray.push_back(32);
-	/*// for Baidu
+	// for Baidu
 	searchParam->ValueArray.push_back(3);
 	searchParam->ValueArray.push_back(5);
-	searchParam->ValueArray.push_back(7);*/
+	searchParam->ValueArray.push_back(7);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "group_size_x";
@@ -170,11 +157,53 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam->ValueArray.push_back(128);
 	searchParam->ValueArray.push_back(256);
 	searchParam->ValueArray.push_back(512);
-	//searchParam->ValueArray.push_back(1024);
+	searchParam->ValueArray.push_back(1024);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	return E_ReturnState::SUCCESS;
 }
+#else
+E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
+{
+	T_SearchParam * searchParam = new T_SearchParam();
+
+	searchParam->Name = "PCK_order";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(123);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "c_in_lds_split_group";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "c_in_l2_split_group";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "k_out_maps";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(5);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "group_size_x";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(64);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	searchParam->Name = "c_in_lds_atomic_group";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(searchParam);
+	searchParam->Name = "c_in_l2_atomic_group";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(searchParam);
+
+	return E_ReturnState::SUCCESS;
+}
+#endif
 
 E_ReturnState ConvFwd1x1Solution::getKernelParam()
 {
@@ -244,10 +273,17 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	d_bias = rtOcl->DevMalloc(problem->size_bias * sizeof(float));
 	d_out = rtOcl->DevMalloc(problem->size_out * sizeof(float));
 
+	if (d_in == nullptr || d_wei == nullptr || d_bias == nullptr || d_out == nullptr)
+		return E_ReturnState::FAIL;
+
 	d_sig = d_l2 = d_dbg = NULL;
 	if (size_sig > 0)		d_sig = rtOcl->DevMalloc(size_sig * sizeof(float));
 	if (size_l2 > 0)		d_l2 = rtOcl->DevMalloc(size_l2 * sizeof(float));
 	if (size_dbg > 0)		d_dbg = rtOcl->DevMalloc(size_dbg * sizeof(float));
+
+	if (size_sig > 0 && d_sig == nullptr)		return E_ReturnState::FAIL;
+	if (size_l2 > 0 && d_l2 == nullptr)			return E_ReturnState::FAIL;
+	if (size_dbg > 0 && d_dbg == nullptr)		return E_ReturnState::FAIL;
 
 	stream->MemCopyH2D(d_in, problem->h_in, problem->size_in * sizeof(float));
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
@@ -274,10 +310,11 @@ void ConvFwd1x1Solution::getBackResult()
 
 void ConvFwd1x1Solution::releaseDevMem()
 {
-	rtOcl->DevFree(d_in);
-	rtOcl->DevFree(d_wei);
-	rtOcl->DevFree(d_out);
-	rtOcl->DevFree(d_bias);
+	if (d_in != nullptr) rtOcl->DevFree(d_in);
+	if (d_wei != nullptr) rtOcl->DevFree(d_wei);
+	if (d_out != nullptr) rtOcl->DevFree(d_out);
+	if (d_bias != nullptr) rtOcl->DevFree(d_bias);
+
 	if (size_sig > 0)		rtOcl->DevFree(d_sig);
 	if (size_l2 > 0)		rtOcl->DevFree(d_l2);
 	if (size_dbg > 0)		rtOcl->DevFree(d_dbg);
@@ -337,14 +374,17 @@ void ConvFwd1x1Solution::GetBestKernel()
 	OUTPUT("+ Kernel file: " + kernelFile);
 	getBestKernelParam();
 
-	if (solutionScore.ElapsedTime != -1)
-		generateKernel();
+	bool successFlag = false;
+	if(setKernelParam.elapsedSec != -1)	if (generateKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
 	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
 	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
-	if(enableSearch)	prepareKernelArgs();
-	if (enableSearch)	launchKernel();
+	if (enableSearch)	if (prepareKernelArgs() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
+	if (enableSearch)	if (launchKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
 	if (enableSearch)	getBackResult();
+	successFlag = true;
+	NO_BEST_SOLUTION:
 	if (enableSearch)	releaseDevMem();
+	if (successFlag == false)	solutionScore.ElapsedTime = -1;
 
 	logFile->Log("Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	logFile->Log("%s score: %.3f(us), %.1f(GFlops), %.1f%%", solutionName.c_str(), solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
@@ -464,20 +504,23 @@ void ConvFwd1x1Problem::TuneProblem()
 	RunProblem();
 }
 
-void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool isBias, int Relu, int TuneMethod)
+void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, bool isBias, int Relu, int TuneMethod)
 {
 	T_SearchParam * searchParam = new T_SearchParam();
 
-	searchParam->Name = "WH";
+	searchParam->Name = "W";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(WH);
+	searchParam->ValueArray.push_back(W);
+	searchSpace->AddOneSearchParam(searchParam);
+	searchParam->Name = "H";
+	searchParam->ValueArray.clear();
+	searchParam->ValueArray.push_back(H);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "C";
 	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(C);
 	searchSpace->AddOneSearchParam(searchParam);
-
 	searchParam->Name = "K";
 	searchParam->ValueArray.clear();
 	searchParam->ValueArray.push_back(K);
@@ -496,7 +539,8 @@ void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool is
 	enBias = isBias;
 	relu = (E_Relu)Relu;
 
-	std::string key = genKeyStr(N, C, WH, WH, K, isBias, relu);
+
+	std::string key = genKeyStr(N, C, W, H, K, isBias, relu);
 	std::map<std::string, T_SaveParam>::iterator it;
 	it = saveCfgs->find(key);
 	
@@ -527,6 +571,13 @@ void ConvFwd1x1Problem::TuneProblem(int WH, int C, int K, int N, int UV, bool is
 		SearchMethod = E_SearchMethord::SEARCH_GENETIC;
 	}
 
+	if (C % 2 != 0)
+	{
+		EnSearch = false;
+		SearchMethod = E_SearchMethord::SEARCH_BRUTE;
+		setKernelParam.elapsedSec = -1;
+	}
+
 	RunProblem();
 }
 
@@ -540,9 +591,12 @@ void ConvFwd1x1Problem::initHostParam()
 		{
 			batch = param->CurrValue;
 		}
-		if (param->Name == "WH")
+		if (param->Name == "W")
 		{
 			in_width = param->CurrValue;
+		}
+		if (param->Name == "H")
+		{
 			in_height = param->CurrValue;
 		}
 		if (param->Name == "C")
@@ -736,9 +790,11 @@ void ConvFwd1x1Problem::verifyDevCompute()
 	if (!(diff >= 0 && diff < MIN_FP32_ERR))
 	{
 		WARN("verify failed! mean err = %.2f", diff);
+		isVeryfyPass = false;
 		return;
 	}
 
+	isVeryfyPass = true;
 	INFO("verify success. mean err = %.1f", diff);
 }
 

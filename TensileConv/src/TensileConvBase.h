@@ -12,7 +12,7 @@
 
 namespace TensileConv {
 
-#define		CPU_VERIFY		(1)
+#define		CPU_VERIFY		(0)
 
 /************************************************************************/
 /* solution得分                                                         */
@@ -168,6 +168,7 @@ public:
 	AutoTune::E_SearchMethord SearchMethod;
 	virtual void RunProblem();
 	SolutionCtrlBase * BestSolution() { return solver->BestSolution(); }
+	bool IsVerifyPass() { return isVeryfyPass; }
 	double Calculation() { return calculation; }
 	double TheoryElapsedTime() { return theoryElapsedTime; }
 
@@ -182,6 +183,7 @@ protected:
 	std::string problemName;
 	AutoTune::BruteSearch * searchSpace;	// 问题参数搜索空间
 
+	bool isVeryfyPass;
 	double calculation;					// 当前正在处理的问题配置的计算量
 	double theoryElapsedTime;			// 当前正在处理的问题配置的理论执行时间
 	

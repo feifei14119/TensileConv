@@ -30,7 +30,7 @@ double DirConv1x1Fwd::TuneProblem(int W, int H, int C, int K, int N, int U, int 
 	bool bias, E_TCRelu relu, E_TCSearch search,
 	T_TCSolution & solution)
 {
-	conv1x1->TuneProblem(W, C, K, N, U, bias, (int)relu, (int)search);
+	conv1x1->TuneProblem(W, H, C, K, N, U, bias, (int)relu, (int)search);
 
 	kernelName = conv1x1->BestSolution()->KernelName();
 	kernelFile = conv1x1->BestSolution()->KernelFile();
@@ -53,14 +53,25 @@ double DirConv1x1Fwd::TuneProblem(int W, int H, int C, int K, int N, int U, int 
 
 	timeSec = conv1x1->BestSolution()->SolutionScore().ElapsedTime;
 
-	if (timeSec < 0)
-		return -1;
-
 	solution.kernel_file = kernelFile;
 	solution.kernel_name = kernelName;
 	solution.ParamSize = paramSize;
 	solution.GroupSize = groupSize;
 	solution.GlobalSize = globalSize;
+
+	if ((timeSec < 0) || (conv1x1->IsVerifyPass() == false))
+	{
+		solution.kernel_file = kernelFile;
+		solution.kernel_name = kernelName;
+		paramSize.clear(); paramSize.push_back(1); paramSize.push_back(1); paramSize.push_back(1);
+		groupSize.clear(); groupSize.push_back(1); groupSize.push_back(1); groupSize.push_back(1);
+		globalSize.clear(); globalSize.push_back(1); globalSize.push_back(1); globalSize.push_back(1);
+		solution.ParamSize = paramSize;
+		solution.GroupSize = groupSize;
+		solution.GlobalSize = globalSize;
+
+		return -1;
+	}
 
 	return timeSec;
 }

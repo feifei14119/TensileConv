@@ -42,10 +42,11 @@ namespace feifei
 	*/
 	void CmdArgs::initCmdArgs()
 	{
-		addOneArg(CMD_ARG_HELP, E_DataType::String, "help", 'h', "help", "help infomation");
+		addOneArg(CMD_ARG_HELP, E_DataType::String, "help", '\0', "help", "help infomation");
 		addOneArg(CMD_ARG_DEVICE, E_DataType::Int, "0", 'd', "device", "specify a device");
 		addOneArg(CMD_ARG_EVINFO, E_DataType::Int, "0", '\0',"evinfo", "get environment info");
-		addOneArg(CMD_ARG_WH, E_DataType::Int, "14", 's', "size", "specify input tensor width and height");
+		addOneArg(CMD_ARG_W, E_DataType::Int, "14", 'w', "width", "specify input tensor width");
+		addOneArg(CMD_ARG_H, E_DataType::Int, "14", 'h', "height", "specify input tensor height");
 		addOneArg(CMD_ARG_C, E_DataType::Int, "1024", 'c', "chanin", "specify input channel");
 		addOneArg(CMD_ARG_K, E_DataType::Int, "64", 'k', "chanout", "specify output channel");
 		addOneArg(CMD_ARG_N, E_DataType::Int, "1", 'n', "batch", "specify batch size");

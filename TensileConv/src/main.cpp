@@ -23,8 +23,9 @@ int main(int argc, char *argv[])
 
 	pOcl->PrintRuntimeInfo();
 	pOcl->SellectDevice(0);
-	
-	int WH = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_WH);
+
+	int W = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_W);
+	int H = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_H);
 	int C = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_C);
 	int K = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_K);
 	int N = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_N);
@@ -34,8 +35,12 @@ int main(int argc, char *argv[])
 	int TuneMethod = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
 
 	ConvFwd1x1Problem * conv = new ConvFwd1x1Problem("DirConv1x1Fwd", logFile);
-	conv->TuneProblem(WH, C, K, N, UV, Bias, Relu);
 
+	//W = 768; H = 64; N = 2; C = 128; K = 2048; UV = 1; Bias = false; Relu = NORELU; TuneMethod = 2;
+	//W = 256; H = 64; N = 1; C = 115; K = 690; UV = 1; Bias = false; Relu = NORELU; TuneMethod = 2;
+	//conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
+
+	conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
 	ConvFwd1x1Solution * slt = (ConvFwd1x1Solution*)conv->BestSolution();
 	OUTPUT("kernel file: " + slt->KernelFile());
 	OUTPUT("kernel name: " + slt->KernelName());
@@ -46,9 +51,6 @@ int main(int argc, char *argv[])
 	OUTPUT("global size: [%d, %d, %d]", slt->GlobalSize().x, slt->GlobalSize().y, slt->GlobalSize().z);
 	OUTPUT("elapsed time: %.1f(us)", slt->SolutionScore().ElapsedTime * 1e6);
 
-	//WH = 14; N = 1; C = 1024; K = 2048; UV = 1; Bias = false; Relu = NORELU;
-	//(new ConvFwd1x1Problem("DirConv1x1Fwd"))->TuneProblem(WH, C, K, N, UV, Bias, Relu);
-	
 	delete conv;
 	delete pOcl;
 	return 0;

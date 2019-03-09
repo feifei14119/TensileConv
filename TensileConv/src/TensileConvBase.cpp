@@ -27,9 +27,9 @@ void SolutionCtrlBase::RunSolution()
 		TempDo(generateKernel());
 		TempDo(prepareKernelArgs());
 		TempDo(launchKernel());
-		releaseDevMem();
 
 		CONTINUE:
+		releaseDevMem();
 		if (searchSpace->GenerateNextComb() != E_ReturnState::SUCCESS)
 		{
 			INFO("search solution parameters finished.");
