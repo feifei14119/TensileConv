@@ -14,7 +14,7 @@ static std::string dbFileName;
 static std::string dbDirPath = "./db/";
 static std::map<std::string, T_SaveParam> * saveCfgs;
 static T_SaveParam setKernelParam;
-static std::string genKeyStr(int N, int C, int H, int W, int K, bool bias, E_Relu relu)
+static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Relu relu)
 {
 	char tmpc[MAP_KEY_LEN];
 	sprintf(tmpc, "N%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
@@ -169,22 +169,22 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam->Name = "PCK_order";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(321);
+	searchParam->ValueArray.push_back(123);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_lds_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_l2_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(4);
+	searchParam->ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "k_out_maps";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(8);
+	searchParam->ValueArray.push_back(7);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "group_size_x";
@@ -423,7 +423,7 @@ void ConvFwd1x1Solution::GetBestKernel()
 			saveParam.k_out_maps = kernelParam.k_out_maps;
 			saveParam.group_size_x = kernelParam.group_size_x;
 			saveParam.elapsedSec = solutionScore.ElapsedTime;
-			std::string key = genKeyStr(saveParam.N, saveParam.C, saveParam.H, saveParam.W, saveParam.K, saveParam.bias, saveParam.relu);
+			std::string key = genKeyStr(saveParam.N, saveParam.C, saveParam.W, saveParam.H, saveParam.K, saveParam.bias, saveParam.relu);
 			memcpy(saveParam.key, key.c_str(), MAP_KEY_LEN);
 
 			saveDbFile(saveParam);
