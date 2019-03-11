@@ -60,7 +60,16 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 		return E_ReturnState::FAIL;
 	if (c_in_maps_once <= c_in_maps / unroll_time)
 	{
-		c_in_maps_once_real = c_in_maps_once;
+		c_in_maps_once_real = 2;
+		while (c_in_maps_once_real <= c_in_maps_once)
+		{
+			if (((c_in_maps / unroll_time) % c_in_maps_once_real) != 0)
+			{
+				c_in_maps_once_real /= 2;
+				break;
+			}
+			c_in_maps_once_real *= 2;
+		}
 	}
 	else
 	{

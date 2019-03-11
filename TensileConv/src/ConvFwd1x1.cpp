@@ -174,17 +174,17 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam->Name = "c_in_lds_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(16);
+	searchParam->ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_l2_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "k_out_maps";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(16);
+	searchParam->ValueArray.push_back(2);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "group_size_x";
@@ -589,7 +589,7 @@ void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, b
 		SearchMethod = E_SearchMethord::SEARCH_GENETIC;
 	}
 
-	if (C % 2 != 0)
+	if (C % 4 != 0)
 	{
 		EnSearch = false;
 		SearchMethod = E_SearchMethord::SEARCH_BRUTE;
