@@ -381,7 +381,7 @@ void ConvFwd1x1Solution::GetBestKernel()
 	getBestKernelParam();
 
 	bool successFlag = false;
-	if((!enableSearch)&&(setKernelParam.elapsedSec != -1)) goto NO_BEST_SOLUTION;
+	if((!enableSearch)&&(setKernelParam.elapsedSec == -1)) goto NO_BEST_SOLUTION;
 	if(generateKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
 	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
 	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
