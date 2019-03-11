@@ -174,17 +174,17 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam->Name = "c_in_lds_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(16);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_l2_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(2);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "k_out_maps";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(5);
+	searchParam->ValueArray.push_back(16);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "group_size_x";
@@ -225,6 +225,9 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 	kernelParam.W = problem->W(); kernelParam.H = problem->H();
 	kernelParam.EnBias = problem->EnBias();
 	kernelParam.Relu = problem->Relu();
+
+	d_in = d_wei = d_bias = d_out = nullptr;
+	size_sig = size_l2 = size_dbg = 0;
 
 	return E_ReturnState::SUCCESS;
 }
@@ -361,6 +364,9 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 	kernelParam.W = problem->W(); kernelParam.H = problem->H();
 	kernelParam.EnBias = problem->EnBias();
 	kernelParam.Relu = problem->Relu();
+
+	d_in = d_wei = d_bias = d_out = nullptr;
+	size_sig = size_l2 = size_dbg = 0;
 }
 void ConvFwd1x1Solution::GetBestKernel()
 {
@@ -375,16 +381,24 @@ void ConvFwd1x1Solution::GetBestKernel()
 	getBestKernelParam();
 
 	bool successFlag = false;
-	if(setKernelParam.elapsedSec != -1)	if (generateKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
+	if((!enableSearch)&&(setKernelParam.elapsedSec != -1)) goto NO_BEST_SOLUTION;
+	if(generateKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
 	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
 	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
-	if (enableSearch)	if (prepareKernelArgs() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
-	if (enableSearch)	if (launchKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
+	if ((enableSearch)&&(prepareKernelArgs() != E_ReturnState::SUCCESS)) goto NO_BEST_SOLUTION;
+	if ((enableSearch)&&(launchKernel() != E_ReturnState::SUCCESS)) goto NO_BEST_SOLUTION;
 	if (enableSearch)	getBackResult();
 	successFlag = true;
 	NO_BEST_SOLUTION:
 	if (enableSearch)	releaseDevMem();
-	if (successFlag == false)	solutionScore.ElapsedTime = -1;
+	if (enableSearch)
+	{
+		if (successFlag == false)	solutionScore.ElapsedTime = -1;
+	}
+	else
+	{
+		solutionScore.ElapsedTime = setKernelParam.elapsedSec;
+	}
 
 	logFile->Log("Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
 	logFile->Log("%s score: %.3f(us), %.1f(GFlops), %.1f%%", solutionName.c_str(), solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);

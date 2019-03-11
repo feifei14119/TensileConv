@@ -54,7 +54,7 @@ namespace feifei
 		addOneArg(CMD_ARG_BIAS, E_DataType::Int, "0", 'b', "bias", "specify if use fusion bias opt");
 		addOneArg(CMD_ARG_RELU, E_DataType::Int, "0", 'r', "relu", "specify if use fusion relu opt");
 		addOneArg(CMD_ARG_LOOP, E_DataType::Int, "10", 'i', "loop", "specify loop times");
-		addOneArg(CMD_ARG_SEARCH, E_DataType::Int, "0", '\0', "search", "specify search methord: 0=brute_search; 1=genetic_search");
+		addOneArg(CMD_ARG_SEARCH, E_DataType::Int, "1", '\0', "search", "specify search methord: 0=brute_search; 1=genetic_search");
 	}
 	void CmdArgs::addOneArg(E_ArgId id, E_DataType dType, std::string defaultVal, char sName, std::string lName, std::string tHelp)
 	{
@@ -94,7 +94,7 @@ namespace feifei
 		// other args
 		for (int i = 1; i < argc; i++)
 		{
-			if ((std::string(argv[i]) == "--help") || (std::string(argv[i]) == "-h"))
+			if (std::string(argv[i]) == "--help")
 			{
 				helpText();
 				exit(0);

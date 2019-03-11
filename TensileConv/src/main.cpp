@@ -33,13 +33,9 @@ int main(int argc, char *argv[])
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU);
 	int TuneMethod = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
+//	W = 6; H = 6; N = 2; C = 48; K = 6; UV = 1; Bias = false; Relu = NORELU; TuneMethod = 3;
 
 	ConvFwd1x1Problem * conv = new ConvFwd1x1Problem("DirConv1x1Fwd", logFile);
-
-	//W = 768; H = 64; N = 2; C = 128; K = 2048; UV = 1; Bias = false; Relu = NORELU; TuneMethod = 2;
-	//W = 256; H = 64; N = 1; C = 115; K = 690; UV = 1; Bias = false; Relu = NORELU; TuneMethod = 2;
-	//conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
-
 	conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
 	ConvFwd1x1Solution * slt = (ConvFwd1x1Solution*)conv->BestSolution();
 	OUTPUT("kernel file: " + slt->KernelFile());
