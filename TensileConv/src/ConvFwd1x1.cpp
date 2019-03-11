@@ -408,23 +408,27 @@ void ConvFwd1x1Solution::GetBestKernel()
 
 	if (enableSearch)
 	{
-		T_SaveParam saveParam;
-		saveParam.N = kernelParam.N; saveParam.C = kernelParam.C; saveParam.K = kernelParam.K;
-		saveParam.W = kernelParam.W; saveParam.H = kernelParam.H;
-		saveParam.bias = kernelParam.EnBias; saveParam.relu = kernelParam.Relu;
-		saveParam.PCK_order = kernelParam.PCK_order;
-		saveParam.c_in_lds_atomic_group = kernelParam.c_in_lds_atomic_group;
-		saveParam.c_in_lds_split_group = kernelParam.c_in_lds_split_group;
-		saveParam.c_in_l2_atomic_group = kernelParam.c_in_l2_atomic_group;
-		saveParam.c_in_l2_split_group = kernelParam.c_in_l2_split_group;
-		saveParam.k_out_maps = kernelParam.k_out_maps;
-		saveParam.group_size_x = kernelParam.group_size_x;
-		saveParam.elapsedSec = solutionScore.ElapsedTime;
-		std::string key = genKeyStr(saveParam.N, saveParam.C, saveParam.H, saveParam.W, saveParam.K, saveParam.bias, saveParam.relu);
-		memcpy(saveParam.key, key.c_str(), MAP_KEY_LEN);
+		problem->verifyDevCompute();
+		if (problem->IsVerifyPass())
+		{
+			T_SaveParam saveParam;
+			saveParam.N = kernelParam.N; saveParam.C = kernelParam.C; saveParam.K = kernelParam.K;
+			saveParam.W = kernelParam.W; saveParam.H = kernelParam.H;
+			saveParam.bias = kernelParam.EnBias; saveParam.relu = kernelParam.Relu;
+			saveParam.PCK_order = kernelParam.PCK_order;
+			saveParam.c_in_lds_atomic_group = kernelParam.c_in_lds_atomic_group;
+			saveParam.c_in_lds_split_group = kernelParam.c_in_lds_split_group;
+			saveParam.c_in_l2_atomic_group = kernelParam.c_in_l2_atomic_group;
+			saveParam.c_in_l2_split_group = kernelParam.c_in_l2_split_group;
+			saveParam.k_out_maps = kernelParam.k_out_maps;
+			saveParam.group_size_x = kernelParam.group_size_x;
+			saveParam.elapsedSec = solutionScore.ElapsedTime;
+			std::string key = genKeyStr(saveParam.N, saveParam.C, saveParam.H, saveParam.W, saveParam.K, saveParam.bias, saveParam.relu);
+			memcpy(saveParam.key, key.c_str(), MAP_KEY_LEN);
 
-		saveDbFile(saveParam);
-		saveCfgs->insert(std::pair<std::string, T_SaveParam>(saveParam.key, saveParam));
+			saveDbFile(saveParam);
+			saveCfgs->insert(std::pair<std::string, T_SaveParam>(saveParam.key, saveParam));
+		}
 	}
 }
 
@@ -590,6 +594,10 @@ void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, b
 		EnSearch = false;
 		SearchMethod = E_SearchMethord::SEARCH_BRUTE;
 		setKernelParam.elapsedSec = -1;
+	}
+	if (EnSearch == false)
+	{
+		isVeryfyPass = true;
 	}
 
 	RunProblem();

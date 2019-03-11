@@ -93,6 +93,8 @@ public:
 	E_Relu Relu() { return relu; }
 	float NegSlop() { return negSlop; }
 
+	void verifyDevCompute();
+
 	float* h_in, *h_wei, *h_bias, *h_out, *out_ref;
 	size_t size_in, size_wei, size_bias, size_out;
 
@@ -100,7 +102,6 @@ private:
 	void generateProblem();
 	void initHostParam();
 	void runHostCompute();
-	void verifyDevCompute();
 	void releaseHostParam();
 	void caculateTheoryPerformance();
 

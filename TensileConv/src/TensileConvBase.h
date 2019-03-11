@@ -12,7 +12,7 @@
 
 namespace TensileConv {
 
-#define		CPU_VERIFY		(0)
+#define		CPU_VERIFY		(1)
 
 /************************************************************************/
 /* solutionµÃ·Ö                                                         */
@@ -172,6 +172,7 @@ public:
 	double Calculation() { return calculation; }
 	double TheoryElapsedTime() { return theoryElapsedTime; }
 
+	virtual void verifyDevCompute() { INFO("verify device calculation."); }
 	// TODO: dump/load input/output data
 
 protected:
@@ -189,7 +190,6 @@ protected:
 	
 	virtual void initHostParam() { INFO("initialize host."); }
 	virtual void runHostCompute() { INFO("run host calculate."); }
-	virtual void verifyDevCompute() { INFO("verify device calculation."); }
 	virtual void releaseHostParam() { INFO("release host."); };
 	virtual void caculateTheoryPerformance() {}
 };

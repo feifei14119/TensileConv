@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU);
 	int TuneMethod = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
-//	W = 6; H = 6; N = 2; C = 48; K = 6; UV = 1; Bias = false; Relu = NORELU; TuneMethod = 3;
+	W = 6; H = 6; N = 1; C = 48; K = 6; UV = 1; Bias = true; Relu = E_Relu::PRELU; TuneMethod = 1;
 
 	ConvFwd1x1Problem * conv = new ConvFwd1x1Problem("DirConv1x1Fwd", logFile);
 	conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
