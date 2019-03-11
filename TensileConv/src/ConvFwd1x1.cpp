@@ -169,27 +169,27 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam->Name = "PCK_order";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(123);
+	searchParam->ValueArray.push_back(321);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_lds_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(8);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_l2_split_group";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
+	searchParam->ValueArray.push_back(4);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "k_out_maps";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(2);
+	searchParam->ValueArray.push_back(8);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "group_size_x";
 	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(64);
+	searchParam->ValueArray.push_back(128);
 	searchSpace->AddOneSearchParam(searchParam);
 
 	searchParam->Name = "c_in_lds_atomic_group";

@@ -75,7 +75,9 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	{
 		c_in_maps_once_real = c_in_maps / unroll_time;
 	}
-	if(c_in_maps_once_real <= 0)
+	if (c_in_maps_once_real <= 0)
+		return E_ReturnState::FAIL;
+	if (c_in_maps_once_real >= 16)
 		return E_ReturnState::FAIL;
 	conv_loop = c_in_maps / c_in_maps_once_real / unroll_time;
 	if (c_in_maps != conv_loop * c_in_maps_once_real * unroll_time)
