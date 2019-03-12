@@ -95,7 +95,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 	}
 }
 
-#if 0
+#if 1
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
 	T_SearchParam searchParam;
