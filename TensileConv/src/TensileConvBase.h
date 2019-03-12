@@ -125,6 +125,8 @@ public:
 	virtual ~SolverCtrlBase()
 	{
 		delete scoreList;
+		for (auto solution : *solutionList)
+			delete solution;
 		delete solutionList;
 	}
 

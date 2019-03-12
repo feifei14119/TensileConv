@@ -72,7 +72,14 @@ protected:
 
 public:
 	SearchSpaceBase() { searchParams = new std::vector<T_SearchParam*>; }
-	~SearchSpaceBase() { delete searchParams; }
+	~SearchSpaceBase() 
+	{ 
+		for (auto param : *searchParams)
+		{
+			delete param;
+		}
+		delete searchParams; 
+	}
 	int ParamNum() { return paramNumber; }
 	int ParamCombNum() { return paramCombNum; }
 	int SearchedCombNum() { return searchedCombNum; }

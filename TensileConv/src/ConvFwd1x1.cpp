@@ -98,108 +98,108 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 #if 1
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
-	T_SearchParam * searchParam = new T_SearchParam();
+	T_SearchParam searchParam;
 
-	searchParam->Name = "PCK_order";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(123);
-	searchParam->ValueArray.push_back(132);
-	searchParam->ValueArray.push_back(213);
-	searchParam->ValueArray.push_back(231);
-	searchParam->ValueArray.push_back(312);
-	searchParam->ValueArray.push_back(321);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "PCK_order";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(123);
+	searchParam.ValueArray.push_back(132);
+	searchParam.ValueArray.push_back(213);
+	searchParam.ValueArray.push_back(231);
+	searchParam.ValueArray.push_back(312);
+	searchParam.ValueArray.push_back(321);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "c_in_lds_atomic_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "c_in_lds_atomic_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "c_in_lds_split_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
-	searchParam->ValueArray.push_back(2);
-	searchParam->ValueArray.push_back(4);
-	searchParam->ValueArray.push_back(8);
-	searchParam->ValueArray.push_back(16);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "c_in_lds_split_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(1);
+	searchParam.ValueArray.push_back(2);
+	searchParam.ValueArray.push_back(4);
+	searchParam.ValueArray.push_back(8);
+	searchParam.ValueArray.push_back(16);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "c_in_l2_atomic_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "c_in_l2_atomic_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "c_in_l2_split_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
-	searchParam->ValueArray.push_back(2);
-	searchParam->ValueArray.push_back(4);
-	searchParam->ValueArray.push_back(8);
-	searchParam->ValueArray.push_back(16);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "c_in_l2_split_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(1);
+	searchParam.ValueArray.push_back(2);
+	searchParam.ValueArray.push_back(4);
+	searchParam.ValueArray.push_back(8);
+	searchParam.ValueArray.push_back(16);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "k_out_maps";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(2);
-	searchParam->ValueArray.push_back(4);
-	searchParam->ValueArray.push_back(8);
-	searchParam->ValueArray.push_back(16);
-	searchParam->ValueArray.push_back(32);
+	searchParam.Name = "k_out_maps";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(2);
+	searchParam.ValueArray.push_back(4);
+	searchParam.ValueArray.push_back(8);
+	searchParam.ValueArray.push_back(16);
+	searchParam.ValueArray.push_back(32);
 	// for Baidu
-	searchParam->ValueArray.push_back(3);
-	searchParam->ValueArray.push_back(5);
-	searchParam->ValueArray.push_back(7);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.ValueArray.push_back(3);
+	searchParam.ValueArray.push_back(5);
+	searchParam.ValueArray.push_back(7);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "group_size_x";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(64);
-	searchParam->ValueArray.push_back(128);
-	searchParam->ValueArray.push_back(256);
-	searchParam->ValueArray.push_back(512);
-	searchParam->ValueArray.push_back(1024);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "group_size_x";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(64);
+	searchParam.ValueArray.push_back(128);
+	searchParam.ValueArray.push_back(256);
+	searchParam.ValueArray.push_back(512);
+	searchParam.ValueArray.push_back(1024);
+	searchSpace->AddOneSearchParam(&searchParam);
 
 	return E_ReturnState::SUCCESS;
 }
 #else
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
-	T_SearchParam * searchParam = new T_SearchParam();
+	T_SearchParam searchParam;
 
-	searchParam->Name = "PCK_order";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(132);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "PCK_order";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(132);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "c_in_lds_split_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "c_in_lds_split_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "c_in_l2_split_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(2);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "c_in_l2_split_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(2);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "k_out_maps";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(7);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "k_out_maps";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(7);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "group_size_x";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(256);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "group_size_x";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(256);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "c_in_lds_atomic_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
-	searchSpace->AddOneSearchParam(searchParam);
-	searchParam->Name = "c_in_l2_atomic_group";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(1);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "c_in_lds_atomic_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(&searchParam);
+	searchParam.Name = "c_in_l2_atomic_group";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(1);
+	searchSpace->AddOneSearchParam(&searchParam);
 
 	return E_ReturnState::SUCCESS;
 }
@@ -524,36 +524,36 @@ void ConvFwd1x1Problem::TuneProblem()
 
 void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, bool isBias, int Relu, int TuneMethod)
 {
-	T_SearchParam * searchParam = new T_SearchParam();
+	T_SearchParam searchParam;
 
-	searchParam->Name = "W";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(W);
-	searchSpace->AddOneSearchParam(searchParam);
-	searchParam->Name = "H";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(H);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "W";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(W);
+	searchSpace->AddOneSearchParam(&searchParam);
+	searchParam.Name = "H";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(H);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "C";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(C);
-	searchSpace->AddOneSearchParam(searchParam);
-	searchParam->Name = "K";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(K);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "C";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(C);
+	searchSpace->AddOneSearchParam(&searchParam);
+	searchParam.Name = "K";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(K);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "N";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(N);
-	searchSpace->AddOneSearchParam(searchParam);
+	searchParam.Name = "N";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(N);
+	searchSpace->AddOneSearchParam(&searchParam);
 
-	searchParam->Name = "UV";
-	searchParam->ValueArray.clear();
-	searchParam->ValueArray.push_back(UV);
-	searchSpace->AddOneSearchParam(searchParam);
-
+	searchParam.Name = "UV";
+	searchParam.ValueArray.clear();
+	searchParam.ValueArray.push_back(UV);
+	searchSpace->AddOneSearchParam(&searchParam);
+	
 	enBias = isBias;
 	relu = (E_Relu)Relu;
 

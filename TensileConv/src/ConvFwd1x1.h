@@ -76,7 +76,7 @@ public:
 	ConvFwd1x1Problem(std::string name = "", LogFile * file = nullptr);
 	~ConvFwd1x1Problem() 
 	{ 
-		delete solver; 
+		delete solver;
 	}
 
 	void TuneProblem();

@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 	TCSolutionType solution;
 	DirConv1x1Fwd * conv;
 
-	while (false)
+	while (0)
 	{
 		int W = rand() % 112 + 1;	int H = rand() % 112 + 1;
 		int C = rand() % 2048 + 1;	int K = rand() % 64 + 1;
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 	}
 
 	conv = new DirConv1x1Fwd();
-	perfSec = conv->TuneProblem(60, 57, 1512, 14, 3, 1, 1, false, E_TCRelu::NORELU, E_TCSearch::AUTO, solution);
+	perfSec = conv->TuneProblem(32, 32, 12, 72, 1, 1, 1, false, E_TCRelu::NORELU, E_TCSearch::BRUTE, solution);
 	printf("*************************************************************************\n");
 	printf("*************************** TensileConv *********************************\n");
 	printf("*************************************************************************\n");

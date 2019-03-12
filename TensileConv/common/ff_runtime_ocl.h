@@ -183,6 +183,7 @@ namespace feifei
 			for (int i = 0; i < DevicesCnt(); i++)
 			{
 				clReleaseDevice(devices[i]->DeviceId());
+				delete devices[i];
 			}
 
 			clReleaseContext(context);
