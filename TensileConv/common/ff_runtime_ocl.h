@@ -81,7 +81,7 @@ namespace feifei
 		cl_device_id DeviceId() { return device->DeviceId(); }
 		cl_kernel Kernel() { return kernel; }
 
-		E_ReturnState SetArgs() { return E_ReturnState::SUCCESS; }
+		E_ReturnState SetArgs() { return RTN_SUCCESS; }
 		template <typename T, typename... Ts>
 		E_ReturnState SetArgs(T head, Ts... rest)
 		{

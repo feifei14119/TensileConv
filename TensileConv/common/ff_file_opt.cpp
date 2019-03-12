@@ -53,7 +53,7 @@ namespace feifei
 		FILE * fp = fopen(file_name.c_str(), "rb");
 		if (fp == NULL)
 		{
-			ERR("can't open bin file: " + file_name);
+			WARN("can't open bin file: " + file_name);
 			return 0;
 		}
 

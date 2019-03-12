@@ -145,7 +145,7 @@ namespace feifei
 			printf(" @%s:%d", p, line);
 		}
 		printf("\n");
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 	}
 	E_ReturnState print_format_err(const char *file, int line, std::string msg, ...)
 	{
@@ -169,7 +169,7 @@ namespace feifei
 			printf(" @%s:%d", p, line);
 		}
 		printf("\n");
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 	}
 	void print_format_fatal(const char *file, int line, const char * format, ...)
 	{

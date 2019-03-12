@@ -13,17 +13,19 @@ int main(int argc, char *argv[])
 	TCSolutionType solution;
 	DirConv1x1Fwd * conv;
 
+	int W = 4, H = 4, C = 384, K = 96, N=1;
 	while (0)
 	{
-		int W = rand() % 112 + 1;	int H = rand() % 112 + 1;
-		int C = rand() % 2048 + 1;	int K = rand() % 64 + 1;
-		int N = rand() % 4 + 1;
+		W = rand() % 112 + 1;	H = rand() % 112 + 1;
+		//C = rand() % 2048 + 1;	
+		K = rand() % 64 + 1;
+		N = rand() % 4 + 1;
+		if (K % 2 != 0) continue;
 
-		if ((C % 4 != 0) || (K % 2 != 0))
-			continue;
+		C++;
 
 		conv = new DirConv1x1Fwd();
-		perfSec = conv->TuneProblem(W, H, C, K, N, 1, 1, false, E_TCRelu::NORELU, E_TCSearch::AUTO, solution);
+		perfSec = conv->TuneProblem(W, H, C, K, N, 1, 1, false, E_TCRelu::NORELU, E_TCSearch::GENETIC, solution);
 		printf("*************************************************************************\n");
 		printf("*************************** TensileConv *********************************\n");
 		printf("*************************************************************************\n");
@@ -36,10 +38,11 @@ int main(int argc, char *argv[])
 		printf("*************************** TensileConv *********************************\n");
 		printf("*************************************************************************\n");
 		delete conv;
+		usleep(1000000);
 	}
 
 	conv = new DirConv1x1Fwd();
-	perfSec = conv->TuneProblem(32, 32, 12, 72, 1, 1, 1, false, E_TCRelu::NORELU, E_TCSearch::BRUTE, solution);
+	perfSec = conv->TuneProblem(W, H, C, K, N, 1, 1, false, E_TCRelu::RELU, E_TCSearch::AUTO, solution);
 	printf("*************************************************************************\n");
 	printf("*************************** TensileConv *********************************\n");
 	printf("*************************************************************************\n");

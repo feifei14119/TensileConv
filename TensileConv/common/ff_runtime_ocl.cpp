@@ -14,7 +14,7 @@ RuntimeOCL * RuntimeOCL::GetInstance()
 	{
 		pInstance = new RuntimeOCL();
 
-		if (pInstance->initPlatform() != E_ReturnState::SUCCESS)
+		if (pInstance->initPlatform() != RTN_SUCCESS)
 		{
 			pInstance = nullptr;
 		}
@@ -28,7 +28,7 @@ RuntimeOCL * RuntimeOCL::GetInstance(cl_platform_id platformId, cl_context conte
 	{
 		pInstance = new RuntimeOCL();
 
-		if (pInstance->initPlatform(platformId, context, deviceId) != E_ReturnState::SUCCESS)
+		if (pInstance->initPlatform(platformId, context, deviceId) != RTN_SUCCESS)
 		{
 			pInstance = nullptr;
 		}
@@ -83,7 +83,7 @@ E_ReturnState RuntimeOCL::initPlatform()
 		devices.push_back(dev);
 	}
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState RuntimeOCL::initPlatform(cl_platform_id platformId, cl_context context, cl_device_id deviceId)
 {
@@ -131,7 +131,7 @@ E_ReturnState RuntimeOCL::initPlatform(cl_platform_id platformId, cl_context con
 		ERR("Can't find device %d.", deviceId);
 	}
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 void RuntimeOCL::getPlatformInfo()
 {
@@ -410,7 +410,7 @@ CmdQueueOCL * RuntimeOCL::CreatCmdQueue(bool enProf, int devNum)
 	}
 	
 	CmdQueueOCL * q = new CmdQueueOCL(dev);
-	if (q->CreatQueue(&context, enProf) == E_ReturnState::SUCCESS)
+	if (q->CreatQueue(&context, enProf) == RTN_SUCCESS)
 	{
 		dev->AddCmdQueue(q);
 		return q;
@@ -431,7 +431,7 @@ E_ReturnState CmdQueueOCL::CreatQueue(cl_context *ctx, bool enProf)
 	cmdQueue = clCreateCommandQueue(*ctx, device->DeviceId(), prop, &errNum);
 	clCheckErr(errNum);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 
 KernelOCL * RuntimeOCL::CreatKernel(char * content, std::string kernelName, E_ProgramType type, int devNum)
@@ -451,7 +451,7 @@ KernelOCL * RuntimeOCL::CreatKernel(char * content, std::string kernelName, E_Pr
 
 	KernelOCL * k = new KernelOCL(content, kernelName, type, dev);
 
-	if (k->CreatKernel(&context) == E_ReturnState::SUCCESS)
+	if (k->CreatKernel(&context) == RTN_SUCCESS)
 	{
 		dev->AddKernel(k);
 		return k;
@@ -473,7 +473,7 @@ E_ReturnState KernelOCL::CreatKernel(cl_context *ctx)
 	case PRO_BIN_STRING:	return creatKernelFromBinString(ctx);
 	default: ERR("not support program type");
 	}
-	return E_ReturnState::FAIL;
+	return RTN_FAIL;
 }
 E_ReturnState KernelOCL::creatKernelFromOclString(cl_context *ctx)
 {
@@ -485,12 +485,12 @@ E_ReturnState KernelOCL::creatKernelFromOclString(cl_context *ctx)
 		ERR("Failed to create CL program from " + programFile);
 	}
 
-	if (buildKernel() != E_ReturnState::SUCCESS)
-		return E_ReturnState::FAIL;
-	if (dumpKernel() != E_ReturnState::SUCCESS)
-		return E_ReturnState::FAIL;
+	if (buildKernel() != RTN_SUCCESS)
+		return RTN_FAIL;
+	if (dumpKernel() != RTN_SUCCESS)
+		return RTN_FAIL;
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelOCL::creatKernelFromOclFile(cl_context *ctx)
 {
@@ -618,7 +618,7 @@ E_ReturnState KernelOCL::buildKernel()
 		ERR("Failed to create kernel " + kernelName);
 	}
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelOCL::dumpKernel()
 {
@@ -644,7 +644,7 @@ E_ReturnState KernelOCL::dumpKernel()
 	fout.write(binary.data(), binary.size());
 	fout.close();
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelOCL::dumpProgram()
 {
@@ -670,7 +670,7 @@ E_ReturnState KernelOCL::dumpProgram()
 	fout.write(clProgram, src_size);
 	fout.close();
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState CmdQueueOCL::Launch(KernelOCL *k, dim3 global_sz, dim3 group_sz, cl_event * evt_creat)
 {
@@ -688,7 +688,7 @@ E_ReturnState CmdQueueOCL::Launch(KernelOCL *k, dim3 global_sz, dim3 group_sz, c
 		ERR("Failed launch kernel: " + std::string(clGetErrorInfo(errNum)));
 	}
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 double RuntimeOCL::GetProfilingTime(cl_event * evt)
 {
@@ -729,7 +729,7 @@ E_ReturnState CmdQueueOCL::MemCopyH2D(cl_mem d_mem, void * h_mem, size_t byteNum
 		ERR("Failed to copy memory to device %d Byte", byteNum);
 	}
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState CmdQueueOCL::MemCopyD2H(void * h_mem, cl_mem d_mem, size_t byteNum)
 {
@@ -742,5 +742,5 @@ E_ReturnState CmdQueueOCL::MemCopyD2H(void * h_mem, cl_mem d_mem, size_t byteNum
 		ERR("Failed to copy memory to device %d Byte", byteNum);
 	}
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }

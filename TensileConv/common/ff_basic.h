@@ -7,15 +7,20 @@ namespace feifei
 	/************************************************************************/
 	/* 返回类型定义															*/
 	/************************************************************************/
-	typedef enum ReturnStateEnum
+	/*typedef enum struct ReturnStateEnum
 	{
 		SUCCESS = 0,
 		FAIL = 1
-	} E_ReturnState;
+	} E_ReturnState;*/
+
+	typedef int E_ReturnState;
+#define RTN_SUCCESS 0
+#define RTN_FAIL 1
+
 
 	static void checkFuncRet(E_ReturnState retVel, char const *const func, const char *const file, int const line)
 	{
-		if (retVel != E_ReturnState::SUCCESS)
+		if (retVel != RTN_SUCCESS)
 		{
 			fprintf(stderr, "[!ERROR!] at %s:%d \"%s\" \n", file, line, func);
 			
@@ -25,7 +30,7 @@ namespace feifei
 
 	static void checkErrNum(E_ReturnState errNum, const char *const file, int const line)
 	{
-		if (errNum != E_ReturnState::SUCCESS)
+		if (errNum != RTN_SUCCESS)
 		{
 			fprintf(stderr, "[!ERROR!] at %s:%d\n", file, line);
 
@@ -33,7 +38,7 @@ namespace feifei
 		}
 	}
 
-#define CheckFunc(val)		do{if(val != E_ReturnState::SUCCESS) return E_ReturnState::FAIL;}while(0)
+#define CheckFunc(val)		do{if(val != RTN_SUCCESS) return RTN_FAIL;}while(0)
 //#define CheckFunc(val)					checkFuncRet((val), #val, __FILE__, __LINE__)
 //#define CheckErr(val)					checkErrNum((val), __FILE__, __LINE__)
 	typedef void(*PVoidFunc)();

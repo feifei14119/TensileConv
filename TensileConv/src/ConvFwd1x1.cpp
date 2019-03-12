@@ -17,7 +17,7 @@ static T_SaveParam setKernelParam;
 static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Relu relu)
 {
 	char tmpc[MAP_KEY_LEN];
-	sprintf(tmpc, "N%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
+	sprintf(tmpc, "\r\nN%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
 	return std::string(tmpc);
 }
 
@@ -95,7 +95,7 @@ ConvFwd1x1Solution::ConvFwd1x1Solution(ConvFwd1x1Problem * problem, std::string 
 	}
 }
 
-#if 1
+#if 0
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 {
 	T_SearchParam searchParam;
@@ -160,7 +160,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam.ValueArray.push_back(1024);
 	searchSpace->AddOneSearchParam(&searchParam);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 #else
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -169,27 +169,27 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam.Name = "PCK_order";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(132);
+	searchParam.ValueArray.push_back(123);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "c_in_lds_split_group";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(1);
+	searchParam.ValueArray.push_back(16);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "c_in_l2_split_group";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(2);
+	searchParam.ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "k_out_maps";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(7);
+	searchParam.ValueArray.push_back(3);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "group_size_x";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(256);
+	searchParam.ValueArray.push_back(64);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "c_in_lds_atomic_group";
@@ -201,7 +201,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam.ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(&searchParam);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 #endif
 
@@ -229,7 +229,7 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 	d_in = d_wei = d_bias = d_out = nullptr;
 	size_sig = size_l2 = size_dbg = 0;
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateKernel()
@@ -262,10 +262,12 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	size_dbg = kernelWriter->DebugSize();
 	if (size_dbg > 0)		h_dbg = (float*)malloc(size_dbg * sizeof(float));
 
+	delete kernelWriter;
+
 	// build up kernel obj
 	kernel = rtOcl->CreatKernel((char*)kernelFile.c_str(), kernelName.c_str(), E_ProgramType::PRO_GAS_FILE);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
@@ -277,16 +279,16 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	d_out = rtOcl->DevMalloc(problem->size_out * sizeof(float));
 
 	if (d_in == nullptr || d_wei == nullptr || d_bias == nullptr || d_out == nullptr)
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 
 	d_sig = d_l2 = d_dbg = NULL;
 	if (size_sig > 0)		d_sig = rtOcl->DevMalloc(size_sig * sizeof(float));
 	if (size_l2 > 0)		d_l2 = rtOcl->DevMalloc(size_l2 * sizeof(float));
 	if (size_dbg > 0)		d_dbg = rtOcl->DevMalloc(size_dbg * sizeof(float));
 
-	if (size_sig > 0 && d_sig == nullptr)		return E_ReturnState::FAIL;
-	if (size_l2 > 0 && d_l2 == nullptr)			return E_ReturnState::FAIL;
-	if (size_dbg > 0 && d_dbg == nullptr)		return E_ReturnState::FAIL;
+	if (size_sig > 0 && d_sig == nullptr)		return RTN_FAIL;
+	if (size_l2 > 0 && d_l2 == nullptr)			return RTN_FAIL;
+	if (size_dbg > 0 && d_dbg == nullptr)		return RTN_FAIL;
 
 	stream->MemCopyH2D(d_in, problem->h_in, problem->size_in * sizeof(float));
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
@@ -296,7 +298,7 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 
 	kernel->SetArgs(&d_in, &d_wei, &d_out, &d_bias, &d_sig, &d_l2, &negSlop, &d_dbg);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 
 void ConvFwd1x1Solution::getBackResult()
@@ -382,11 +384,11 @@ void ConvFwd1x1Solution::GetBestKernel()
 
 	bool successFlag = false;
 	if((!enableSearch)&&(setKernelParam.elapsedSec == -1)) goto NO_BEST_SOLUTION;
-	if(generateKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
+	if(generateKernel() != RTN_SUCCESS) goto NO_BEST_SOLUTION;
 	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
 	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
-	if ((enableSearch)&&(prepareKernelArgs() != E_ReturnState::SUCCESS)) goto NO_BEST_SOLUTION;
-	if ((enableSearch)&&(launchKernel() != E_ReturnState::SUCCESS)) goto NO_BEST_SOLUTION;
+	if ((enableSearch)&&(prepareKernelArgs() != RTN_SUCCESS)) goto NO_BEST_SOLUTION;
+	if ((enableSearch)&&(launchKernel() != RTN_SUCCESS)) goto NO_BEST_SOLUTION;
 	if (enableSearch)	getBackResult();
 	successFlag = true;
 	NO_BEST_SOLUTION:
@@ -589,7 +591,7 @@ void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, b
 		SearchMethod = E_SearchMethord::SEARCH_GENETIC;
 	}
 
-	if (C % 4 != 0)
+	if ((C % 4 != 0) || (K % 2 != 0))
 	{
 		EnSearch = false;
 		SearchMethod = E_SearchMethord::SEARCH_BRUTE;

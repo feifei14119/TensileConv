@@ -37,7 +37,7 @@ public:
 		CheckFunc(writeContent());
 		writeMetadata();
 
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	void SaveKernelString2File()
 	{
@@ -111,7 +111,7 @@ protected:
 		CheckFunc(writeCodeObj());
 		CheckFunc(_writeProgram());
 
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	virtual void writeMetadata()// 需要根据arg列表自动生成,暂时写成固定的
 	{
@@ -194,11 +194,11 @@ protected:
 		wrLine(".end_amd_kernel_code_t");
 		wrLine("");
 
-		if (sgprCountMax >= MAX_SGPR_COUNT)	return E_ReturnState::FAIL;
-		if (vgprCountMax >= MAX_VGPR_COUNT)	return E_ReturnState::FAIL;
-		if (ldsByteCount >= MAX_LDS_SIZE)	return E_ReturnState::FAIL;
+		if (sgprCountMax >= MAX_SGPR_COUNT)	return RTN_FAIL;
+		if (vgprCountMax >= MAX_VGPR_COUNT)	return RTN_FAIL;
+		if (ldsByteCount >= MAX_LDS_SIZE)	return RTN_FAIL;
 
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	E_ReturnState _writeProgram()
 	{
@@ -212,7 +212,7 @@ protected:
 		wrLine("s_endpgm\n");
 		clrVar();
 
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	virtual E_ReturnState writeProgram() = 0;
 

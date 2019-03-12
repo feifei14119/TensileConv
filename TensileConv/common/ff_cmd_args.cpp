@@ -155,7 +155,7 @@ namespace feifei
 		if (it == argsMap->end())
 		{
 			WARN("no such param -%c.", sName);
-			return E_ReturnState::FAIL;
+			return RTN_FAIL;
 		}
 
 		return setOneArgValue(it->second, value);
@@ -173,7 +173,7 @@ namespace feifei
 		if (it == argsMap->end())
 		{
 			WARN("no such param --%s.", lName.c_str());
-			return E_ReturnState::FAIL;
+			return RTN_FAIL;
 		}
 
 		return setOneArgValue(it->second, value);
@@ -199,7 +199,7 @@ namespace feifei
 		default: 
 			break;
 		}
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	void * CmdArgs::getOneArgValue(T_CmdArg * arg)
 	{

@@ -157,7 +157,7 @@ protected:
 		
 		clrVar();
 
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 
 	/************************************************************************************/

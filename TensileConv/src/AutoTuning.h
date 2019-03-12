@@ -138,14 +138,14 @@ public:
 		{
 			if (newParam->Step == 0)
 			{
-				return E_ReturnState::FAIL;
+				return RTN_FAIL;
 			}
 
 			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
 
 			if (len <= 0)
 			{
-				return E_ReturnState::FAIL;
+				return RTN_FAIL;
 			}
 
 			int val = newParam->MinValue;
@@ -166,7 +166,7 @@ public:
 		paramNumber++;
 		paramCombNum *= newParam->ValueNum;
 
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	E_ReturnState GenerateNextComb()
 	{
@@ -178,7 +178,7 @@ public:
 		{
 			moveCurrIdx = true;
 			searchParamIdx = 0;
-			return E_ReturnState::FAIL;
+			return RTN_FAIL;
 		}
 
 		// 调整当前数组指针
@@ -204,7 +204,7 @@ public:
 		{
 			moveCurrIdx = true;
 			searchParamIdx = 0;
-			return E_ReturnState::SUCCESS;
+			return RTN_SUCCESS;
 		}
 
 		// 搜索下一组参数
@@ -423,14 +423,14 @@ public:
 		{
 			if (newParam->Step == 0)
 			{
-				return E_ReturnState::FAIL;
+				return RTN_FAIL;
 			}
 
 			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
 
 			if (len <= 0)
 			{
-				return E_ReturnState::FAIL;
+				return RTN_FAIL;
 			}
 
 			int val = newParam->MinValue;
@@ -449,15 +449,15 @@ public:
 
 		genePool->push_back(newParam);
 
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	E_ReturnState GenerateNextComb()
 	{
 		if (checkedCombNum >= POP_SIZE * MAX_GENERATION)
-			return E_ReturnState::FAIL;
+			return RTN_FAIL;
 
 		genRandChrom();
-		return E_ReturnState::SUCCESS;
+		return RTN_SUCCESS;
 	}
 	void SetOneCombScore(double value)
 	{

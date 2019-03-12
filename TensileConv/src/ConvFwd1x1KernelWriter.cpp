@@ -35,8 +35,8 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	// -------------------------------------------------------------------------------
 	// 问题尺寸过滤
 	// -------------------------------------------------------------------------------
-	if ((K % k_out_maps) != 0) return E_ReturnState::FAIL;
-
+	if (K % k_out_maps != 0)		return RTN_FAIL;
+	
 	// -------------------------------------------------------------------------------
 	// 中间变量计算
 	// -------------------------------------------------------------------------------
@@ -55,9 +55,9 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	c_in_group = c_in_l2_group * c_in_lds_group;
 	c_in_maps = C / c_in_group;
 	if(c_in_maps < unroll_time)
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 	if ((C % c_in_group) != 0)
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 	if (c_in_maps_once <= c_in_maps / unroll_time)
 	{
 		c_in_maps_once_real = 2;
@@ -76,15 +76,16 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 		c_in_maps_once_real = c_in_maps / unroll_time;
 	}
 	if (c_in_maps_once_real <= 0)
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 	if (c_in_maps_once_real >= 16)
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 	conv_loop = c_in_maps / c_in_maps_once_real / unroll_time;
 	if (c_in_maps != conv_loop * c_in_maps_once_real * unroll_time)
-		return E_ReturnState::FAIL;
-	if (c_in_maps_once_real != 1 && c_in_maps_once_real != 2 &&
-		c_in_maps_once_real != 4 && c_in_maps_once_real != 8 && c_in_maps_once_real != 16)
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
+	
+//	if (c_in_maps_once_real != 1 && c_in_maps_once_real != 2 &&
+//		c_in_maps_once_real != 4 && c_in_maps_once_real != 8 && c_in_maps_once_real != 16)
+//		return RTN_FAIL;
 
 	// -------------------------------------------------------------------------------
 	// others
@@ -122,11 +123,11 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 	group_wave_num_x = group_sz.x / WAVE_SIZE;
 
 	if(group_sz.x * group_sz.y > 1024)
-		return E_ReturnState::FAIL;
+		return RTN_FAIL;
 
 	print_kernel_param();
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 
 /************************************************************************************/
@@ -458,7 +459,7 @@ E_ReturnState KernelWriterConv1x1::calcuIndex()
 		delVar(v_l2_pos_id);
 	}
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelWriterConv1x1::loadKernelArgs()
 {
@@ -488,7 +489,7 @@ E_ReturnState KernelWriterConv1x1::loadKernelArgs()
 	s_load_dword(2, s_ptr_dbg, s_kernelArg, offset);		offset += 8;
 #endif
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelWriterConv1x1::calcuWaveIndex()
 {
@@ -507,7 +508,7 @@ E_ReturnState KernelWriterConv1x1::calcuWaveIndex()
 	delVar(s_tmp1);
 	delVar(v_tmp1);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelWriterConv1x1::calcuBlkIndex()
 {
@@ -594,7 +595,7 @@ E_ReturnState KernelWriterConv1x1::calcuBlkIndex()
 	delVar(v_tmp1);
 	delVar(v_tmp2);
 	
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelWriterConv1x1::calcuPosIndex()
 {
@@ -632,7 +633,7 @@ E_ReturnState KernelWriterConv1x1::calcuPosIndex()
 
 	delVar(v_tmp1);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 E_ReturnState KernelWriterConv1x1::calcuOffset()
 {
@@ -767,7 +768,7 @@ E_ReturnState KernelWriterConv1x1::calcuOffset()
 	delVar(v_tmp3);
 	delVar(v_out_off_tmp);
 
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 
 /************************************************************************************/
@@ -918,7 +919,18 @@ void KernelWriterConv1x1::load_input(Var * in_buff)
 }
 void KernelWriterConv1x1::load_weight(Var * wei_buff)
 {
-	s_load_dword(c_in_maps_once_real, wei_buff, s_addr_wei, wei_offset);
+	if (c_in_maps_once_real != 1 && c_in_maps_once_real != 2 &&
+		c_in_maps_once_real != 4 && c_in_maps_once_real != 8 && c_in_maps_once_real != 16)
+	{
+		for (int i = 0; i < c_in_maps_once_real; i++)
+		{
+			s_load_dword(1, *wei_buff + i, s_addr_wei, wei_offset + i * 4);
+		}
+	}
+	else
+	{
+		s_load_dword(c_in_maps_once_real, wei_buff, s_addr_wei, wei_offset);
+	}
 	if(k_out_maps > 1)
 		wei_offset += wei_chan_stride * 4;
 }
@@ -1665,7 +1677,7 @@ E_ReturnState KernelWriterConv1x1::simulate_index()
 	print_index(test_idx1, "c_blk_id");
 	free(test_idx1);
 	
-	return E_ReturnState::FAIL;
+	return RTN_FAIL;
 }
 void KernelWriterConv1x1::save_debug()
 {

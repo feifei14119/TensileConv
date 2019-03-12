@@ -20,8 +20,8 @@ void SolutionCtrlBase::RunSolution()
 	searchSpace->InitSearching();
 
 	// 遍历每个problem的solution参数空间
-#define TempDo(x)	if(x != E_ReturnState::SUCCESS) goto CONTINUE;
-	while (true)
+#define TempDo(x)	if(x != RTN_SUCCESS) goto CONTINUE;
+	while (1)
 	{
 		TempDo(getKernelParam());
 		TempDo(generateKernel());
@@ -30,7 +30,7 @@ void SolutionCtrlBase::RunSolution()
 
 		CONTINUE:
 		releaseDevMem();
-		if (searchSpace->GenerateNextComb() != E_ReturnState::SUCCESS)
+		if (searchSpace->GenerateNextComb() != RTN_SUCCESS)
 		{
 			INFO("search solution parameters finished.");
 			break;
@@ -77,7 +77,7 @@ E_ReturnState SolutionCtrlBase::launchKernel()
 	elapsedTime /= loopCnt;
 	recordScore(elapsedTime);
 	
-	return E_ReturnState::SUCCESS;
+	return RTN_SUCCESS;
 }
 
 void SolutionCtrlBase::recordScore(double elapsedTime)
@@ -153,7 +153,7 @@ void ProblemCtrlBase::RunProblem()
 		if (EnSearch)	verifyDevCompute();
 		if (EnSearch)	releaseHostParam();
 
-		if (searchSpace->GenerateNextComb() != E_ReturnState::SUCCESS)
+		if (searchSpace->GenerateNextComb() != RTN_SUCCESS)
 		{
 			INFO("search problem parameters finished.");
 			break;
