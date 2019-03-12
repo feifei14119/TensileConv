@@ -563,7 +563,7 @@ void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, b
 	it = saveCfgs->find(key);
 	
 	EnSearch = true;
-	SearchMethod = E_SearchMethord::SEARCH_GENETIC;
+	SearchMethod = E_SearchMethord::SEARCH_BRUTE;
 	memset(&setKernelParam, 0, sizeof(setKernelParam));
 	setKernelParam.elapsedSec = -1;
 	if (TuneMethod == SEARCH_NONE)
