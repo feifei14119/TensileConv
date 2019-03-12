@@ -17,7 +17,8 @@ static T_SaveParam setKernelParam;
 static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Relu relu)
 {
 	char tmpc[MAP_KEY_LEN];
-	sprintf(tmpc, "\r\nN%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
+	sprintf(tmpc, "N%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
+	int a = std::string(tmpc).length();
 	return std::string(tmpc);
 }
 
