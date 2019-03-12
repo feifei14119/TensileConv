@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 	}
 
 	conv = new DirConv1x1Fwd();
-	perfSec = conv->TuneProblem(W, H, C, K, N, 1, 1, false, E_TCRelu::RELU, E_TCSearch::AUTO, solution);
+	perfSec = conv->TuneProblem(W, H, C, K, N, 1, 1, true, E_TCRelu::NORELU, E_TCSearch::AUTO, solution);
 	printf("*************************************************************************\n");
 	printf("*************************** TensileConv *********************************\n");
 	printf("*************************************************************************\n");

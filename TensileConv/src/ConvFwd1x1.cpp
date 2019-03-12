@@ -184,7 +184,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam.Name = "k_out_maps";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(3);
+	searchParam.ValueArray.push_back(2);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "group_size_x";
@@ -565,7 +565,7 @@ void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, b
 	it = saveCfgs->find(key);
 	
 	EnSearch = true;
-	SearchMethod = E_SearchMethord::SEARCH_BRUTE;
+	SearchMethod = E_SearchMethord::SEARCH_GENETIC;
 	memset(&setKernelParam, 0, sizeof(setKernelParam));
 	setKernelParam.elapsedSec = -1;
 	if (TuneMethod == SEARCH_NONE)
