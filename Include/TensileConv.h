@@ -35,6 +35,8 @@ namespace TensileConv
 		DirConv1x1Fwd();
 		~DirConv1x1Fwd();
 
+		static void SetDbFilePath(std::string path);
+		static std::string GetDbFilePath();
 		double TuneProblem(int W, int H, int C, int K, int N, int U, int V,
 			bool bias, E_TCRelu relu, E_TCSearch search,
 			T_TCSolution & solution);

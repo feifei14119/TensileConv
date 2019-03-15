@@ -1,3 +1,14 @@
+/*
+ ***********************************************************************************************************************
+ *
+ *  Trade secret of Advanced Micro Devices, Inc.
+ *  Copyright (c) 2014-2019, Advanced Micro Devices, Inc., (unpublished)
+ *
+ *  All rights reserved. This notice is intended as a precaution against inadvertent publication and does not imply
+ *  publication or any waiver of confidentiality. The year included in the foregoing notice is the year of creation of
+ *  the work.
+ *
+ **********************************************************************************************************************/
 #pragma once 
 
 #include "ConvFwd1x1.h"
@@ -14,6 +25,15 @@ static std::string dbFileName;
 static std::string dbDirPath = "./db/";
 static std::map<std::string, T_SaveParam> * saveCfgs;
 static T_SaveParam setKernelParam;
+void TensileConv::SetDatabasePath(std::string path)
+{
+	dbDirPath = path + "/";
+	ensure_dir(dbDirPath.c_str());
+}
+std::string TensileConv::GetDatabasePath()
+{
+	return dbDirPath;
+}
 static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Relu relu)
 {
 	char tmpc[MAP_KEY_LEN];
@@ -21,7 +41,6 @@ static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Rel
 	int a = std::string(tmpc).length();
 	return std::string(tmpc);
 }
-
 static void loadDbFile()
 {
 	saveCfgs = new std::map<std::string, T_SaveParam>();
@@ -59,7 +78,6 @@ static void loadDbFile()
 		fin.close();
 	}
 }
-
 static void saveDbFile(T_SaveParam saveParam)
 {
 	std::string full_name = dbDirPath + dbFileName;

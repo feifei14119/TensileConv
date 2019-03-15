@@ -1,4 +1,15 @@
-﻿#include <stdio.h>
+﻿/*
+ ***********************************************************************************************************************
+ *
+ *  Trade secret of Advanced Micro Devices, Inc.
+ *  Copyright (c) 2014-2019, Advanced Micro Devices, Inc., (unpublished)
+ *
+ *  All rights reserved. This notice is intended as a precaution against inadvertent publication and does not imply
+ *  publication or any waiver of confidentiality. The year included in the foregoing notice is the year of creation of
+ *  the work.
+ *
+ **********************************************************************************************************************/
+#include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string>
@@ -24,6 +35,15 @@ DirConv1x1Fwd::~DirConv1x1Fwd()
 {
 	delete conv1x1;
 	delete pOcl;
+}
+
+void DirConv1x1Fwd::SetDbFilePath(std::string path)
+{
+	SetDatabasePath(path);
+}
+std::string DirConv1x1Fwd::GetDbFilePath()
+{
+	return GetDatabasePath();
 }
 
 double DirConv1x1Fwd::TuneProblem(int W, int H, int C, int K, int N, int U, int V,

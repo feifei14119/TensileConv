@@ -13,6 +13,9 @@ int main(int argc, char *argv[])
 	TCSolutionType solution;
 	DirConv1x1Fwd * conv;
 
+	DirConv1x1Fwd::SetDbFilePath("/home/feifei/projects/TensileConvDatabase");
+	printf("database file path: %s\n", DirConv1x1Fwd::GetDbFilePath().c_str());
+
 	int W = 4, H = 4, C = 384, K = 96, N=1;
 	while (0)
 	{

@@ -116,5 +116,10 @@ private:
 	E_Relu relu;
 	float negSlop;
 };
+
+extern void SetDatabasePath(std::string path);
+extern std::string GetDatabasePath();
+
 }
+
 
