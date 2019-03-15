@@ -1,14 +1,3 @@
-/*
- ***********************************************************************************************************************
- *
- *  Trade secret of Advanced Micro Devices, Inc.
- *  Copyright (c) 2014-2019, Advanced Micro Devices, Inc., (unpublished)
- *
- *  All rights reserved. This notice is intended as a precaution against inadvertent publication and does not imply
- *  publication or any waiver of confidentiality. The year included in the foregoing notice is the year of creation of
- *  the work.
- *
- **********************************************************************************************************************/
 #pragma once 
 
 #include "ConvFwd1x1.h"
@@ -22,6 +11,8 @@ using namespace AutoTune;
 /* 还没想好放到哪儿									                    */
 /************************************************************************/
 static std::string dbFileName;
+static std::string copyrightFileName = "./AnakinCopyright.txt";
+static std::string copyright;
 static std::string dbDirPath = "./db/";
 static std::map<std::string, T_SaveParam> * saveCfgs;
 static T_SaveParam setKernelParam;
@@ -40,6 +31,52 @@ static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Rel
 	sprintf(tmpc, "N%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
 	int a = std::string(tmpc).length();
 	return std::string(tmpc);
+}
+static void genCopyright()
+{
+	std::ifstream fin(copyrightFileName.c_str(), std::ios::in);
+	if (!fin.is_open())
+	{
+		copyright = "\
+/*\n\
+***********************************************************************************************************************\n\
+*\n\
+* internal copyright .\n\
+*\n\
+**********************************************************************************************************************/\n\
+";
+		return;
+	}
+
+	size_t fSize;
+	fin.seekg(0, std::ios::end);
+	fSize = (size_t)fin.tellg();
+
+	fin.seekg(0, std::ios::beg);
+	copyright.resize(fSize);
+	fin.read(&copyright[0], fSize);
+	
+	copyright += "\n";
+
+	fin.close();
+}
+
+static void saveDbFile(T_SaveParam saveParam)
+{
+	std::string full_name = dbDirPath + dbFileName;
+	std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary | std::ios::app);
+	fout.seekp(0, std::ios::end);
+	
+	size_t fSize = 0;
+	fSize = (size_t)fout.tellp();
+	if (fSize == 0)
+	{
+		genCopyright();
+		fout.write(copyright.c_str(), copyright.size());
+	}
+
+	fout.write((char*)(&saveParam), sizeof(T_SaveParam));
+	fout.close();
 }
 static void loadDbFile()
 {
@@ -62,11 +99,27 @@ static void loadDbFile()
 		unsigned int fileSize;
 		unsigned int rcdNum;
 		unsigned int rcdSize = sizeof(T_SaveParam);
-		fin.seekg(0, std::ios::end);
 
+		fin.seekg(0, std::ios::end);
 		fileSize = (size_t)fin.tellg();
-		rcdNum = fileSize / rcdSize;
 		fin.seekg(0, std::ios::beg);
+
+		int t = 0;
+		char a1 = 0, a2 = 0;
+		while (!fin.eof())
+		{
+			t++;
+			a1 = a2;
+			fin.get(a2);
+			if (a1 == '\n' && a2 == 'N')
+				break;
+			if (a1 == 0 && a2 == 'N')
+				break;
+		}
+		
+		fileSize -= (t-1);
+		fin.seekg(t-1, std::ios::beg);
+		rcdNum = fileSize / rcdSize;
 
 		for (int i = 0; i < rcdNum; i++)
 		{
@@ -77,14 +130,6 @@ static void loadDbFile()
 
 		fin.close();
 	}
-}
-static void saveDbFile(T_SaveParam saveParam)
-{
-	std::string full_name = dbDirPath + dbFileName;
-	std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary | std::ios::app);
-	fout.seekp(0, std::ios::end);
-	fout.write((char*)(&saveParam), sizeof(T_SaveParam));
-	fout.close();
 }
 
 /************************************************************************/
