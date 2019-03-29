@@ -7,7 +7,7 @@
 
 namespace feifei 
 {
-	Db::Db(std::string db_name)
+	Database::Database(std::string db_name)
 	{
 		dbDirPath = get_work_path() + DIR_SPT + "db" + DIR_SPT;
 		ensure_dir(dbDirPath.c_str());
@@ -25,18 +25,24 @@ namespace feifei
 		fout.close();
 	}
 
-	std::string Db::genKeyStr(T_SaveData sd)
+	/* NEED TODO */
+	std::string Database::GenKeyStr(int N, int C, int H, int W, int K, bool bias, int relu)
 	{
 		char tmpc[1024];
 		memset(tmpc, 0, 1024);
-#ifdef _WIN32
-		sprintf_s(tmpc, "A%d", sd.a);
-#else
-		sprintf(tmpc, "A%d", sd.a);
-#endif
+		sprintf(tmpc, "N%02dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, bias, relu);
 		return std::string(tmpc);
 	}
-	char Db::checkSum(std::string key, T_SaveData rcd)
+	std::string Database::GenKeyStr(T_SaveData sd)
+	{
+		char tmpc[1024];
+		memset(tmpc, 0, 1024);
+		sprintf(tmpc, "N%02dC%04dH%04dW%04dK%04db%dr%02d", 
+			sd.N, sd.C, sd.H, sd.W, sd.K, sd.bias, sd.relu);
+		return std::string(tmpc);
+	}
+
+	char Database::checkSum(std::string key, T_SaveData rcd)
 	{
 		char ck = '<';
 
@@ -51,19 +57,32 @@ namespace feifei
 		return ck;
 	}
 
-	void Db::AppendRcd(T_SaveData rcd)
+	T_SaveData Database::Find(std::string key)
 	{
-		std::string key = genKeyStr(rcd);
+		T_SaveData rcd;
+		memset(&rcd, 0, sizeof(rcd));
+		std::map<std::string, T_SaveData>::iterator it;
+		rcd.elapsedSec = -1;
+		it = SaveDataMap.find(key);
+		if (it != SaveDataMap.end())
+		{
+			rcd = it->second;
+		}
+		return rcd;
+	}
+	void Database::AppendRcd(T_SaveData rcd)
+	{
+		std::string key = GenKeyStr(rcd);
 		SaveDataMap.insert(std::pair<std::string, T_SaveData>(key, rcd));
 	}
 	
-	void Db::SaveRcd(T_SaveData rcd)
+	void Database::SaveRcd(T_SaveData rcd)
 	{
 		std::string full_name = dbDirPath + dbFileName;
 		std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary | std::ios::app);
 		fout.seekp(0, std::ios::end);
 
-		std::string key = genKeyStr(rcd);
+		std::string key = GenKeyStr(rcd);
 		fout << '<';
 		fout.write(key.c_str(), key.size());
 		fout << '>';
@@ -79,7 +98,7 @@ namespace feifei
 		SaveDataMap.insert(std::pair<std::string, T_SaveData>(key, rcd));
 	}
 
-	void Db::ResaveDbFile()
+	void Database::ResaveDbFile()
 	{
 		std::string full_name = dbDirPath + dbFileName;
 		std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary);
@@ -91,7 +110,7 @@ namespace feifei
 		}
 	}
 
-	void Db::LoadDbFile()
+	void Database::LoadDbFile()
 	{
 		std::string full_name = dbDirPath + dbFileName;
 		std::ifstream fin(full_name.c_str(), std::ios::in | std::ios::binary);

@@ -5,21 +5,6 @@
 
 namespace TensileConv {
 
-#define MAP_KEY_LEN (30)
-	typedef struct SaveParamStruct
-	{
-		char key[MAP_KEY_LEN];
-		int N, C, H, W, K;
-		bool bias; E_Relu relu;
-		int PCK_order;
-		int c_in_lds_atomic_group;
-		int c_in_lds_split_group;
-		int c_in_l2_atomic_group;
-		int c_in_l2_split_group;
-		int k_out_maps;
-		int group_size_x;
-		double elapsedSec;
-	} T_SaveParam;
 /************************************************************************/
 /* solution ¿ØÖÆ										                    */
 /************************************************************************/
@@ -94,6 +79,7 @@ public:
 	float NegSlop() { return negSlop; }
 
 	void verifyDevCompute();
+	Database * db;
 
 	float* h_in, *h_wei, *h_bias, *h_out, *out_ref;
 	size_t size_in, size_wei, size_bias, size_out;

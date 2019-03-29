@@ -7,137 +7,7 @@ using namespace TensileConv;
 using namespace AutoGen;
 using namespace AutoTune;
 
-/************************************************************************/
-/* 还没想好放到哪儿									                    */
-/************************************************************************/
-static std::string dbFileName;
-static std::string copyrightFileName = "./AnakinCopyright.txt";
-static std::string copyright;
-static std::string dbDirPath = "./db/";
-static std::map<std::string, T_SaveParam> * saveCfgs;
-static T_SaveParam setKernelParam;
-void TensileConv::SetDatabasePath(std::string path)
-{
-	dbDirPath = path + "/";
-	ensure_dir(dbDirPath.c_str());
-}
-std::string TensileConv::GetDatabasePath()
-{
-	return dbDirPath;
-}
-static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Relu relu)
-{
-	//char tmpc[MAP_KEY_LEN];
-	char tmpc[1024];
-	memset(tmpc, 0, 1024);
-	sprintf(tmpc, "N%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
-	int a = std::string(tmpc).length();
-	return std::string(tmpc);
-}
-static void genCopyright()
-{
-	std::ifstream fin(copyrightFileName.c_str(), std::ios::in);
-	if (!fin.is_open())
-	{
-		copyright = "\
-/*\n\
-***********************************************************************************************************************\n\
-*\n\
-* internal copyright .\n\
-*\n\
-**********************************************************************************************************************/\n\
-";
-		return;
-	}
-
-	size_t fSize;
-	fin.seekg(0, std::ios::end);
-	fSize = (size_t)fin.tellg();
-
-	fin.seekg(0, std::ios::beg);
-	copyright.resize(fSize);
-	fin.read(&copyright[0], fSize);
-	
-	copyright += "\n";
-
-	fin.close();
-}
-
-static void saveDbFile(T_SaveParam saveParam)
-{
-	std::string full_name = dbDirPath + dbFileName;
-	std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary | std::ios::app);
-	fout.seekp(0, std::ios::end);
-	
-	size_t fSize = 0;
-	fSize = (size_t)fout.tellp();
-	if (fSize == 0)
-	{
-		genCopyright();
-		fout.write(copyright.c_str(), copyright.size());
-	}
-
-	fout.write((char*)(&saveParam), sizeof(T_SaveParam));
-	fout.close();
-}
-static void loadDbFile()
-{
-	saveCfgs = new std::map<std::string, T_SaveParam>();
-
-	RuntimeOCL * rtOcl = RuntimeOCL::GetInstance();
-	dbFileName = "conv1x1_fwd_dir_" + rtOcl->Device()->DeviceInfo()->name;
-	ensure_dir(dbDirPath.c_str());
-	std::string full_name = dbDirPath + dbFileName;
-
-	std::ifstream fin(full_name.c_str(), std::ios::in | std::ios::binary);
-
-	if (!fin.is_open())
-	{
-		std::ofstream fout(full_name.c_str(), std::ios::out | std::ios::binary);
-		fout.close();
-	}
-	else
-	{
-		unsigned int fileSize;
-		unsigned int rcdNum;
-		unsigned int rcdSize = sizeof(T_SaveParam);
-
-		fin.seekg(0, std::ios::end);
-		fileSize = (size_t)fin.tellg();
-		fin.seekg(0, std::ios::beg);
-
-		int t = 0;
-		char a1 = 0, a2 = 0;
-		while (!fin.eof())
-		{
-			t++;
-			a1 = a2;
-			fin.get(a2);
-			if (a1 == '\n' && a2 == 'N')
-				break;
-			if (a1 == 0 && a2 == 'N')
-				break;
-		}
-		
-		fileSize -= (t-1);
-		fin.seekg(t-1, std::ios::beg);
-		rcdNum = fileSize / rcdSize;
-
-		for (int i = 0; i < rcdNum; i++)
-		{
-			T_SaveParam * pSaveParam = new T_SaveParam;
-			fin.read((char*)pSaveParam, rcdSize);
-
-			std::string verify_string = genKeyStr(pSaveParam->N, pSaveParam->C,
-				pSaveParam->W, pSaveParam->H, pSaveParam->K, pSaveParam->bias, pSaveParam->relu);
-			if(verify_string == pSaveParam->key)
-				saveCfgs->insert(std::pair<std::string, T_SaveParam>(pSaveParam->key, *pSaveParam));
-		}
-
-		fin.close();
-	}
-}
-
+T_SaveData setKernelParam;
 /************************************************************************/
 /* solution 控制										                    */
 /************************************************************************/
@@ -483,7 +353,7 @@ void ConvFwd1x1Solution::GetBestKernel()
 		problem->verifyDevCompute();
 		if (problem->IsVerifyPass())
 		{
-			T_SaveParam saveParam;
+			T_SaveData saveParam;
 			saveParam.N = kernelParam.N; saveParam.C = kernelParam.C; saveParam.K = kernelParam.K;
 			saveParam.W = kernelParam.W; saveParam.H = kernelParam.H;
 			saveParam.bias = kernelParam.EnBias; saveParam.relu = kernelParam.Relu;
@@ -495,11 +365,8 @@ void ConvFwd1x1Solution::GetBestKernel()
 			saveParam.k_out_maps = kernelParam.k_out_maps;
 			saveParam.group_size_x = kernelParam.group_size_x;
 			saveParam.elapsedSec = solutionScore.ElapsedTime;
-			std::string key = genKeyStr(saveParam.N, saveParam.C, saveParam.W, saveParam.H, saveParam.K, saveParam.bias, saveParam.relu);
-			memcpy(saveParam.key, key.c_str(), MAP_KEY_LEN);
 
-			saveDbFile(saveParam);
-			saveCfgs->insert(std::pair<std::string, T_SaveParam>(saveParam.key, saveParam));
+			problem->db->SaveRcd(saveParam);
 		}
 	}
 }
@@ -535,9 +402,11 @@ ConvFwd1x1Problem::ConvFwd1x1Problem(std::string name, LogFile * file)
 	:ProblemCtrlBase(name, file)
 {
 	solver = new ConvFwd1x1Solver(this, logFile);
-
-	if(saveCfgs == nullptr)
-		loadDbFile();
+	
+	RuntimeOCL * rtOcl = RuntimeOCL::GetInstance();
+	std::string dbFileName  = "conv1x1_fwd_dir_" + rtOcl->Device()->DeviceInfo()->name;
+	db = new Database(dbFileName);
+	db->LoadDbFile();
 }
 
 void ConvFwd1x1Problem::generateProblem()
@@ -629,27 +498,21 @@ void ConvFwd1x1Problem::TuneProblem(int W, int H, int C, int K, int N, int UV, b
 	enBias = isBias;
 	relu = (E_Relu)Relu;
 
-
-	std::string key = genKeyStr(N, C, W, H, K, isBias, relu);
-	std::map<std::string, T_SaveParam>::iterator it;
-	it = saveCfgs->find(key);
+	std::string key = db->GenKeyStr(N, C, H, W, K, isBias, relu);
+	std::map<std::string, T_SaveData>::iterator it;
+	setKernelParam = db->Find(key);
 	
 	EnSearch = true;
 	SearchMethod = E_SearchMethord::SEARCH_GENETIC;
-	memset(&setKernelParam, 0, sizeof(setKernelParam));
-	setKernelParam.elapsedSec = -1;
 	if (TuneMethod == SEARCH_NONE)
 	{
 		EnSearch = false;
-		if (it != saveCfgs->end())
-			setKernelParam = it->second;
 	}
 	else if (TuneMethod == SEARCH_AUTO)
 	{
-		if (it != saveCfgs->end())
+		if (setKernelParam.elapsedSec >0)
 		{
 			EnSearch = false;
-			setKernelParam = it->second;
 		}
 	}
 	else if (TuneMethod == SEARCH_BRUTE)

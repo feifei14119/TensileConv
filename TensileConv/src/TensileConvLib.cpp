@@ -28,11 +28,9 @@ DirConv1x1Fwd::~DirConv1x1Fwd()
 
 void DirConv1x1Fwd::SetDbFilePath(std::string path)
 {
-	SetDatabasePath(path);
 }
 std::string DirConv1x1Fwd::GetDbFilePath()
 {
-	return GetDatabasePath();
 }
 
 double DirConv1x1Fwd::TuneProblem(int W, int H, int C, int K, int N, int U, int V,

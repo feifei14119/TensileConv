@@ -34,10 +34,11 @@ int main(int argc, char *argv[])
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU);
 	int TuneMethod = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
-	W = 14; H = 14; N = 4; C = 512; K = 512; UV = 1; Bias = false; Relu = E_Relu::NORELU; TuneMethod = 2;
+	W = 14; H = 14; N = 4; C = 512; K = 512; UV = 1; Bias = false; Relu = E_Relu::NORELU; TuneMethod = 1;
 
 	ConvFwd1x1Problem * conv = new ConvFwd1x1Problem("DirConv1x1Fwd", logFile);
 	conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
+
 	ConvFwd1x1Solution * slt = (ConvFwd1x1Solution*)conv->BestSolution();
 	INFO("kernel file: " + slt->KernelFile());
 	INFO("kernel name: " + slt->KernelName());
