@@ -1,5 +1,5 @@
 
-#include <string>
+#include <string.h>
 #include <iostream>
 
 #include "ff_log.h"
@@ -18,8 +18,20 @@ namespace feifei
 
 		paserCmdArgs(argc, argv);
 	}
+	CmdArgs::CmdArgs()
+	{
+		argsNum = 0;
+		argsMap = new std::map<E_ArgId, T_CmdArg*>();
+		pCmdArgs = this;
+		initCmdArgs();
+
+		paserCmdArgs(0, nullptr);
+	}
 	CmdArgs * CmdArgs::GetCmdArgs()
 	{
+		if (pCmdArgs == nullptr)
+			pCmdArgs = new CmdArgs();
+		
 		return pCmdArgs;
 	}
 
@@ -44,7 +56,7 @@ namespace feifei
 	{
 		addOneArg(CMD_ARG_HELP, E_DataType::String, "help", '\0', "help", "help infomation");
 		addOneArg(CMD_ARG_DEVICE, E_DataType::Int, "0", 'd', "device", "specify a device");
-		addOneArg(CMD_ARG_EVINFO, E_DataType::Int, "0", '\0',"evinfo", "get environment info");
+		addOneArg(CMD_ARG_EVINFO, E_DataType::Int, "0", '\0', "evinfo", "get environment info");
 		addOneArg(CMD_ARG_W, E_DataType::Int, "14", 'w', "width", "specify input tensor width");
 		addOneArg(CMD_ARG_H, E_DataType::Int, "14", 'h', "height", "specify input tensor height");
 		addOneArg(CMD_ARG_C, E_DataType::Int, "1024", 'c', "chanin", "specify input channel");
@@ -78,13 +90,18 @@ namespace feifei
 	void CmdArgs::paserCmdArgs(int argc, char *argv[])
 	{
 		if (argc == 0)
+		{
+			executePath = std::string(".") + DIR_SPT;
 			return;
+		}
+
 		// use first arg to get current path
 		size_t p;
-		p = std::string(argv[0]).rfind('/');
+		p = std::string(argv[0]).rfind(DIR_SPT);
+
 		if (p == std::string::npos)
 		{
-			executePath = "./";
+			executePath = std::string(".") + DIR_SPT;
 		}
 		else
 		{
@@ -94,7 +111,7 @@ namespace feifei
 		// other args
 		for (int i = 1; i < argc; i++)
 		{
-			if (std::string(argv[i]) == "--help")
+			if ((std::string(argv[i]) == "--help") || (std::string(argv[i]) == "-h"))
 			{
 				helpText();
 				exit(0);
@@ -130,6 +147,7 @@ namespace feifei
 			case E_DataType::Int:printf("(%d)", it->second->iValue); break;
 			case E_DataType::Float:printf("(%.2f)", it->second->fValue); break;
 			case E_DataType::String:printf("(%s)", it->second->sValue.c_str()); break;
+			default: break;
 			}
 
 			if (it->second->helpText != "")
@@ -154,8 +172,7 @@ namespace feifei
 
 		if (it == argsMap->end())
 		{
-			WARN("no such param -%c.", sName);
-			return RTN_FAIL;
+			FATAL("no such param -%c.", sName);
 		}
 
 		return setOneArgValue(it->second, value);
@@ -172,8 +189,7 @@ namespace feifei
 
 		if (it == argsMap->end())
 		{
-			WARN("no such param --%s.", lName.c_str());
-			return RTN_FAIL;
+			FATAL("no such param --%s.", lName.c_str());
 		}
 
 		return setOneArgValue(it->second, value);
@@ -199,7 +215,7 @@ namespace feifei
 		default: 
 			break;
 		}
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	void * CmdArgs::getOneArgValue(T_CmdArg * arg)
 	{

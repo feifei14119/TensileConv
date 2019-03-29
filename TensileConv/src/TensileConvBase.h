@@ -6,6 +6,7 @@
 #include <list>
 
 #include "../common/ff_utils.h"
+#include "../common/ff_runtime.h"
 #include "AutoTuning.h"
 
 #include "unistd.h"
@@ -51,7 +52,7 @@ public:
 	}
 
 	void RunSolution();
-	virtual void GetBestKernel() { INFO("Best solution: " + solutionName); }
+	virtual void GetBestKernel() { LOG("Best solution: " + solutionName); }
 
 	std::string KernelName() { return kernelName; }
 	std::string KernelFile() { return kernelFile; }
@@ -83,29 +84,29 @@ protected:
 	int repeatTime;
 	T_Score solutionScore;				// 全部配置的平均性能
 
-	virtual E_ReturnState generateSolutionParamSpace() { INFO("Generate solution parameters space."); }
+	virtual E_ReturnState generateSolutionParamSpace() { LOG("Generate solution parameters space."); }
 	virtual E_ReturnState getKernelParam() 
 	{ 
 		switch (searchMethod)
 		{
 		case AutoTune::E_SearchMethord::SEARCH_BRUTE:
-			INFO("Searching %.1f%%: %d / %d kernels.",
+			LOG("Searching %.1f%%: %d / %d kernels.",
 				100.0 * searchSpace->SearchedCombNum() / searchSpace->ParamCombNum(),
 				searchSpace->SearchedCombNum(), searchSpace->ParamCombNum());
 			break;
 		case AutoTune::E_SearchMethord::SEARCH_GENETIC:
-			INFO("Searching %.1f%%: %d / %d kernels.",
+			LOG("Searching %.1f%%: %d / %d kernels.",
 				100.0 * searchSpace->CheckedCombNum() / searchSpace->ParamCombNum(),
 				searchSpace->CheckedCombNum(), searchSpace->ParamCombNum());
 			break;
 		}
 	}
-	virtual E_ReturnState generateKernel() { INFO("Generate program and build kernel."); }
-	virtual E_ReturnState prepareKernelArgs() { INFO("Prepare kernel args."); };
+	virtual E_ReturnState generateKernel() { LOG("Generate program and build kernel."); }
+	virtual E_ReturnState prepareKernelArgs() { LOG("Prepare kernel args."); };
 	virtual E_ReturnState launchKernel();
 	virtual void recordScore(double elapsedTime);
-	virtual void getBackResult() { INFO("Copy result back to cpu."); };
-	virtual void releaseDevMem() { INFO("Release resource."); };
+	virtual void getBackResult() { LOG("Copy result back to cpu."); };
+	virtual void releaseDevMem() { LOG("Release resource."); };
 };
 
 /************************************************************************/
@@ -174,7 +175,7 @@ public:
 	double Calculation() { return calculation; }
 	double TheoryElapsedTime() { return theoryElapsedTime; }
 
-	virtual void verifyDevCompute() { INFO("verify device calculation."); }
+	virtual void verifyDevCompute() { LOG("verify device calculation."); }
 	// TODO: dump/load input/output data
 
 protected:
@@ -190,9 +191,9 @@ protected:
 	double calculation;					// 当前正在处理的问题配置的计算量
 	double theoryElapsedTime;			// 当前正在处理的问题配置的理论执行时间
 	
-	virtual void initHostParam() { INFO("initialize host."); }
-	virtual void runHostCompute() { INFO("run host calculate."); }
-	virtual void releaseHostParam() { INFO("release host."); };
+	virtual void initHostParam() { LOG("initialize host."); }
+	virtual void runHostCompute() { LOG("run host calculate."); }
+	virtual void releaseHostParam() { LOG("release host."); };
 	virtual void caculateTheoryPerformance() {}
 };
 }

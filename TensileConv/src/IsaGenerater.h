@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "../common/ff_utils.h"
+#include "../common/ff_runtime.h"
 
 namespace TensileConv {
 namespace AutoGen{
@@ -509,14 +510,6 @@ namespace AutoGen{
 			}
 			return log2;
 		}
-		int modMask(int value)
-		{
-			return value - 1;
-		}
-		bool isPow2(int value)
-		{
-			return ((value & (value - 1)) == 0);
-		}
 
 #pragma region ISA_REGION
 		E_IsaArch IsaArch = E_IsaArch::Gfx900;
@@ -565,28 +558,28 @@ namespace AutoGen{
 			{
 				str.append("dest reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_base->type != E_VarType::VAR_SGPR)
 			{
 				str.append("base addr reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_base->sgpr.len != 2)
 			{
 				str.append("base addr reg not 64-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (getVarType(offset) == E_VarType::VAR_VGPR)
 			{
 				str.append("offset reg are vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
 		E_ReturnState s_store_dword(int num, Var* s_dst, Var* s_base, T offset, bool glc = false)
@@ -629,28 +622,28 @@ namespace AutoGen{
 			{
 				str.append("dest reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_base->type != E_VarType::VAR_SGPR)
 			{
 				str.append("base addr reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_base->sgpr.len != 2)
 			{
 				str.append("base addr reg not 64-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (getVarType(offset) == E_VarType::VAR_VGPR)
 			{
 				str.append("offset reg are vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
 		E_ReturnState s_atomic_op(E_OpType op, Var* s_dat, Var* s_addr, T offset, bool glc = false)
@@ -701,7 +694,7 @@ namespace AutoGen{
 				break;
 			default:
 				str.append("invalid op");
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			tmpIdx = PARAM_START_COL - str.length();
@@ -728,28 +721,28 @@ namespace AutoGen{
 			{
 				str.append("dest reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_addr->type != E_VarType::VAR_SGPR)
 			{
 				str.append("base addr reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_addr->sgpr.len != 2)
 			{
 				str.append("base addr reg not 64-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (getVarType(offset) == E_VarType::VAR_VGPR)
 			{
 				str.append("offset reg are vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
 		E_ReturnState s_atomic_op2(E_OpType op, Var* s_dat, Var* s_addr, T offset, bool glc = true)
@@ -800,7 +793,7 @@ namespace AutoGen{
 				break;
 			default:
 				str.append("invalid op");
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			str.append("_x2");
@@ -828,28 +821,28 @@ namespace AutoGen{
 			{
 				str.append("dest reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_addr->type != E_VarType::VAR_SGPR)
 			{
 				str.append("base addr reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_addr->sgpr.len != 2)
 			{
 				str.append("base addr reg not 64-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (getVarType(offset) == E_VarType::VAR_VGPR)
 			{
 				str.append("offset reg are vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		/************************************************************************************/
@@ -935,7 +928,7 @@ namespace AutoGen{
 			{
 				str.append("dest reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((idx_en == true) || (off_en == true))
 			{
@@ -943,35 +936,35 @@ namespace AutoGen{
 				{
 					str.append("offset and index reg not vgpr");
 					wrLine(str);
-					return RTN_FAIL;
+					return E_ReturnState::RTN_ERR;
 				}
 			}
 			if (s_desc->type != E_VarType::VAR_SGPR)
 			{
 				str.append("buffer descriptor reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_desc->sgpr.len != 4)
 			{
 				str.append("buffer descriptor reg not 4-dword");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_base_offset->type != E_VarType::VAR_SGPR)
 			{
 				str.append("buffer obj base offset addr reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= 0) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset is not 12-bit uint");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		/************************************************************************************/
@@ -1035,34 +1028,34 @@ namespace AutoGen{
 			{
 				str.append("load data error");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_offset_addr->type != E_VarType::VAR_VGPR)
 			{
 				str.append("base addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_offset_addr->vgpr.len != 2)
 			{
 				str.append("base addr reg not 64-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dst->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= 0) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset over 13-bit int");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
 		E_ReturnState flat_load_dword_gfx900(int num, Var* v_dst, Var* v_offset_addr, T s_addr, int i_offset = 0, bool glc = false)
@@ -1132,40 +1125,40 @@ namespace AutoGen{
 			{
 				str.append("load data error");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_offset_addr->type != E_VarType::VAR_VGPR)
 			{
 				str.append("base addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((v_offset_addr->vgpr.len != 2)&&(is64AddrMode == true))
 			{
 				str.append("base addr reg not 64-bit for 64-bit addr mode");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dst->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((getVarType(s_addr) != E_VarType::VAR_SGPR) && (getVarType(s_addr) != E_VarType::VAR_OFF))
 			{
 				str.append("offset reg not sgpr nor off");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= -4096) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset over 13-bit int");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		template <typename T>
@@ -1226,34 +1219,34 @@ namespace AutoGen{
 			{
 				str.append("load data error");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_offset_addr->type != E_VarType::VAR_VGPR)
 			{
 				str.append("base addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_offset_addr->vgpr.len != 2)
 			{
 				str.append("base addr reg not 64-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dat->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= 0) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset over 13-bit int");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
 		E_ReturnState flat_store_dword_gfx900(int num, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0, bool glc = false)
@@ -1325,40 +1318,40 @@ namespace AutoGen{
 			{
 				str.append("load data error");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_offset_addr->type != E_VarType::VAR_VGPR)
 			{
 				str.append("base addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((v_offset_addr->vgpr.len != 2) && (is64AddrMode == true))
 			{
 				str.append("base addr reg not 64-bit for 64-bit addr mode");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dat->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((getVarType(s_addr) != E_VarType::VAR_SGPR) && (getVarType(s_addr) != E_VarType::VAR_OFF))
 			{
 				str.append("offset reg not sgpr nor off");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= -4096) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset over 13-bit int");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		template <typename T>
@@ -1424,7 +1417,7 @@ namespace AutoGen{
 				break;
 			default:
 				str.append("invalid op");
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			tmpIdx = PARAM_START_COL - str.length();
@@ -1480,40 +1473,40 @@ namespace AutoGen{
 			{
 				str.append("base addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((v_offset_addr->vgpr.len != 2) && (is64AddrMode == true))
 			{
 				str.append("base addr reg not 64-bit for 64-bit addr mode");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dst->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dat->type != E_VarType::VAR_VGPR)
 			{
 				str.append("data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((getVarType(s_addr) != E_VarType::VAR_SGPR) && (getVarType(s_addr) != E_VarType::VAR_OFF))
 			{
 				str.append("offset reg not sgpr nor off");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= -4096) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset over 13-bit int");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		E_ReturnState flat_atomic_op_gfx800(E_OpType op, Var* v_dst, Var* v_addr, Var* v_dat, int i_offset = 0, bool glc = false)
 		{
@@ -1565,7 +1558,7 @@ namespace AutoGen{
 				break;
 			default:
 				str.append("invalid op");
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			tmpIdx = PARAM_START_COL - str.length();
@@ -1605,34 +1598,34 @@ namespace AutoGen{
 			{
 				str.append("base addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_addr->vgpr.len != 2)
 			{
 				str.append("base addr reg not 64-bit for 64-bit addr mode");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dst->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dat->type != E_VarType::VAR_VGPR)
 			{
 				str.append("data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= -4096) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset over 13-bit int");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
 		E_ReturnState flat_atomic_op2(E_OpType op, Var* v_dst, Var* v_offset_addr, Var* v_dat, T s_addr, int i_offset = 0)
@@ -1697,7 +1690,7 @@ namespace AutoGen{
 				break;
 			default:
 				str.append("invalid op");
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			
 			str.append("x2");
@@ -1744,40 +1737,40 @@ namespace AutoGen{
 			{
 				str.append("base addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((v_offset_addr->vgpr.len != 2) && (is64AddrMode == true))
 			{
 				str.append("base addr reg not 64-bit for 64-bit addr mode");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dst->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dat->type != E_VarType::VAR_VGPR)
 			{
 				str.append("store data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if ((getVarType(s_addr) != E_VarType::VAR_SGPR) && (getVarType(s_addr) != E_VarType::VAR_OFF))
 			{
 				str.append("offset reg not sgpr nor off");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (!((i_offset >= -4096) && (i_offset <= 4095)))
 			{
 				str.append("imm_offset over 13-bit int");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		
 		/************************************************************************************/
@@ -1825,16 +1818,16 @@ namespace AutoGen{
 			{
 				str.append("dest reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_addr->type != E_VarType::VAR_VGPR)
 			{
 				str.append("ds addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		E_ReturnState ds_write_dword(int num, Var* v_addr, Var* v_dat, int i_offset = 0, bool gds = false, bool setM0 = false)
 		{
@@ -1878,16 +1871,16 @@ namespace AutoGen{
 			{
 				str.append("ds addr reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (v_dat->type != E_VarType::VAR_VGPR)
 			{
 				str.append("data reg not vgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		/************************************************************************************/
@@ -1904,7 +1897,7 @@ namespace AutoGen{
 			{
 				op3("v_add_u32", c, a, b);
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T>
 		E_ReturnState v_addc_u32(Var* c, T a, Var* b)
@@ -1917,7 +1910,7 @@ namespace AutoGen{
 			{
 				op4("v_add_co_u32", c, "vcc", a, b);
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T1, typename T2>
 		E_ReturnState v_addc_co_u32(Var* c, T1 a, T2 b)
@@ -1930,7 +1923,7 @@ namespace AutoGen{
 			{
 				op5("v_addc_co_u32", c, "vcc", a, b, "vcc");
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		E_ReturnState v_add3_u32(Var* d, Var* a, Var* b, Var* c)
 		{
@@ -1943,7 +1936,7 @@ namespace AutoGen{
 			{
 				op4("v_add3_u32", d, a, b, c);
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		
 		template <typename T1, typename T2>
@@ -1957,7 +1950,7 @@ namespace AutoGen{
 			{
 				op4("v_sub_co_u32", c, "vcc", a, b);
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template <typename T1, typename T2>
 		E_ReturnState v_subb_co_u32(Var* c, T1 a, T2 b)
@@ -1970,7 +1963,7 @@ namespace AutoGen{
 			{
 				op5("v_subb_co_u32", c, "vcc", a, b, "vcc");
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		/************************************************************************************/
@@ -2172,7 +2165,7 @@ namespace AutoGen{
 			wrLine(str);
 
 			// error check
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		E_ReturnState s_wait_lgkmcnt(uint cnt)
 		{
@@ -2196,9 +2189,9 @@ namespace AutoGen{
 			{
 				str.append("lgkmcnt is over 4-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		E_ReturnState s_wait_vmcnt(uint cnt)
 		{
@@ -2222,9 +2215,9 @@ namespace AutoGen{
 			{
 				str.append("vmcnt is over 6-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		E_ReturnState s_wait_lgkm_exp_cnt(uint cnt)
 		{
@@ -2251,9 +2244,9 @@ namespace AutoGen{
 			{
 				str.append("lgkmcnt is over 4-bit");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 #pragma endregion
 
@@ -2355,22 +2348,22 @@ namespace AutoGen{
 			{
 				str.append("buffer descriptor not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_desc->sgpr.len != 4)
 			{
 				str.append("buffer descriptor not 4-dword");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 			if (s_base->type != E_VarType::VAR_SGPR)
 			{
 				str.append("buffer obj base address not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		/************************************************************************************/
@@ -2400,10 +2393,10 @@ namespace AutoGen{
 			{
 				str.append("dest reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 		template<typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7, typename T8, typename T9, typename T10, typename T11>
 		E_ReturnState f_read_hw_reg_hw_id(
@@ -2509,10 +2502,10 @@ namespace AutoGen{
 			{
 				str.append("wave_id reg not sgpr");
 				wrLine(str);
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		template<typename T>
@@ -2594,9 +2587,9 @@ namespace AutoGen{
 			}
 			else
 			{
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		/************************************************************************************/

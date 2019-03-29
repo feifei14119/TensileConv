@@ -27,7 +27,9 @@ std::string TensileConv::GetDatabasePath()
 }
 static std::string genKeyStr(int N, int C, int W, int H, int K, bool bias, E_Relu relu)
 {
-	char tmpc[MAP_KEY_LEN];
+	//char tmpc[MAP_KEY_LEN];
+	char tmpc[1024];
+	memset(tmpc, 0, 1024);
 	sprintf(tmpc, "N%04dC%04dH%04dW%04dK%04db%dr%02d", N, C, H, W, K, (int)bias, (int)relu);
 	int a = std::string(tmpc).length();
 	return std::string(tmpc);
@@ -125,7 +127,11 @@ static void loadDbFile()
 		{
 			T_SaveParam * pSaveParam = new T_SaveParam;
 			fin.read((char*)pSaveParam, rcdSize);
-			saveCfgs->insert(std::pair<std::string, T_SaveParam>(pSaveParam->key, *pSaveParam));
+
+			std::string verify_string = genKeyStr(pSaveParam->N, pSaveParam->C,
+				pSaveParam->W, pSaveParam->H, pSaveParam->K, pSaveParam->bias, pSaveParam->relu);
+			if(verify_string == pSaveParam->key)
+				saveCfgs->insert(std::pair<std::string, T_SaveParam>(pSaveParam->key, *pSaveParam));
 		}
 
 		fin.close();
@@ -210,9 +216,9 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam.ValueArray.push_back(16);
 	searchParam.ValueArray.push_back(32);
 	// for Baidu
-	searchParam.ValueArray.push_back(3);
-	searchParam.ValueArray.push_back(5);
-	searchParam.ValueArray.push_back(7);
+//	searchParam.ValueArray.push_back(3);
+//	searchParam.ValueArray.push_back(5);
+//	searchParam.ValueArray.push_back(7);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "group_size_x";
@@ -224,7 +230,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam.ValueArray.push_back(1024);
 	searchSpace->AddOneSearchParam(&searchParam);
 
-	return RTN_SUCCESS;
+	return E_ReturnState::SUCCESS;
 }
 #else
 E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
@@ -238,7 +244,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam.Name = "c_in_lds_split_group";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(16);
+	searchParam.ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "c_in_l2_split_group";
@@ -248,12 +254,12 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 
 	searchParam.Name = "k_out_maps";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(2);
+	searchParam.ValueArray.push_back(16);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "group_size_x";
 	searchParam.ValueArray.clear();
-	searchParam.ValueArray.push_back(64);
+	searchParam.ValueArray.push_back(256);
 	searchSpace->AddOneSearchParam(&searchParam);
 
 	searchParam.Name = "c_in_lds_atomic_group";
@@ -265,7 +271,7 @@ E_ReturnState ConvFwd1x1Solution::generateSolutionParamSpace()
 	searchParam.ValueArray.push_back(1);
 	searchSpace->AddOneSearchParam(&searchParam);
 
-	return RTN_SUCCESS;
+	return E_ReturnState::SUCCESS;
 }
 #endif
 
@@ -293,7 +299,7 @@ E_ReturnState ConvFwd1x1Solution::getKernelParam()
 	d_in = d_wei = d_bias = d_out = nullptr;
 	size_sig = size_l2 = size_dbg = 0;
 
-	return RTN_SUCCESS;
+	return E_ReturnState::SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::generateKernel()
@@ -307,7 +313,7 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	{
 		kernelWriter = new KernelWriterConv1x1(kernelParam, E_IsaArch::Gfx800);
 	}
-	CheckFunc(kernelWriter->GenKernelString());
+	ChkErr(kernelWriter->GenKernelString());
 	kernelWriter->SaveKernelString2File();
 
 	// get back kernel info
@@ -331,7 +337,7 @@ E_ReturnState ConvFwd1x1Solution::generateKernel()
 	// build up kernel obj
 	kernel = rtOcl->CreatKernel((char*)kernelFile.c_str(), kernelName.c_str(), E_ProgramType::PRO_GAS_FILE);
 
-	return RTN_SUCCESS;
+	return E_ReturnState::SUCCESS;
 }
 
 E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
@@ -343,16 +349,16 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 	d_out = rtOcl->DevMalloc(problem->size_out * sizeof(float));
 
 	if (d_in == nullptr || d_wei == nullptr || d_bias == nullptr || d_out == nullptr)
-		return RTN_FAIL;
+		return E_ReturnState::RTN_ERR;
 
 	d_sig = d_l2 = d_dbg = NULL;
 	if (size_sig > 0)		d_sig = rtOcl->DevMalloc(size_sig * sizeof(float));
 	if (size_l2 > 0)		d_l2 = rtOcl->DevMalloc(size_l2 * sizeof(float));
 	if (size_dbg > 0)		d_dbg = rtOcl->DevMalloc(size_dbg * sizeof(float));
 
-	if (size_sig > 0 && d_sig == nullptr)		return RTN_FAIL;
-	if (size_l2 > 0 && d_l2 == nullptr)			return RTN_FAIL;
-	if (size_dbg > 0 && d_dbg == nullptr)		return RTN_FAIL;
+	if (size_sig > 0 && d_sig == nullptr)		return E_ReturnState::RTN_ERR;
+	if (size_l2 > 0 && d_l2 == nullptr)			return E_ReturnState::RTN_ERR;
+	if (size_dbg > 0 && d_dbg == nullptr)		return E_ReturnState::RTN_ERR;
 
 	stream->MemCopyH2D(d_in, problem->h_in, problem->size_in * sizeof(float));
 	stream->MemCopyH2D(d_wei, problem->h_wei, problem->size_wei * sizeof(float));
@@ -362,7 +368,7 @@ E_ReturnState ConvFwd1x1Solution::prepareKernelArgs()
 
 	kernel->SetArgs(&d_in, &d_wei, &d_out, &d_bias, &d_sig, &d_l2, &negSlop, &d_dbg);
 
-	return RTN_SUCCESS;
+	return E_ReturnState::SUCCESS;
 }
 
 void ConvFwd1x1Solution::getBackResult()
@@ -395,7 +401,7 @@ void ConvFwd1x1Solution::releaseDevMem()
 
 E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 {
-	OUTPUT("+ Serching param comb: ");
+	INFO("+ Serching param comb: ");
 
 	if (enableSearch)
 	{
@@ -409,7 +415,7 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 			if (param->Name == "k_out_maps")			kernelParam.k_out_maps = param->BestValue;
 			if (param->Name == "group_size_x")			kernelParam.group_size_x = param->BestValue;
 
-			OUTPUT("+	%s = %d", param->Name.c_str(), param->BestValue);
+			INFO("+	%s = %d", param->Name.c_str(), param->BestValue);
 		}
 	}
 	else
@@ -436,23 +442,23 @@ E_ReturnState ConvFwd1x1Solution::getBestKernelParam()
 }
 void ConvFwd1x1Solution::GetBestKernel()
 {
-	PRINT_SEPARATOR('+');
+	PrintSeperator('+');
 
-	OUTPUT("+ Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
-	OUTPUT("+ Best solution: " + solutionName);
-	OUTPUT("+ Best score: %.3f(us), %.1f(GFlops), %.1f%%", solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
-	OUTPUT("+ Search time: %.1f(sec) = %d:%d", searchElapsedSec, ((int)searchElapsedSec) / 60, ((int)searchElapsedSec) % 60);
-	OUTPUT("+ Kernel name: " + kernelName);
-	OUTPUT("+ Kernel file: " + kernelFile);
+	INFO("+ Probem: [WHCKN] = [%d,%d,%d,%d,%d]:", problem->H(), problem->W(), problem->C(), problem->K(), problem->N());
+	INFO("+ Best solution: " + solutionName);
+	INFO("+ Best score: %.3f(us), %.1f(GFlops), %.1f%%", solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
+	INFO("+ Search time: %.1f(sec) = %d:%d", searchElapsedSec, ((int)searchElapsedSec) / 60, ((int)searchElapsedSec) % 60);
+	INFO("+ Kernel name: " + kernelName);
+	INFO("+ Kernel file: " + kernelFile);
 	getBestKernelParam();
 
 	bool successFlag = false;
 	if((!enableSearch)&&(setKernelParam.elapsedSec == -1)) goto NO_BEST_SOLUTION;
-	if(generateKernel() != RTN_SUCCESS) goto NO_BEST_SOLUTION;
-	OUTPUT("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
-	OUTPUT("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
-	if ((enableSearch)&&(prepareKernelArgs() != RTN_SUCCESS)) goto NO_BEST_SOLUTION;
-	if ((enableSearch)&&(launchKernel() != RTN_SUCCESS)) goto NO_BEST_SOLUTION;
+	if(generateKernel() != E_ReturnState::SUCCESS) goto NO_BEST_SOLUTION;
+	INFO("+ group_size = %d, %d, %d", group_sz.x, group_sz.y, group_sz.z);
+	INFO("+ global_size = %d, %d, %d", global_sz.x, global_sz.y, global_sz.z);
+	if ((enableSearch)&&(prepareKernelArgs() != E_ReturnState::SUCCESS)) goto NO_BEST_SOLUTION;
+	if ((enableSearch)&&(launchKernel() != E_ReturnState::SUCCESS)) goto NO_BEST_SOLUTION;
 	if (enableSearch)	getBackResult();
 	successFlag = true;
 	NO_BEST_SOLUTION:
@@ -470,7 +476,7 @@ void ConvFwd1x1Solution::GetBestKernel()
 	logFile->Log("%s score: %.3f(us), %.1f(GFlops), %.1f%%", solutionName.c_str(), solutionScore.ElapsedTime * 1e6, solutionScore.Flops*1e-9, solutionScore.Performence * 100);
 	logFile->Log("%s search time: %.1f(sec) = %d:%d", solutionName.c_str(),	searchElapsedSec, ((int)searchElapsedSec)/60, ((int)searchElapsedSec) % 60);
 
-	PRINT_SEPARATOR('+');
+	PrintSeperator('+');
 
 	if (enableSearch)
 	{
@@ -706,12 +712,12 @@ void ConvFwd1x1Problem::initHostParam()
 	wei_width = 1;	wei_height = 1;	// filter size
 	pad_x = 0;		pad_y = 0;		// padding
 
-	PRINT_SEPARATOR1();
-	OUTPUT("* WHCKN=[%d * %d, %d, %d, %d]", in_width, in_height, in_chan, out_chan, batch);
-	OUTPUT("* stride=[%d, %d]", stride_x, stride_y);
-	OUTPUT("* Bias = %s", enBias ? "True" : "False");
-	OUTPUT("* Relu = %s", relu == NORELU ? "No Relu" : relu == RELU ? "Relu" : "PRelu");
-	PRINT_SEPARATOR1();
+	PrintSeperator('*');
+	INFO("* WHCKN=[%d * %d, %d, %d, %d]", in_width, in_height, in_chan, out_chan, batch);
+	INFO("* stride=[%d, %d]", stride_x, stride_y);
+	INFO("* Bias = %s", enBias ? "True" : "False");
+	INFO("* Relu = %s", relu == NORELU ? "No Relu" : relu == RELU ? "Relu" : "PRelu");
+	PrintSeperator('*');
 
 	out_width = in_width + pad_x * 2 - wei_width + 1;
 	out_height = in_height + pad_y * 2 - wei_height + 1;
@@ -730,12 +736,12 @@ void ConvFwd1x1Problem::initHostParam()
 	h_out = (float*)malloc(size_out * sizeof(float));
 	out_ref = (float*)malloc(size_out * sizeof(float));
 
-	INFO("input  WHCN = %d, %d, %d, %d", in_width, in_height, in_chan, batch);
-	INFO("weight WHCK = %d, %d, %d, %d", wei_width, wei_height, in_chan, out_chan);
-	INFO("output WHKN = %d, %d, %d, %d", out_width, out_height, out_chan, batch);
-	INFO("init tensor input  = %d = %.2f MB", size_in * sizeof(float), size_in * sizeof(float) / 1024 / 1024.0);
-	INFO("init tensor weight = %d = %.2f KB", size_wei * sizeof(float), size_wei * sizeof(float) / 1024.0);
-	INFO("init tensor output = %d = %.2f MB", size_out * sizeof(float), size_out * sizeof(float) / 1024 / 1024.0);
+	LOG("input  WHCN = %d, %d, %d, %d", in_width, in_height, in_chan, batch);
+	LOG("weight WHCK = %d, %d, %d, %d", wei_width, wei_height, in_chan, out_chan);
+	LOG("output WHKN = %d, %d, %d, %d", out_width, out_height, out_chan, batch);
+	LOG("init tensor input  = %d = %.2f MB", size_in * sizeof(float), size_in * sizeof(float) / 1024 / 1024.0);
+	LOG("init tensor weight = %d = %.2f KB", size_wei * sizeof(float), size_wei * sizeof(float) / 1024.0);
+	LOG("init tensor output = %d = %.2f MB", size_out * sizeof(float), size_out * sizeof(float) / 1024 / 1024.0);
 
 	negSlop = -1.23;
 	for (int i = 0; i < size_in; i++)
@@ -771,7 +777,7 @@ void ConvFwd1x1Problem::caculateTheoryPerformance()
 	calculation = 1.0 * in_width * in_height * in_chan * batch * out_chan * wei_width * wei_height / stride_x / stride_y * 2.0;
 	theoryElapsedTime = calculation / (SIMD_PER_CU * cuNum * freq * 2.0);
 
-	INFO("Calculation = %.3f(G), TheoryElapsedTime = %.3f(us)", calculation * 1e-9, theoryElapsedTime * 1e6);
+	LOG("Calculation = %.3f(G), TheoryElapsedTime = %.3f(us)", calculation * 1e-9, theoryElapsedTime * 1e6);
 }
 
 void ConvFwd1x1Problem::runHostCompute()
@@ -883,7 +889,7 @@ void ConvFwd1x1Problem::verifyDevCompute()
 	}
 
 	isVeryfyPass = true;
-	INFO("verify success. mean err = %.1f", diff);
+	LOG("verify success. mean err = %.1f", diff);
 }
 
 void ConvFwd1x1Problem::releaseHostParam()

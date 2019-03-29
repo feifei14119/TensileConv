@@ -28,9 +28,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\common\ff_cmd_args.cpp" />
+    <ClCompile Include="..\common\ff_db.cpp" />
     <ClCompile Include="..\common\ff_file_opt.cpp" />
     <ClCompile Include="..\common\ff_log.cpp" />
-    <ClCompile Include="..\common\ff_runtime_ocl.cpp" />
+    <ClCompile Include="..\common\ff_ocl_runtime.cpp" />
+    <ClCompile Include="..\common\ff_runtime.cpp" />
     <ClCompile Include="..\common\ff_timer.cpp" />
     <ClCompile Include="..\src\ConvFwd1x1.cpp" />
     <ClCompile Include="..\src\ConvFwd1x1KernelWriter.cpp" />
@@ -46,11 +48,13 @@
     <ClInclude Include="..\..\Include\TensileConv.h" />
     <ClInclude Include="..\common\ff_basic.h" />
     <ClInclude Include="..\common\ff_cmd_args.h" />
+    <ClInclude Include="..\common\ff_db.h" />
     <ClInclude Include="..\common\ff_file_opt.h" />
     <ClInclude Include="..\common\ff_log.h" />
     <ClInclude Include="..\common\ff_math.h" />
     <ClInclude Include="..\common\ff_ocl_helper.h" />
-    <ClInclude Include="..\common\ff_runtime_ocl.h" />
+    <ClInclude Include="..\common\ff_ocl_runtime.h" />
+    <ClInclude Include="..\common\ff_runtime.h" />
     <ClInclude Include="..\common\ff_timer.h" />
     <ClInclude Include="..\common\ff_utils.h" />
     <ClInclude Include="..\src\AutoTuning.h" />
@@ -88,7 +92,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
     <RemoteRootDir>~/projects/TensileConv/</RemoteRootDir>
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <UseDebugLibraries>false</UseDebugLibraries>

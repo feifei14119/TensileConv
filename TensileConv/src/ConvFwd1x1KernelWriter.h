@@ -149,15 +149,15 @@ protected:
 		v_debug2 = newVgpr("v_debug2");
 #endif
 
-		CheckFunc(calcuIndex());
+		ChkErr(calcuIndex());
 		main_conv();
 
-//		CheckFunc(simulate_index());
+//		ChkErr(simulate_index());
 //		save_debug();
 		
 		clrVar();
 
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 
 	/************************************************************************************/

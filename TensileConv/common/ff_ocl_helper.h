@@ -5,7 +5,7 @@
 
 #include <CL/cl.h>
 
-#include "ff_cmd_args.h"
+#include "ff_utils.h"
 
 namespace feifei
 {
@@ -103,9 +103,9 @@ namespace feifei
 
 		dim3 operator/(dim3 b)
 		{
-			int x2 = this->x / b.x;
-			int y2 = this->y / b.y;
-			int z2 = this->z / b.z;
+			size_t x2 = this->x / b.x;
+			size_t y2 = this->y / b.y;
+			size_t z2 = this->z / b.z;
 			dim3 c(x2, y2, z2);
 			return c;
 		}
@@ -250,7 +250,6 @@ namespace feifei
 
 		return "<unknown>";
 	}
-
 	static void cl_checkFuncRet(cl_int errNum, char const *const func, const char *const file, int const line)
 	{
 		if (errNum)
@@ -260,7 +259,6 @@ namespace feifei
 			exit(EXIT_FAILURE);
 		}
 	}
-
 	static void cl_checkErrNum(cl_int errNum, const char *const file, int const line)
 	{
 		if (errNum)
@@ -270,20 +268,11 @@ namespace feifei
 			exit(EXIT_FAILURE);
 		}
 	}
-
 	static void cl_printErrInfo(cl_int errNum, const char *const file, int const line)
 	{
 		if (errNum)
 		{
 			fprintf(stderr, "OpenCL error at %s:%d code=%d(%s) \n", file, line, static_cast<unsigned int>(errNum), clGetErrorInfo(errNum));
 		}
-	}
-
-	static std::string GetKernelTempPath()
-	{
-		CmdArgs * cmd = CmdArgs::GetCmdArgs();
-		if (cmd->ExecutePath() == "")
-			return "./kernel";
-		return cmd->ExecutePath() + "/kernel";
 	}
 }

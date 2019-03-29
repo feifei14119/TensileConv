@@ -19,7 +19,7 @@ public:
 	KernelWriter(E_IsaArch isaArch = E_IsaArch::Gfx900) : IsaGenerater(isaArch)
 	{
 		ldsByteCount = 0;
-		kernelDir = GetKernelTempPath();
+		kernelDir = get_work_path() + "/kernel";
 		ensure_dir(kernelDir.c_str());
 	}
 
@@ -27,17 +27,17 @@ public:
 	// TODO: where to clear LDS used byte???
 	E_ReturnState GenKernelString()
 	{
-		CheckFunc(checkKernelParam());
+		ChkErr(checkKernelParam());
 
 		clearString();
-		CheckFunc(writeContent());
+		ChkErr(writeContent());
 
 		clearString();
 		writeSignature();
-		CheckFunc(writeContent());
+		ChkErr(writeContent());
 		writeMetadata();
 
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	void SaveKernelString2File()
 	{
@@ -108,10 +108,10 @@ protected:
 		initialDefaultGprs();
 		setTable(0);
 		wrLine(kernelName + ":");
-		CheckFunc(writeCodeObj());
-		CheckFunc(_writeProgram());
+		ChkErr(writeCodeObj());
+		ChkErr(_writeProgram());
 
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	virtual void writeMetadata()// 需要根据arg列表自动生成,暂时写成固定的
 	{
@@ -194,25 +194,25 @@ protected:
 		wrLine(".end_amd_kernel_code_t");
 		wrLine("");
 
-		if (sgprCountMax >= MAX_SGPR_COUNT)	return RTN_FAIL;
-		if (vgprCountMax >= MAX_VGPR_COUNT)	return RTN_FAIL;
-		if (ldsByteCount >= MAX_LDS_SIZE)	return RTN_FAIL;
+		if (sgprCountMax >= MAX_SGPR_COUNT)	return E_ReturnState::RTN_ERR;
+		if (vgprCountMax >= MAX_VGPR_COUNT)	return E_ReturnState::RTN_ERR;
+		if (ldsByteCount >= MAX_LDS_SIZE)	return E_ReturnState::RTN_ERR;
 
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	E_ReturnState _writeProgram()
 	{
 		setTable(0);
 		wrLine(getVar(l_start_prog) + ":");
 		indent();
-		CheckFunc(writeProgram());
+		ChkErr(writeProgram());
 		setTable(0);
 		wrLine(getVar(l_end_prg) + ":");
 		indent();
 		wrLine("s_endpgm\n");
 		clrVar();
 
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	virtual E_ReturnState writeProgram() = 0;
 

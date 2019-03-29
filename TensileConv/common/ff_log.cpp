@@ -1,317 +1,267 @@
-
-#include <string.h>
-#include <fstream>
-#include <iostream>
+#include <string.h> // linux: C style memset
 #include <stdarg.h>
 #include <time.h>
 
+#ifdef _WIN32
+#include <io.h>
+#include <direct.h>
+#else
+#include <unistd.h>
+#include <sys/stat.h>
+#endif
+
 #include "ff_log.h"
-#include "ff_file_opt.h"
 
 namespace feifei 
 {
-#define		CHAR_BUFF_SIZE		(1024)
+	static const int PrintBufferSize = 1024;
+	static char PrintBuffer[PrintBufferSize];
 
-	static char log_char_buffer[CHAR_BUFF_SIZE];
+	static time_t t;
+#ifdef _WIN32
+	static struct tm stm;
+#endif
+	static std::string getCurrentTime()
+	{
+		memset(PrintBuffer, 0, PrintBufferSize);
+		t = time(0);
+#ifdef _WIN32
+		localtime_s(&stm, &t);
+		strftime(PrintBuffer, PrintBufferSize, "[%H:%M:%S]", &stm);
+#else
+		strftime(PrintBuffer, PrintBufferSize, "[%H:%M:%S]", localtime(&t));
+#endif
+		return std::string(PrintBuffer);
+	}
 
-	static bool en_log_time = true;
-	static bool en_log_file = true;
-	static bool en_log_short_file = true;
+	static const int CommentLength = 73;
+	void PrintSeperator(const char c, std::ostream *sm)
+	{
+		*sm << std::string(CommentLength, c) << std::endl;
+	}
 
-	/************************************************************************/
-	/* 屏幕输出																*/
-	/************************************************************************/
-	void print_format_output(const char * format, ...)
+	void PrintInfo(const char * format, ...)
 	{
-		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
+		memset(PrintBuffer, 0, PrintBufferSize);
 		va_list args;
 		va_start(args, format);
-		vsprintf(log_char_buffer, format, args);
-		printf("%s", log_char_buffer);
+#ifdef _WIN32
+		vsprintf_s(PrintBuffer, PrintBufferSize, format, args);
+#else
+		vsprintf(PrintBuffer, format, args);
+#endif
+		printf("%s", PrintBuffer);
 		va_end(args);
 		printf("\n");
 	}
-	void print_format_output(std::string msg, ...)
+	void PrintInfo(std::string msg, ...)
 	{
 		printf(msg.c_str());
 		printf("\n");
-	}
-	void print_format_info(const char * format, ...)
-	{
-		printf("[INFO]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-		va_list args;
-		va_start(args, format);
-		vsprintf(log_char_buffer, format, args);
-		printf("%s", log_char_buffer);
-		va_end(args);
-		printf("\n");
-	}
-	void print_format_info(std::string msg, ...)
-	{
-		printf("[INFO]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		printf(msg.c_str());
-		printf("\n");
-	}
-	void print_format_warn(const char *file, int line, const char * format, ...)
-	{
-		printf("[WARNING]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-		va_list args;
-		va_start(args, format);
-		vsprintf(log_char_buffer, format, args);
-		printf("%s", log_char_buffer);
-		va_end(args);
-		if (en_log_file)
-		{
-			char * p = (char * )file;
-			if (en_log_short_file == true)
-			{
-				p = strrchr(p, '/');
-				p++;
-			}
-			printf(" @%s:%d", p, line);
-		}
-		printf("\n");
-	}
-	void print_format_warn(const char *file, int line, std::string msg, ...)
-	{
-		printf("[WARNING]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		printf(msg.c_str());
-		if (en_log_file)
-		{
-			char * p = (char *)file;
-			if (en_log_short_file == true)
-			{
-				p = strrchr(p, '/');
-				p++;
-			}
-			printf(" @%s:%d", p, line);
-		}
-		printf("\n");
-	}
-	E_ReturnState print_format_err(const char *file, int line, const char * format, ...)
-	{
-		printf("[ERROR]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-		va_list args;
-		va_start(args, format);
-		vsprintf(log_char_buffer, format, args);
-		printf("%s", log_char_buffer);
-		va_end(args);
-		if (en_log_file)
-		{
-			char * p = (char *)file;
-			if (en_log_short_file == true)
-			{
-				p = strrchr(p, '/');
-				p++;
-			}
-			printf(" @%s:%d", p, line);
-		}
-		printf("\n");
-		return RTN_FAIL;
-	}
-	E_ReturnState print_format_err(const char *file, int line, std::string msg, ...)
-	{
-		printf("[ERROR]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		printf(msg.c_str());
-		if (en_log_file)
-		{
-			char * p = (char *)file;
-			if (en_log_short_file == true)
-			{
-				p = strrchr(p, '/');
-				p++;
-			}
-			printf(" @%s:%d", p, line);
-		}
-		printf("\n");
-		return RTN_FAIL;
-	}
-	void print_format_fatal(const char *file, int line, const char * format, ...)
-	{
-		printf("[FATAL]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-		va_list args;
-		va_start(args, format);
-		vsprintf(log_char_buffer, format, args);
-		printf("%s", log_char_buffer);
-		va_end(args);
-		if (en_log_file)
-		{
-			char * p = (char *)file;
-			if (en_log_short_file == true)
-			{
-				p = strrchr(p, '/');
-				p++;
-			}
-			printf(" @%s:%d", p, line);
-		}
-		printf("\n"); 
-		exit(EXIT_FAILURE);
-	}
-	void print_format_fatal(const char *file, int line, std::string msg, ...)
-	{
-		printf("[FATAL]");
-		if (en_log_time == true)
-		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%H:%M:%S]", localtime(&t));
-			printf("%s", log_char_buffer);
-		}
-		printf(msg.c_str());
-		if (en_log_file)
-		{
-			char * p = (char *)file;
-			if (en_log_short_file == true)
-			{
-				p = strrchr(p, '/');
-				p++;
-			}
-			printf(" @%s:%d", p, line);
-		}
-		printf("\n");
-		exit(EXIT_FAILURE);
 	}
 	
-	/************************************************************************/
-	/* 文件输出																*/
-	/************************************************************************/
+	void PrintLog(const char * format, ...)
+	{
+		std::clog << "[  LOG  ]" << getCurrentTime() << std::flush;
+
+		memset(PrintBuffer, 0, PrintBufferSize);
+		va_list args;
+		va_start(args, format);
+#ifdef _WIN32
+		vsprintf_s(PrintBuffer, PrintBufferSize, format, args);
+#else
+		vsprintf(PrintBuffer, format, args);
+#endif
+		va_end(args);
+		std::clog << std::string(PrintBuffer) << std::endl;
+	}
+	void PrintLog(std::string msg, ...)
+	{
+		std::clog << "[  LOG  ]" << getCurrentTime() << msg << std::endl;
+	}
+
+	void PrintWarning(const char *file, int line, const char * format, ...)
+	{
+		std::clog << "[WARNING]" << getCurrentTime() << std::flush;
+
+		int pos;
+		char * p = (char *)file;
+		memset(PrintBuffer, 0, PrintBufferSize);
+		va_list args;
+		va_start(args, format);
+#ifdef _WIN32
+		pos = vsprintf_s(PrintBuffer, PrintBufferSize, format, args);
+		p = strrchr(p, DIR_SPT) + 1;
+		sprintf_s(PrintBuffer + pos, PrintBufferSize, " @%s:%d", p, line);
+#else
+		pos = vsprintf(PrintBuffer, format, args);
+		p = strrchr(p, DIR_SPT) + 1;
+		sprintf(PrintBuffer + pos, " @%s:%d", p, line);
+#endif
+		va_end(args);
+		std::clog << std::string(PrintBuffer) << std::endl;
+	}
+	void PrintWarning(const char *file, int line, std::string msg, ...)
+	{
+		std::clog << "[WARNING]" << getCurrentTime() << msg << std::flush;
+
+		std::string sf(file);
+		std::clog << " @" << sf.erase(0, sf.find_last_of(DIR_SPT) + 1)
+			<< ":" << line << std::endl;
+	}
+
+	E_ReturnState PrintError(const char *file, int line, const char * format, ...)
+	{
+		std::cerr << "[ERROR]" << getCurrentTime() << std::flush;
+
+		int pos;
+		char * p = (char *)file;
+		memset(PrintBuffer, 0, PrintBufferSize);
+		va_list args;
+		va_start(args, format);
+#ifdef _WIN32
+		pos = vsprintf_s(PrintBuffer, PrintBufferSize, format, args);
+		p = strrchr(p, DIR_SPT) + 1;
+		sprintf_s(PrintBuffer + pos, PrintBufferSize, " @%s:%d", p, line);
+#else
+		pos = vsprintf(PrintBuffer, format, args);
+		p = strrchr(p, DIR_SPT) + 1;
+		sprintf(PrintBuffer + pos, " @%s:%d", p, line);
+#endif
+		va_end(args);
+		std::cerr << std::string(PrintBuffer) << std::endl;
+
+		return E_ReturnState::RTN_ERR;
+	}
+	E_ReturnState PrintError(const char *file, int line, std::string msg, ...)
+	{
+		std::cerr << "[ERROR]" << getCurrentTime() << msg << std::flush;
+
+		std::string sf(file);
+
+		std::cerr << " @" << sf.erase(0, sf.find_last_of(DIR_SPT) + 1)
+			<< ":" << line << std::endl;
+
+		return E_ReturnState::RTN_ERR;
+	}
+
+	void PrintFatal(const char *file, int line, const char * format, ...)
+	{
+		std::cerr << "[RTN_FATAL]" << getCurrentTime() << std::flush;
+
+		int pos;
+		char * p = (char *)file;
+		memset(PrintBuffer, 0, PrintBufferSize);
+		va_list args;
+		va_start(args, format);
+#ifdef _WIN32
+		pos = vsprintf_s(PrintBuffer, PrintBufferSize, format, args);
+		p = strrchr(p, DIR_SPT) + 1;
+		sprintf_s(PrintBuffer + pos, PrintBufferSize, " @%s:%d", p, line);
+#else
+		pos = vsprintf(PrintBuffer, format, args);
+		p = strrchr(p, DIR_SPT) + 1;
+		sprintf(PrintBuffer + pos, " @%s:%d", p, line);
+#endif
+		va_end(args);
+		std::cerr << std::string(PrintBuffer) << std::endl;
+
+		exit(EXIT_FAILURE);
+	}
+	void PrintFatal(const char *file, int line, std::string msg, ...)
+	{
+		std::cerr << "[RTN_FATAL]" << getCurrentTime() << msg << std::flush;
+
+		std::string sf(file);
+
+		std::cerr << " @" << sf.erase(0, sf.find_last_of(DIR_SPT) + 1)
+			<< ":" << line << std::endl;
+
+		exit(EXIT_FAILURE);
+	}
+
+#define chkFStream() do{\
+		if ((fstream == nullptr)||(!fstream->is_open())){\
+			WARN("can't open log file");\
+			fstream = nullptr;\
+			return;\
+		}}while(0)
+
+	void LogFile::ensureLogDir()
+	{
+#ifdef _WIN32
+		if (_access(log_dir.c_str(), 2) == -1)
+		{
+			_mkdir(log_dir.c_str());
+		}
+#else
+		if (access(log_dir.c_str(), F_OK) == -1)
+		{
+			::mkdir(log_dir.c_str(), 0777);
+		}
+#endif
+	}
+
 	LogFile::LogFile(std::string file_name, bool isNew)
 	{
-		log_char_buffer = (char *)malloc(CHAR_BUFF_SIZE);
+		PrintBuffer = (char *)malloc(PrintBufferSize);
 
-		ensure_dir("./log");
+		log_dir = std::string(".") + DIR_SPT + "log" + DIR_SPT;
+		ensureLogDir();
+
+		this->file_name = log_dir + file_name;
 
 		if (isNew == true)
 		{
-			time_t t = time(0);
-			memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-			strftime(log_char_buffer, CHAR_BUFF_SIZE, "_%F_%H-%M-%S.log", localtime(&t));
-			this->file_name = "./log/" + std::string(file_name) + log_char_buffer;
-
-			log_file = new std::ofstream(this->file_name, std::ios::out | std::ios::trunc);
+			memset(PrintBuffer, 0, PrintBufferSize);
+			t = time(0);
+#ifdef _WIN32
+			localtime_s(&stm, &t);
+			strftime(PrintBuffer, PrintBufferSize, "-%H-%M-%S", &stm);
+#else
+			strftime(PrintBuffer, PrintBufferSize, "-%H-%M-%S", localtime(&t));
+#endif
+			this->file_name += std::string(PrintBuffer) + ".log";
+			fstream = new std::ofstream(this->file_name, std::ios::out | std::ios::trunc);
 		}
 		else
 		{
-			this->file_name = "./log/" + std::string(file_name) + std::string(".log");
-			log_file = new std::ofstream(this->file_name, std::ios::out | std::ios::app);
+			this->file_name += ".log";
+			fstream = new std::ofstream(this->file_name, std::ios::out | std::ios::app);
 		}
 
-		if (!log_file->is_open())
-		{
-			WARN("can't init log file" + this->file_name);
-			log_file = nullptr;
-		}
+		chkFStream();
 	}
 	LogFile::~LogFile()
 	{
-		free(log_char_buffer);
-		if ((log_file != nullptr) && log_file->is_open())
+		free(PrintBuffer);
+		if ((fstream != nullptr) && fstream->is_open())
 		{
-			log_file->close();
+			fstream->close();
 		}
+		delete fstream;
 	}
 	
 	void LogFile::Log(const char * format, ...)
 	{
-		int cn;
+		chkFStream();
 
-		if (log_file == nullptr)
-		{
-			WARN("can't open log file");
-			return;
-		}
-		if (!log_file->is_open())
-		{
-			WARN("can't open log file");
-			return;
-		}
-		
-		time_t t = time(0);
-		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-		cn = strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%F_%T]", localtime(&t));
+		*fstream << getCurrentTime() << std::flush;
 
+		memset(PrintBuffer, 0, PrintBufferSize);
 		va_list args;
 		va_start(args, format);
-		cn += vsprintf(log_char_buffer+cn, format, args);
+#ifdef _WIN32
+		vsprintf_s(PrintBuffer, PrintBufferSize, format, args);
+#else
+		vsprintf(PrintBuffer, format, args);
+#endif
 		va_end(args);
-		cn += sprintf(log_char_buffer + cn, "\n");
-
-		log_file->write(log_char_buffer, cn);
-		log_file->flush();
+		*fstream << std::string(PrintBuffer) << std::endl;
 	}
 	void LogFile::Log(std::string msg, ...)
 	{
-		int cn;
-
-		if (log_file == nullptr)
-		{
-			WARN("can't open log file");
-			return;
-		}
-		if (!log_file->is_open())
-		{
-			WARN("can't open log file");
-			return;
-		}
-
-		time_t t = time(0);
-		memset(log_char_buffer, 0, CHAR_BUFF_SIZE);
-		cn = strftime(log_char_buffer, CHAR_BUFF_SIZE, "[%F_%T]", localtime(&t));
-		
-		log_file->write(msg.c_str(), cn);
-		log_file->flush();
+		chkFStream();
+		*fstream << getCurrentTime() << msg << std::endl;
 	}
 }

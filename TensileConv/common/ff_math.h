@@ -1,19 +1,17 @@
 #pragma once
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #include "ff_basic.h"
 
 namespace feifei
 {
-#define	PI					(3.1415926535897932384626)
-#define	TWO_PI				(6.28318530717958647692528676655)
-#define	PI_SP				(3.1415926535897932384626F)
-#define	TWO_PI_SP			(6.28318530717958647692528676655F)
-#define FLT_MAX				(3.402823466e+38f)
 #define	MIN_FP32_ERR		(1e-6)
 
 #define MAX_16BIT_UINT		(65535)
 
-#define _next2pow(n)	do{ int base = 1; \
+#define next2pow(n)	do{ int base = 1; \
 	for (int i = 0; i < 32; i++) { base = 1 << i; if (n <= base) { break; }} \
 	return base; } while (0)
 
@@ -21,12 +19,13 @@ namespace feifei
 	while (value > 1) { value = value / 2; log2++; } \
 	return log2; } while(0)
 
-#define _isPow2(value)  do{ return ((value & (value - 1)) == 0);} while(0)
+#define isPow2(value)  ((value & (value - 1)) == 0)
 
-#define _divCeil(a,b)	((a + b - 1) / b)
+#define modMask(value) (value - 1)
 
-#define randInt10(a,b) ((rand() % (b-a)) + a)   		// [a,b)
-#define randInt11(a,b) ((rand() % (b-a+1)) + a) 		// [a,b]
+#define divCeil(a,b)	((a + b - 1) / b)
+
+#define randInt10(a,b) ((rand() % (b-a)) + a)   	// [a,b)
+#define randInt11(a,b) ((rand() % (b-a+1)) + a) 	// [a,b]
 #define randInt01(a,b) ((rand() % (b-a)) + a + 1)	// (a,b]
-
 }

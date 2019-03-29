@@ -13,10 +13,10 @@ int main(int argc, char *argv[])
 	TCSolutionType solution;
 	DirConv1x1Fwd * conv;
 
-	DirConv1x1Fwd::SetDbFilePath("/home/feifei/projects/TensileConvDatabase");
+	DirConv1x1Fwd::SetDbFilePath("/home/feifei/projects/out/db");
 	printf("database file path: %s\n", DirConv1x1Fwd::GetDbFilePath().c_str());
 
-	int W = 4, H = 4, C = 384, K = 96, N=1;
+	int W = 7, H = 7, C = 2048, K = 512, N=8;
 	while (0)
 	{
 		W = rand() % 112 + 1;	H = rand() % 112 + 1;
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 	}
 
 	conv = new DirConv1x1Fwd();
-	perfSec = conv->TuneProblem(W, H, C, K, N, 1, 1, false, E_TCRelu::NORELU, E_TCSearch::AUTO, solution);
+	perfSec = conv->TuneProblem(W, H, C, K, N, 1, 1, true, E_TCRelu::NORELU, E_TCSearch::NOSEARCH, solution);
 	printf("*************************************************************************\n");
 	printf("*************************** TensileConv *********************************\n");
 	printf("*************************************************************************\n");

@@ -27,9 +27,6 @@
     <ClCompile Include="..\src\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\common\ff_runtime_ocl.cpp">
-      <Filter>common</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\ConvFwd1x1.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -41,6 +38,15 @@
     </ClCompile>
     <ClCompile Include="..\src\TensileConvLib.cpp">
       <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\ff_runtime.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\ff_db.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\ff_ocl_runtime.cpp">
+      <Filter>common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -60,9 +66,6 @@
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="..\common\ff_utils.h">
-      <Filter>common</Filter>
-    </ClInclude>
-    <ClInclude Include="..\common\ff_runtime_ocl.h">
       <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="..\common\ff_ocl_helper.h">
@@ -91,6 +94,15 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\TensileConv.h">
       <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\ff_runtime.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\ff_db.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\ff_ocl_runtime.h">
+      <Filter>common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -6,7 +6,7 @@
 #include <hsa/hsa.h>
 #include <hsa/hsa_ext_amd.h>
 
-#include "ff_cmd_args.h"
+#include "../common/ff_utils.h"
 
 namespace feifei
 {

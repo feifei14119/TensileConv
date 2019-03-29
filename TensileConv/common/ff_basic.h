@@ -4,50 +4,12 @@
 
 namespace feifei
 {
-	/************************************************************************/
-	/* 返回类型定义															*/
-	/************************************************************************/
-	/*typedef enum struct ReturnStateEnum
-	{
-		SUCCESS = 0,
-		FAIL = 1
-	} E_ReturnState;*/
+#ifdef _WIN32
+#define	DIR_SPT ('\\')
+#else
+#define	DIR_SPT ('/')
+#endif
 
-	typedef int E_ReturnState;
-#define RTN_SUCCESS 0
-#define RTN_FAIL 1
-
-
-	static void checkFuncRet(E_ReturnState retVel, char const *const func, const char *const file, int const line)
-	{
-		if (retVel != RTN_SUCCESS)
-		{
-			fprintf(stderr, "[!ERROR!] at %s:%d \"%s\" \n", file, line, func);
-			
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	static void checkErrNum(E_ReturnState errNum, const char *const file, int const line)
-	{
-		if (errNum != RTN_SUCCESS)
-		{
-			fprintf(stderr, "[!ERROR!] at %s:%d\n", file, line);
-
-			exit(EXIT_FAILURE);
-		}
-	}
-
-#define CheckFunc(val)		do{if(val != RTN_SUCCESS) return RTN_FAIL;}while(0)
-//#define CheckFunc(val)					checkFuncRet((val), #val, __FILE__, __LINE__)
-//#define CheckErr(val)					checkErrNum((val), __FILE__, __LINE__)
-	typedef void(*PVoidFunc)();
-	typedef E_ReturnState(*PRetFunc)();
-	typedef E_ReturnState(*PRetFunc2)(void* param);
-
-	/************************************************************************/
-	/* 数据类型定义															*/
-	/************************************************************************/
 	typedef enum DataTypeEnum
 	{
 		Float,
@@ -61,4 +23,23 @@ namespace feifei
 		Int16,
 		Int32
 	} E_DataType;
+
+	typedef enum class ReturnStateEnum
+	{
+		SUCCESS = 0,
+		RTN_WARN = 1,	// 警告,继续执行
+		RTN_ERR = 2,	// 错误, 抛出异常并退出此函数
+		RTN_FATAL = 3	// 失败, 终止程序
+	} E_ReturnState;
+
+	typedef void(*PVoidFunc)();
+	typedef E_ReturnState(*PRetFunc)();
+	typedef E_ReturnState(*PRetFunc2)(void* param);
+
+#define ChkErr(val) do{\
+	E_ReturnState val_hold = val; \
+	if(val_hold == E_ReturnState::RTN_ERR) return val;\
+	if(val_hold == E_ReturnState::RTN_FATAL) exit(EXIT_FAILURE);\
+}while(0)
+
 }

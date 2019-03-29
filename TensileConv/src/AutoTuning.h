@@ -3,6 +3,7 @@
 #include <math.h>
 #include <algorithm>
 #include "../common/ff_utils.h"
+#include "../common/ff_runtime.h"
 
 namespace TensileConv{
 namespace AutoTune{
@@ -138,14 +139,14 @@ public:
 		{
 			if (newParam->Step == 0)
 			{
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
 
 			if (len <= 0)
 			{
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			int val = newParam->MinValue;
@@ -166,7 +167,7 @@ public:
 		paramNumber++;
 		paramCombNum *= newParam->ValueNum;
 
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	E_ReturnState GenerateNextComb()
 	{
@@ -178,7 +179,7 @@ public:
 		{
 			moveCurrIdx = true;
 			searchParamIdx = 0;
-			return RTN_FAIL;
+			return E_ReturnState::RTN_ERR;
 		}
 
 		// 调整当前数组指针
@@ -204,7 +205,7 @@ public:
 		{
 			moveCurrIdx = true;
 			searchParamIdx = 0;
-			return RTN_SUCCESS;
+			return E_ReturnState::SUCCESS;
 		}
 
 		// 搜索下一组参数
@@ -423,14 +424,14 @@ public:
 		{
 			if (newParam->Step == 0)
 			{
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			int len = (int)ceil((newParam->MaxValue - newParam->MinValue) / newParam->Step);
 
 			if (len <= 0)
 			{
-				return RTN_FAIL;
+				return E_ReturnState::RTN_ERR;
 			}
 
 			int val = newParam->MinValue;
@@ -449,15 +450,15 @@ public:
 
 		genePool->push_back(newParam);
 
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	E_ReturnState GenerateNextComb()
 	{
 		if (checkedCombNum >= POP_SIZE * MAX_GENERATION)
-			return RTN_FAIL;
+			return E_ReturnState::RTN_ERR;
 
 		genRandChrom();
-		return RTN_SUCCESS;
+		return E_ReturnState::SUCCESS;
 	}
 	void SetOneCombScore(double value)
 	{

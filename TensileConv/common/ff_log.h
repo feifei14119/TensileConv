@@ -1,37 +1,37 @@
 #pragma once
 
+#include <string>
+#include <iostream>
+#include <fstream>
+
 #include "ff_basic.h"
 
-#define COMMENT_LEN			(73)
-#define OUTPUT(fmt,...)		feifei::print_format_output(fmt,##__VA_ARGS__)
-#define	INFO(fmt,...)		feifei::print_format_info(fmt,##__VA_ARGS__)
-#define WARN(fmt,...)		feifei::print_format_warn(__FILE__,__LINE__,fmt,##__VA_ARGS__)
-#define ERR(fmt,...)		do{feifei::print_format_err(__FILE__,__LINE__,fmt,##__VA_ARGS__);return RTN_FAIL;}while(0)
-#define FATAL(fmt,...)		feifei::print_format_fatal(__FILE__,__LINE__,fmt,##__VA_ARGS__)
-#define	PRINT_SEPARATOR1()	do{for(int i=0;i<COMMENT_LEN;i++) printf("*"); printf("\n");}while(0)
-#define	PRINT_SEPARATOR2()	do{for(int i=0;i<COMMENT_LEN;i++) printf("="); printf("\n");}while(0)
-#define	PRINT_SEPARATOR3()	do{for(int i=0;i<COMMENT_LEN;i++) printf("-"); printf("\n");}while(0)
-#define	PRINT_SEPARATOR(c)	do{for(int i=0;i<COMMENT_LEN;i++) printf("%c",c); printf("\n");}while(0)
+#define INFO(fmt,...)		feifei::PrintInfo(fmt,##__VA_ARGS__)
+#define	LOG(fmt,...)		feifei::PrintLog(fmt,##__VA_ARGS__)
+#define WARN(fmt,...)		feifei::PrintWarning(__FILE__,__LINE__,fmt,##__VA_ARGS__)
+#define ERR(fmt,...)		do{feifei::PrintError(__FILE__,__LINE__,fmt,##__VA_ARGS__);return E_ReturnState::RTN_ERR;}while(0)
+#define FATAL(fmt,...)		feifei::PrintFatal(__FILE__,__LINE__,fmt,##__VA_ARGS__)
 
 namespace feifei
 {
-	/************************************************************************/
-	/* 屏幕输出																*/
-	/************************************************************************/
-	extern void print_format_output(const char * format, ...);
-	extern void print_format_output(std::string msg, ...);
-	extern void print_format_info(const char * format, ...);
-	extern void print_format_info(std::string msg,...);
-	extern void print_format_warn(const char *file, int line, const char * format, ...);
-	extern void print_format_warn(const char *file, int line, std::string msg, ...);
-	extern E_ReturnState print_format_err(const char *file, int line, const char * format, ...);
-	extern E_ReturnState print_format_err(const char *file, int line, std::string msg, ...);
-	extern void print_format_fatal(const char *file, int line, const char * format, ...);
-	extern void print_format_fatal(const char *file, int line, std::string msg, ...);
+	// 输出分隔符
+	void PrintSeperator(const char c, std::ostream *sm = &std::cout);
+	// cout输出
+	void PrintInfo(const char * format, ...);
+	void PrintInfo(std::string msg, ...);
+	// 带时间戳的clog输出
+	void PrintLog(const char * format, ...);
+	void PrintLog(std::string msg, ...);
+	// 带时间戳和错误位置的clog输出
+	void PrintWarning(const char *file, int line, const char * format, ...);
+	void PrintWarning(const char *file, int line, std::string msg, ...);
+	// 带时间戳和错误位置并返回错误的cerr输出
+	E_ReturnState PrintError(const char *file, int line, const char * format, ...);
+	E_ReturnState PrintError(const char *file, int line, std::string msg, ...);
+	// 带时间戳和错误位置并终止程序的cerr输出
+	void PrintFatal(const char *file, int line, const char * format, ...);
+	void PrintFatal(const char *file, int line, std::string msg, ...);
 
-	/************************************************************************/
-	/* 文件输出																*/
-	/************************************************************************/
 	class LogFile
 	{
 	public:
@@ -41,8 +41,10 @@ namespace feifei
 		void Log(std::string msg, ...);
 
 	protected:
+		void ensureLogDir();
+		std::string log_dir;
 		std::string file_name;
-		std::ofstream * log_file; 
-		char * log_char_buffer;
+		std::ofstream * fstream; 
+		char * PrintBuffer;
 	};
 }

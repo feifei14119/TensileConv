@@ -1,6 +1,6 @@
 #pragma once
 
-#include   <map> 
+#include <map> 
 #include "ff_basic.h"
 
 namespace feifei
@@ -41,6 +41,7 @@ namespace feifei
 	class CmdArgs
 	{
 	public:
+		CmdArgs();
 		CmdArgs(int argc, char *argv[]);
 		void * GetOneArg(E_ArgId id);
 		static CmdArgs * GetCmdArgs();
