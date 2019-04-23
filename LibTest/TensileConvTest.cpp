@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
 	TCSolutionType solution;
 	DirConv1x1Fwd * conv;
 
-	DirConv1x1Fwd::SetDbFilePath("/home/feifei/projects/out/db");
-	printf("database file path: %s\n", DirConv1x1Fwd::GetDbFilePath().c_str());
+	//DirConv1x1Fwd::SetWorkPath("/home/feifei/projects/out/db");
+	//printf("database file path: %s\n", DirConv1x1Fwd::GetWorkPath().c_str());
 
 	int W = 7, H = 7, C = 2048, K = 512, N=8;
 	while (0)

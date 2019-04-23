@@ -117,6 +117,28 @@ namespace feifei
 
 		char tmp_key[1024];
 		char a1 = 0, a2 = 0, a3 = 0;
+
+		while (!fin.eof())
+		{
+			fin.get(a2);
+			if (a2 == '<')
+			{
+				memset(tmp_key, 0, 1024);
+				int idx = 0;
+
+				fin.get(a2);
+				while (a2 != '>')
+				{
+					tmp_key[idx++] = a2;
+					fin.get(a2);
+				}
+				std::string key(tmp_key);
+
+				if (key == "db_file_start")
+					break;
+			}
+		}
+
 		while (!fin.eof())
 		{
 			a1 = a2;

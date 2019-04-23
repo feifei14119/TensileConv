@@ -1,6 +1,4 @@
-﻿/* 由于性能出现严重下降，所以临时恢复到2019.03.01提交后的版本*/
-
-#pragma once
+﻿#pragma once
 
 #include "ConvFwd1x1KernelWriter.h"
 
@@ -62,7 +60,20 @@ E_ReturnState KernelWriterConv1x1::checkKernelParam()
 		return E_ReturnState::RTN_ERR;
 	if (c_in_maps_once <= c_in_maps / unroll_time)
 	{
-		c_in_maps_once_real = c_in_maps_once;
+		c_in_maps_once_real = 2;
+		while (c_in_maps_once_real <= c_in_maps_once)
+		{
+			if (c_in_maps_once_real >= 8)// 不超过原始最大值
+			{
+				break;
+			}
+			if (((c_in_maps / unroll_time) % c_in_maps_once_real) != 0)
+			{
+				c_in_maps_once_real /= 2;
+				break;
+			}
+			c_in_maps_once_real *= 2;
+		}
 	}
 	else
 	{
@@ -319,25 +330,22 @@ void KernelWriterConv1x1::conv_last_loop_odd(Var * in_buff)
 	// 调整weight buff偏移量
 	wei_offset += (c_in_maps_once_real - wei_chan_stride * k_out_maps) * 4;
 
-	load_weight(s_wei_buff_a);
-	s_wait_lgkmcnt(0);				// wait s_wei_buff_a
-	if (k_out_maps > 1)
-	{
-		load_weight(s_wei_buff_b);
-	}
+	load_weight(s_wei_buff_b);
 	s_wait_vmcnt(0);				// wait in_buff
-	conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + 0);
 
 	int loop = (k_out_maps - 1) / 2;
 	for (int i = 0; i < loop; i++)
 	{
 		s_wait_lgkmcnt(0);			// wait s_wei_buff_b
 		load_weight(s_wei_buff_a);
-		conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (i * 2 + 1));
+		conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (i * 2));
 		s_wait_lgkmcnt(0);			// wait s_wei_buff_a
 		load_weight(s_wei_buff_b);
-		conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + (i * 2 + 2));
+		conv_one_accum(in_buff, s_wei_buff_a, *v_acc_buff + (i * 2 + 1));
 	}
+
+	s_wait_lgkmcnt(0);				// wait s_wei_buff_b
+	conv_one_accum(in_buff, s_wei_buff_b, *v_acc_buff + (k_out_maps - 1));
 }
 void KernelWriterConv1x1::conv_one_accum(Var * in_buff, Var * wei_buff, Var * accum)
 {

@@ -26,11 +26,17 @@ DirConv1x1Fwd::~DirConv1x1Fwd()
 	delete pOcl;
 }
 
+void DirConv1x1Fwd::SetWorkPath(std::string path)
+{
+	set_work_path(path);
+}
 void DirConv1x1Fwd::SetDbFilePath(std::string path)
 {
+	WARN("please use SetWorkPath() function.");
 }
-std::string DirConv1x1Fwd::GetDbFilePath()
+std::string DirConv1x1Fwd::GetWorkPath()
 {
+	return get_work_path();
 }
 
 double DirConv1x1Fwd::TuneProblem(int W, int H, int C, int K, int N, int U, int V,

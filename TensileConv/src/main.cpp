@@ -34,11 +34,29 @@ int main(int argc, char *argv[])
 	bool Bias = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_BIAS) == 1;
 	int Relu = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_RELU);
 	int TuneMethod = *(int*)ca->GetOneArg(E_ArgId::CMD_ARG_SEARCH);
-	W = 14; H = 14; N = 4; C = 512; K = 512; UV = 1; Bias = false; Relu = E_Relu::NORELU; TuneMethod = 1;
+	TuneMethod = AutoTune::E_SearchMethord::SEARCH_BRUTE;
+
+	//W = 56; H = 56; N = 1; C = 64; K = 64; UV = 1; Bias = true; Relu = E_Relu::RELU;
+	//for (N = 1; N <= 16; N *= 2)
+	//{
+	//	//for (C = 64; C <= 1024; C *= 2)
+	//	{
+	//		//for (K = 64; K <= 1024; K *= 2)
+	//		{
+	//			//for (H = 7; H <= 224; H *= 2)
+	//			{
+	//				W = H;
+	//				ConvFwd1x1Problem * conv = new ConvFwd1x1Problem("DirConv1x1Fwd", logFile);
+	//				conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
+	//				delete conv;
+	//			}
+	//
+	//		}
+	//	}
+	//}
 
 	ConvFwd1x1Problem * conv = new ConvFwd1x1Problem("DirConv1x1Fwd", logFile);
 	conv->TuneProblem(W, H, C, K, N, UV, Bias, Relu, TuneMethod);
-
 	ConvFwd1x1Solution * slt = (ConvFwd1x1Solution*)conv->BestSolution();
 	INFO("kernel file: " + slt->KernelFile());
 	INFO("kernel name: " + slt->KernelName());
@@ -49,7 +67,6 @@ int main(int argc, char *argv[])
 	INFO("global size: [%d, %d, %d]", slt->GlobalSize().x, slt->GlobalSize().y, slt->GlobalSize().z);
 	INFO("elapsed time: %.1f(us)", slt->SolutionScore().ElapsedTime * 1e6);
 
-	delete conv;
 	delete pOcl;
 	return 0;
 }

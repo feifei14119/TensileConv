@@ -1,0 +1,11 @@
+cp ~/projects/out/libTensileConv.a ~/anakin_tensile/anakin/third-party/extern_miopen/src/tensile/lib/libTensileConv.a
+
+rm -rf amd_gpu_build/
+rm -rf output/miopen/db/conv1x1_fwd_dir_gfx803
+./tools/amd_gpu_build.sh 
+
+./output/unit_test/benchmark ~/model_test/models/ Resnet101.anakin.bin 2 1 1
+./output/unit_test/test_saber_conv_AMD 2 64 56 56 256 1 1 1 1 1 1 0 0 1 0 1
+
+cd ~/anakin_whole_network/anakin/
+cd ~/anakin_tensile/anakin/
